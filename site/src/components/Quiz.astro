@@ -6,9 +6,8 @@ interface Props {
   opciones: QuizOpcion[];
 }
 const { pregunta, opciones } = Astro.props;
-const quizId = `quiz-${Math.random().toString(36).slice(2, 9)}`;
 ---
-<div class="my-4 rounded border border-gray-300 p-4" data-quiz={quizId} data-opciones={JSON.stringify(opciones)}>
+<div class="my-4 rounded border border-gray-300 p-4" data-quiz data-opciones={JSON.stringify(opciones)}>
   <p class="font-semibold mb-2">{pregunta}</p>
   <div class="flex flex-col gap-2">
     {opciones.map((opcion, i) => (

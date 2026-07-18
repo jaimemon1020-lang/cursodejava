@@ -20,16 +20,21 @@ import '../styles/global.css';
       const completadas = leerCompletadas();
       const resumen = calcularResumen(catalogo, completadas);
 
-      document.getElementById('resumen').textContent =
-        `${resumen.totalCompletadas} / ${resumen.totalPublicadas} lecciones completadas (${resumen.porcentaje}%)`;
+      const resumenEl = document.getElementById('resumen');
+      if (resumenEl) {
+        resumenEl.textContent =
+          `${resumen.totalCompletadas} / ${resumen.totalPublicadas} lecciones completadas (${resumen.porcentaje}%)`;
+      }
 
       const lista = document.getElementById('lista');
-      catalogo.forEach((entrada) => {
-        const li = document.createElement('li');
-        const hecha = completadas.includes(entrada.id);
-        li.textContent = `${hecha ? '✅' : '⬜'} Etapa ${entrada.etapa} — Lección ${entrada.leccion}: ${entrada.titulo}`;
-        lista.appendChild(li);
-      });
+      if (lista) {
+        catalogo.forEach((entrada) => {
+          const li = document.createElement('li');
+          const hecha = completadas.includes(entrada.id);
+          li.textContent = `${hecha ? '✅' : '⬜'} Etapa ${entrada.etapa} — Lección ${entrada.leccion}: ${entrada.titulo}`;
+          lista.appendChild(li);
+        });
+      }
     </script>
   </body>
 </html>
