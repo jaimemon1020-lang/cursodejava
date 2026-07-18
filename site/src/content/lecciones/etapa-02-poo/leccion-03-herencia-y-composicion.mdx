@@ -1,0 +1,317 @@
+---
+etapa: 2
+etapaTitulo: "Programación Orientada a Objetos"
+leccion: 3
+titulo: "Herencia y composición"
+objetivo: "Reutilizar código con herencia (extends, super) cuando hay una relación 'es un', y modelar relaciones 'tiene un' con composición, eligiendo la correcta según el caso."
+prerrequisitos: ["etapa-02-poo/leccion-02-encapsulamiento"]
+version_proyecto: "v2 — Persona, Cliente, Order"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de crear una jerarquía de clases con `extends`, reutilizar el constructor y comportamiento de una clase base con `super`, y modelar una relación "tiene un" con composición — y decidir cuál de las dos usar en cada caso.
+
+## Por qué necesitas aprenderlo
+
+Un `Cliente` y un futuro `Empleado` comparten datos (nombre, email) pero no son lo mismo. Y un `Order` necesita un cliente y un producto, sin ser "una especie de" ninguno de los dos — necesitás las dos herramientas, cada una para su relación correcta.
+
+## Qué debes saber antes
+
+Clases, objetos, constructores, `this`, y encapsulamiento con `private` (lecciones anteriores de esta etapa).
+
+## Recupera lo aprendido
+
+¿Por qué es mejor validar en el setter que confiar en que quien llama al código lo haga bien?
+
+<Reveal titulo="Respuesta">
+Porque la regla queda protegida en un solo lugar, y se aplica siempre, sin importar desde dónde se llame al método.
+</Reveal>
+
+## Problema
+
+Necesitás modelar un `Cliente`: tiene nombre y email, como cualquier persona registrada en el sistema, pero además una dirección de envío. Copiar `nombre` y `email` de nuevo en una clase `Cliente` separada duplicaría exactamente lo que ya escribiste. Y por otro lado, un `Order` necesita "contener" un cliente y un producto — pero un pedido no ES un cliente, ni ES un producto.
+
+## Modelo mental
+
+```
+HERENCIA ("es un")              COMPOSICIÓN ("tiene un")
+                                
+   Persona                        Order
+      ▲                             │
+      │ extends                     │ tiene una referencia a
+   Cliente                        Cliente,  Product
+                                
+Cliente ES UNA Persona           Order TIENE UN Cliente
+(hereda sus atributos/métodos)   (los usa, no los "es")
+```
+
+## Explicación sencilla
+
+Herencia es cuando una clase ES un caso particular de otra: un `Cliente` es una `Persona` con algo extra. Composición es cuando una clase TIENE otra como parte de sus datos: un `Order` tiene un `Cliente` y un `Product`, pero no es ninguno de los dos.
+
+## Explicación técnica
+
+**Herencia (`extends`):** una clase hija reutiliza los atributos y métodos de una clase padre. `protected` (en vez de `private`) permite que la clase hija acceda directamente a esos atributos heredados. `super(...)` en el constructor de la hija invoca el constructor del padre — es obligatoriamente la primera línea si se usa. `super.metodo()` invoca la versión del padre de un método que la hija sobrescribió (**override**, marcado con `@Override`).
+
+Sobrescribir un método (`@Override`) es la base del **polimorfismo**: cuando llamás `cliente.describir()`, Java ejecuta la versión de `Cliente` (más específica), no la de `Persona` — aunque la variable esté declarada como `Persona`. Vas a profundizar esto (con clases abstractas e interfaces) en la próxima lección.
+
+**Composición:** una clase simplemente declara un atributo cuyo tipo es otra clase. No hay `extends`, no hay jerarquía — solo una referencia normal, como cualquier otro atributo.
+
+## Cómo funciona
+
+1. `Cliente extends Persona` hereda `nombre`, `email`, `getNombre()`.
+2. `super(nombre, email)` en el constructor de `Cliente` ejecuta el constructor de `Persona`, evitando repetir esa asignación.
+3. `describir()` en `Cliente` usa `@Override` para agregar comportamiento nuevo, llamando primero a `super.describir()` para no perder lo que ya hacía `Persona`.
+4. `Order` no hereda de nada — simplemente guarda una referencia a un `Cliente` y a un `Product` como cualquier atributo, y los usa en `calcularTotal()`.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-02/Persona.java`
+
+```java
+public class Persona {
+
+    protected String nombre;
+    protected String email;
+
+    Persona(String nombre, String email) {
+        this.nombre = nombre;
+        this.email = email;
+    }
+
+    public String getNombre() {
+        return this.nombre;
+    }
+
+    public void describir() {
+        System.out.println("Persona: " + this.nombre + " (" + this.email + ")");
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-02/Cliente.java`
+
+```java
+public class Cliente extends Persona {
+
+    private String direccionEnvio;
+
+    Cliente(String nombre, String email, String direccionEnvio) {
+        super(nombre, email);
+        this.direccionEnvio = direccionEnvio;
+    }
+
+    public String getDireccionEnvio() {
+        return this.direccionEnvio;
+    }
+
+    @Override
+    public void describir() {
+        super.describir();
+        System.out.println("Direccion de envio: " + this.direccionEnvio);
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-02/Order.java`
+
+```java
+public class Order {
+
+    private Cliente cliente;
+    private Product producto;
+    private int cantidad;
+
+    Order(Cliente cliente, Product producto, int cantidad) {
+        this.cliente = cliente;
+        this.producto = producto;
+        this.cantidad = cantidad;
+    }
+
+    public double calcularTotal() {
+        return this.producto.getPrecio() * this.cantidad;
+    }
+
+    public void describir() {
+        System.out.println("Pedido de: " + this.cliente.getNombre());
+        System.out.println("Producto: " + this.producto.getNombre() + " x" + this.cantidad);
+        System.out.println("Total: " + this.calcularTotal());
+    }
+}
+```
+
+## Predice
+
+`Cliente.describir()` llama primero a `super.describir()`. ¿Va a imprimir SOLO los datos de dirección, o los datos de `Persona` también?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Persona: Ana Generica (ana@ejemplo.com)
+---
+Persona: Juan Perez (juan@ejemplo.com)
+Direccion de envio: Av. Siempre Viva 123
+---
+Pedido de: Juan Perez
+Producto: Teclado mecanico x2
+Total: 50000.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `new Persona(...)` imprime solo su propia línea — no tiene noción de `Cliente`.
+- `new Cliente(...).describir()` imprime PRIMERO la línea de `Persona` (por el `super.describir()`) y DESPUÉS la línea propia de `Cliente` — ambas, porque `super` no reemplaza, complementa.
+- `Order` nunca hereda de `Cliente` ni de `Product` — simplemente los usa a través de sus getters (`getNombre()`, `getPrecio()`), como cualquier objeto colaborador.
+
+## Ejemplo aplicado al proyecto
+
+Esta es la primera vez que `Order` aparece en el proyecto: por composición, contiene un `Cliente` y (por ahora) un solo `Product`. Cuando lleguemos a Collections (Etapa 4), vas a reemplazar "un producto" por una lista de `OrderItem`, sin cambiar la idea de fondo: `Order` siempre va a TENER esos datos, nunca SER uno de ellos.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El compilador rechaza la clase hija con un error sobre el constructor."
+  diagnostico="javac señala que no encuentra un constructor por defecto en la clase padre, o que super() debe ser la primera sentencia."
+  causa="Se intentó usar this.nombre = nombre; en el constructor de Cliente antes de llamar a super(...), o directamente se omitió el super(...) esperando que Java lo haga solo."
+  solucion="super(nombre, email) debe ser la primera línea del constructor de la clase hija, antes de cualquier otra instrucción."
+  prevencion="Cuando una clase padre no tiene un constructor sin argumentos, la clase hija SIEMPRE tiene que llamar explícitamente a super(...) con los argumentos correctos, como primera línea."
+>
+```java
+Cliente(String nombre, String email, String direccionEnvio) {
+    this.direccionEnvio = direccionEnvio;
+    super(nombre, email); // debe ir primero, no despues
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar una clase `Empleado extends Persona` con un atributo extra `legajo`:
+
+```java
+public class Empleado extends Persona {
+    private int legajo;
+
+    Empleado(String nombre, String email, int legajo) {
+        super(nombre, email);
+        this.legajo = legajo;
+    }
+
+    @Override
+    public void describir() {
+        super.describir();
+        System.out.println("Legajo: " + this.legajo);
+    }
+}
+```
+
+## Ejercicio guiado
+
+Agregá a `Order` un método `aplicarDescuento(double porcentaje)` que devuelva el total con descuento, reutilizando `calcularTotal()`.
+
+<Reveal titulo="Pista 1">
+No necesitás tocar los atributos privados de Order — llamá a tu propio método `calcularTotal()`.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+La fórmula es la misma que ya usaste en la Etapa 1: `total - (total * porcentaje)`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+public double aplicarDescuento(double porcentaje) {
+    double total = this.calcularTotal();
+    return total - (total * porcentaje);
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-02/`, creá la clase `Empleado` del ejercicio trabajado en su propio archivo, instanciala junto con un `Cliente` en un `main`, y confirmá que `describir()` de cada uno imprime cosas distintas aunque ambos hereden de `Persona`.
+
+## Transferencia
+
+Si necesitaras un `ClienteVip` que sea igual a `Cliente` pero con un descuento fijo adicional, ¿usarías herencia (`ClienteVip extends Cliente`) o composición (`Cliente` con un atributo `NivelVip`)? Pensalo antes de la próxima lección, donde vas a ver cuándo la herencia empieza a traer más problemas que soluciones.
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál de estas relaciones se modela mejor con composición en vez de herencia?"
+  opciones={[
+    { texto: "Un Gerente es un tipo especial de Empleado", correcta: false, feedback: "Esto es una relación 'es un' clásica — Gerente extends Empleado es el caso típico de herencia." },
+    { texto: "Un Order tiene un Cliente que lo hizo", correcta: true, feedback: "Correcto: un Order no ES un Cliente, simplemente TIENE una referencia a uno — es composición." },
+    { texto: "Un ClienteVip es un tipo especial de Cliente", correcta: false, feedback: "También es 'es un' — candidato natural a herencia, aunque la próxima lección va a matizar cuándo conviene evitarla." },
+    { texto: "Un Empleado es una Persona con legajo adicional", correcta: false, feedback: "Es exactamente el patrón de herencia que viste en este ejemplo: Empleado extends Persona." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+public class Cliente extends Persona {
+    @Override
+    public void describir() {
+        System.out.println("Direccion: " + this.direccionEnvio);
+    }
+}
+```
+
+Este código compila, pero al llamar `describir()` ya no aparecen el nombre ni el email de la persona. ¿Qué falta?
+
+<Reveal titulo="Diagnóstico">
+Falta `super.describir();` antes de la línea propia. Sin esa llamada, el override REEMPLAZA por completo el comportamiento del padre en vez de complementarlo — Java no llama automáticamente a la versión heredada salvo que vos lo pidas explícitamente con `super`.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que `Order` no hereda de `Cliente` ni de `Product`, aunque los necesita a los dos para funcionar? ¿Qué problema traería si `Order extends Cliente` para "tener acceso" a los datos del cliente?
+
+<Comparativa
+  columnas={["Concepto", "Relación", "Palabra clave", "Ejemplo en este código"]}
+  filas={[
+    ["Herencia", "'es un'", "extends, super", "Cliente extends Persona"],
+    ["Composición", "'tiene un'", "(ninguna especial, solo un atributo)", "Order tiene un Cliente y un Product"],
+  ]}
+/>
+
+## Resumen
+
+- Herencia (`extends`) modela "es un"; reutiliza atributos y métodos de una clase padre.
+- `super(...)` invoca el constructor padre; debe ser la primera línea del constructor hijo.
+- `super.metodo()` invoca la versión del padre de un método sobrescrito (`@Override`).
+- Composición modela "tiene un": una clase simplemente contiene una referencia a otra, sin jerarquía.
+- Sobrescribir un método es la base del polimorfismo — profundizado en la próxima lección.
+
+## Modelo mental final
+
+Cuando pienses en herencia vs. composición, preguntate: "¿esto ES un caso particular de aquello, o simplemente LO TIENE como parte de sus datos?" La respuesta correcta casi siempre es evidente si la formulás así de literal.
+
+## Conexión
+
+`Order` reutiliza `Cliente` (de esta lección) y `Product` (de las dos lecciones anteriores) — el mismo `Product` con `private`/getters ya construido sigue funcionando sin cambios.
+
+## Próximo paso
+
+Etapa 2 / Lección 4: polimorfismo, abstracción, clases abstractas e interfaces.
+
+## Fuentes
+
+dev.java — sección de herencia. openjdk.org — especificación del lenguaje Java (JLS), extends y super.
+
+<SelfCheck
+  leccionId="etapa-02-poo/leccion-03-herencia-y-composicion"
+  criterios={[
+    "Puedo crear una clase hija con extends y reutilizar el constructor padre con super.",
+    "Puedo sobrescribir un método con @Override y decidir si llamo a super o no.",
+    "Puedo modelar una relación 'tiene un' con composición, sin usar herencia.",
+    "Puedo decidir, dado un caso nuevo, si conviene herencia o composición.",
+  ]}
+/>

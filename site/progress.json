@@ -62,6 +62,13 @@
       "leccion": 2,
       "titulo": "Encapsulamiento: private, getters, setters e inmutabilidad",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-02-poo/leccion-03-herencia-y-composicion",
+      "etapa": 2,
+      "leccion": 3,
+      "titulo": "Herencia y composición",
+      "estado": "publicada"
     }
   ]
 }
