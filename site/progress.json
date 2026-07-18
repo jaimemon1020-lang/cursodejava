@@ -6,6 +6,13 @@
       "leccion": 1,
       "titulo": "Qué ocurre cuando ejecutas un programa Java",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-01-java-basico/leccion-01-variables-tipos-primitivos",
+      "etapa": 1,
+      "leccion": 1,
+      "titulo": "Variables, tipos primitivos y constantes",
+      "estado": "publicada"
     }
   ]
 }

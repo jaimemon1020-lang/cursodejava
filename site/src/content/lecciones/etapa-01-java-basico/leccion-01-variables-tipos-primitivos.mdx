@@ -1,0 +1,238 @@
+---
+etapa: 1
+etapaTitulo: "Java Básico"
+leccion: 1
+titulo: "Variables, tipos primitivos y constantes"
+objetivo: "Declarar variables con el tipo correcto, distinguir tipos primitivos de referencias, y usar constantes con `final` en un programa Java real."
+prerrequisitos: ["etapa-00-como-funciona-java/leccion-01-que-ocurre-cuando-ejecutas-java"]
+version_proyecto: "v1 — Variables y tipos primitivos"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de declarar variables en Java eligiendo el tipo correcto (primitivo o referencia), explicar la diferencia entre ambos, y usar `final` para modelar una constante — todo aplicado a datos reales de un producto del sistema de pedidos.
+
+## Por qué necesitas aprenderlo
+
+Todo lo que vas a construir en este curso — desde un `Product` con precio y stock, hasta una entidad JPA más adelante — empieza por declarar correctamente sus datos. Un error de tipo acá se arrastra hasta el final.
+
+## Qué debes saber antes
+
+De la lección anterior: que un programa Java se compila con `javac` y se ejecuta con `java`, y que `System.out.println` imprime en pantalla.
+
+## Recupera lo aprendido
+
+Sin mirar la lección anterior: ¿qué comando compila `HolaMundo.java`, y qué comando lo ejecuta después?
+
+<Reveal titulo="Respuesta">
+`javac HolaMundo.java` compila (genera `HolaMundo.class`). `java HolaMundo` ejecuta ese bytecode en la JVM — sin la extensión `.class` ni `.java`.
+</Reveal>
+
+## Problema
+
+Necesitás representar los datos de un producto: su nombre, cuánto cuesta, cuánto stock queda, si está disponible. Cada uno de esos datos es de una naturaleza distinta — texto, número con decimales, número entero, verdadero/falso. Java te obliga a decirle explícitamente qué tipo es cada uno.
+
+## Modelo mental
+
+```
+VARIABLE
+   │
+   ├── TIPO PRIMITIVO (int, double, boolean, char...)
+   │        el valor vive directamente en esa casilla de memoria
+   │
+   └── REFERENCIA (String, y cualquier objeto)
+            la casilla guarda una dirección; el valor real vive en otro lado
+```
+
+## Explicación sencilla
+
+Un tipo primitivo es una cajita que contiene el valor mismo: si declarás `int stock = 15;`, en esa variable hay literalmente un 15. Un `String`, en cambio, es una referencia: la variable apunta a un objeto `String` que vive en otro lugar de la memoria.
+
+## Explicación técnica
+
+Java tiene 8 tipos primitivos: `byte`, `short`, `int`, `long` (enteros), `float`, `double` (decimales), `boolean` (verdadero/falso) y `char` (un carácter). Todo lo demás — `String`, arrays, cualquier clase — es un **tipo referencia**: la variable almacena una referencia (dirección) al objeto real, no el objeto en sí.
+
+Una **constante** se declara con el modificador `final`: una vez asignada, no puede reasignarse. Por convención se escribe en mayúsculas (`IVA`, no `iva`).
+
+## Cómo funciona
+
+1. `int stock = 15;` reserva espacio para un entero y guarda 15 directamente ahí.
+2. `String nombre = "Teclado mecanico";` reserva espacio para una referencia; el texto real vive como objeto `String` en el heap.
+3. `final double IVA = 0.21;` reserva espacio para un `double`; el compilador rechaza cualquier intento posterior de reasignarlo.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-01/DatosProducto.java`
+
+```java
+public class DatosProducto {
+    public static void main(String[] args) {
+        final double IVA = 0.21;
+
+        String nombre = "Teclado mecanico";
+        int stock = 15;
+        double precio = 25000.0;
+        boolean disponible = stock > 0;
+        char categoria = 'P';
+
+        double precioConIva = precio + (precio * IVA);
+
+        System.out.println("Producto: " + nombre);
+        System.out.println("Categoria: " + categoria);
+        System.out.println("Stock: " + stock);
+        System.out.println("Disponible: " + disponible);
+        System.out.println("Precio sin IVA: " + precio);
+        System.out.println("Precio con IVA: " + precioConIva);
+    }
+}
+```
+
+## Predice
+
+Antes de ver el resultado: ¿qué imprimirá la línea de `Disponible`, sabiendo que `disponible = stock > 0` y `stock` vale 15?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Producto: Teclado mecanico
+Categoria: P
+Stock: 15
+Disponible: true
+Precio sin IVA: 25000.0
+Precio con IVA: 30250.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `final double IVA = 0.21;` — una constante, no cambia en todo el programa.
+- `String nombre = "..."` — tipo referencia, entre comillas dobles.
+- `int stock = 15;` — entero, sin decimales.
+- `double precio = 25000.0;` — decimal, aunque termine en `.0`.
+- `boolean disponible = stock > 0;` — el resultado de una comparación, no un literal.
+- `char categoria = 'P';` — un solo carácter, entre comillas **simples** (no dobles).
+
+## Ejemplo aplicado al proyecto
+
+Esto es el punto de partida real de `Product` en el Sistema de Gestión de Pedidos e Inventario: por ahora son variables sueltas dentro de `main`, todavía no una clase `Product` con sus propios campos — eso llega en la Etapa 2 (Programación Orientada a Objetos), cuando aprendas a agrupar estos datos en un objeto real.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El compilador rechaza el programa con un error de tipos."
+  diagnostico="`javac` reporta: incompatible types: double cannot be converted to int"
+  causa="Se intentó guardar un valor decimal (25000.0) en una variable declarada como int, que solo admite enteros."
+  solucion="Declarar la variable como double si el valor tiene decimales, o usar un literal entero (25000) si realmente es un int."
+  prevencion="Elegí el tipo primitivo mirando el dato real: si puede tener decimales, es double; si es un conteo exacto, es int."
+>
+```java
+int precio = 25000.0; // no compila
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar una variable `codigoBarras` (texto) y otra `pesoKg` (decimal) al ejemplo:
+
+```java
+String codigoBarras = "7791234567890";
+double pesoKg = 0.85;
+System.out.println("Codigo: " + codigoBarras);
+System.out.println("Peso: " + pesoKg + " kg");
+```
+
+## Ejercicio guiado
+
+Agregá una constante `DESCUENTO_MAYORISTA` y calculá el precio con descuento.
+
+<Reveal titulo="Pista 1">
+Una constante se declara igual que una variable, pero con `final` adelante y en mayúsculas.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+El precio con descuento es `precio - (precio * DESCUENTO_MAYORISTA)`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+final double DESCUENTO_MAYORISTA = 0.10;
+double precioMayorista = precio - (precio * DESCUENTO_MAYORISTA);
+System.out.println("Precio mayorista: " + precioMayorista);
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En tu propio `proyecto/etapa-01/`, escribí un programa `DatosCliente.java` que declare: `nombre` (String), `dni` (int), `esClienteVip` (boolean), y una constante `PUNTOS_POR_COMPRA`. Compilalo y correlo vos mismo con `javac`/`java`.
+
+## Transferencia
+
+Si en vez de un producto tuvieras que modelar un **pedido** (número de pedido, fecha, si está confirmado), ¿qué tipo usarías para cada dato? Pensalo antes de que la Etapa 2 te muestre cómo agrupar todo esto en clases.
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál de estas declaraciones es correcta para representar el stock de un producto (un conteo entero)?"
+  opciones={[
+    { texto: "double stock = 15;", correcta: false, feedback: "Compila, pero es semánticamente incorrecto: stock es un conteo exacto, no debería admitir decimales como 15.5 unidades." },
+    { texto: "int stock = 15;", correcta: true, feedback: "Correcto: un conteo de unidades es un entero, int es el tipo adecuado." },
+    { texto: "String stock = 15;", correcta: false, feedback: "No compila: 15 sin comillas es un literal int, no un String — y stock como texto no te permitiría hacer stock > 0." },
+    { texto: "char stock = 15;", correcta: false, feedback: "char representa un solo carácter (como 'P'), no una cantidad de unidades." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+char categoria = "P";
+```
+
+¿Por qué no compila?
+
+<Reveal titulo="Diagnóstico">
+`char` espera comillas **simples** (`'P'`). Con comillas dobles, `"P"` es un `String` de un carácter, no un `char` — son tipos distintos e incompatibles.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que Java exige declarar el tipo de cada variable de entrada (a diferencia de un lenguaje donde una variable puede cambiar de tipo libremente)? ¿Qué error evita esto en un sistema que maneja dinero y stock?
+
+## Resumen
+
+- Java tiene 8 tipos primitivos: el valor vive directamente en la variable.
+- `String` (y cualquier objeto) es una referencia: la variable apunta al valor real.
+- `final` convierte una variable en constante — no puede reasignarse.
+- El tipo se elige según la naturaleza real del dato, no por conveniencia.
+- `char` usa comillas simples; `String` usa comillas dobles.
+- Un error de tipo se detecta en **compilación**, antes de ejecutar nada.
+
+## Modelo mental final
+
+Cuando pienses en una variable primitiva, imaginá una caja con el valor adentro. Cuando pienses en un `String` (o cualquier objeto), imaginá una caja con una flecha que apunta a otra parte de la memoria donde vive el valor real.
+
+## Conexión
+
+Usaste `System.out.println` y la estructura `public static void main` de la Lección 1 — ahora sabés qué poner *dentro* de esas líneas.
+
+## Próximo paso
+
+Etapa 1 / Lección 2: operadores, conversión de tipos (casting) y `var`.
+
+## Fuentes
+
+dev.java — sección de tipos de datos primitivos y variables. openjdk.org — especificación del lenguaje Java (JLS), tipos primitivos.
+
+<SelfCheck
+  leccionId="etapa-01-java-basico/leccion-01-variables-tipos-primitivos"
+  criterios={[
+    "Puedo elegir el tipo primitivo correcto para un dato dado (entero, decimal, booleano, carácter).",
+    "Puedo explicar la diferencia entre un tipo primitivo y una referencia como String.",
+    "Puedo declarar una constante con final y explicar por qué no se puede reasignar.",
+    "Puedo diagnosticar un error de tipos incompatibles a partir del mensaje de javac.",
+  ]}
+/>
