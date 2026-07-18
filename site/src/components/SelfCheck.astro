@@ -1,0 +1,37 @@
+---
+interface Props {
+  leccionId: string;
+  criterios: string[];
+}
+const { leccionId, criterios } = Astro.props;
+---
+<div class="my-4 rounded border border-gray-300 p-4" data-selfcheck data-leccion-id={leccionId}>
+  <p class="font-semibold mb-2">¿Cómo quedó tu dominio de esta lección?</p>
+  <ul class="list-disc pl-5 mb-3 text-sm text-gray-700">
+    {criterios.map((c) => <li>{c}</li>)}
+  </ul>
+  <div class="flex gap-2">
+    <button type="button" class="rounded border px-3 py-1 hover:bg-green-50" data-nivel="DOMINADO">Dominado</button>
+    <button type="button" class="rounded border px-3 py-1 hover:bg-yellow-50" data-nivel="PARCIAL">Parcial</button>
+    <button type="button" class="rounded border px-3 py-1 hover:bg-red-50" data-nivel="INSUFICIENTE">Insuficiente</button>
+  </div>
+  <p class="mt-2 text-sm text-gray-600" data-selfcheck-status></p>
+</div>
+
+<script>
+  import { guardarSelfCheck, marcarCompletada, type NivelDominio } from '../lib/progresoStorage';
+
+  document.querySelectorAll<HTMLElement>('[data-selfcheck]').forEach((el) => {
+    const leccionId = el.dataset.leccionId!;
+    const statusEl = el.querySelector<HTMLElement>('[data-selfcheck-status]');
+
+    el.querySelectorAll<HTMLButtonElement>('button[data-nivel]').forEach((boton) => {
+      boton.addEventListener('click', () => {
+        const nivel = boton.dataset.nivel as NivelDominio;
+        guardarSelfCheck(leccionId, nivel);
+        marcarCompletada(leccionId);
+        if (statusEl) statusEl.textContent = `Guardado: ${nivel}`;
+      });
+    });
+  });
+</script>
