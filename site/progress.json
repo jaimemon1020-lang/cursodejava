@@ -13,6 +13,13 @@
       "leccion": 1,
       "titulo": "Variables, tipos primitivos y constantes",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-01-java-basico/leccion-02-operadores-casting-var",
+      "etapa": 1,
+      "leccion": 2,
+      "titulo": "Operadores, conversión de tipos (casting) y var",
+      "estado": "publicada"
     }
   ]
 }
