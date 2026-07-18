@@ -1123,12 +1123,13 @@ Create `site/progress.json`:
 
 - [ ] **Step 6: Dashboard page**
 
+**Correction (found during implementation, 2026-07-18):** `define:vars` wraps the script body in a non-module IIFE, so top-level `import` statements cannot legally appear inside it — the previous version of this step (which combined `define:vars` with static imports) is a syntax error, not just a style choice. The fix is a plain `<script type="module">` (Astro's default, unmarked `<script>` is already processed as a module by Vite) that imports `progress.json` directly instead of receiving it via `define:vars`.
+
 Create `site/src/pages/progreso.astro`:
 
 ```astro
 ---
 import '../styles/global.css';
-import progressData from '../../progress.json';
 ---
 <html lang="es">
   <head>
@@ -1140,10 +1141,12 @@ import progressData from '../../progress.json';
     <div id="resumen" class="mb-6 rounded border border-gray-300 p-4"></div>
     <ul id="lista" class="space-y-2"></ul>
 
-    <script define:vars={{ catalogo: progressData.catalogo }}>
+    <script>
       import { calcularResumen } from '../lib/progreso';
       import { leerCompletadas } from '../lib/progresoStorage';
+      import progressData from '../../progress.json';
 
+      const catalogo = progressData.catalogo;
       const completadas = leerCompletadas();
       const resumen = calcularResumen(catalogo, completadas);
 
