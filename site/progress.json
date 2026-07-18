@@ -104,6 +104,13 @@
       "leccion": 3,
       "titulo": "Generics: tus propias clases y métodos genéricos",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-04-collections/leccion-04-enums",
+      "etapa": 4,
+      "leccion": 4,
+      "titulo": "Enums: un conjunto fijo de valores posibles",
+      "estado": "publicada"
     }
   ]
 }
