@@ -1,0 +1,296 @@
+---
+etapa: 1
+etapaTitulo: "Java Básico"
+leccion: 4
+titulo: "Bucles: for, while, do-while, break y continue"
+objetivo: "Repetir instrucciones sobre una colección de datos usando for, for-each, while y do-while, y controlar la repetición con break y continue."
+prerrequisitos: ["etapa-01-java-basico/leccion-03-control-de-flujo"]
+version_proyecto: "v1 — Bucles"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de recorrer una lista de precios para sumarlos o filtrarlos usando `for`, `for-each`, `while` y `do-while`, y de cortar o saltar iteraciones con `break` y `continue`.
+
+## Por qué necesitas aprenderlo
+
+Sumar el total de una venta con varios productos, o procesar pedidos hasta que se acabe el stock — ambas cosas son "repetir una acción varias veces", y eso es exactamente lo que resuelven los bucles.
+
+## Qué debes saber antes
+
+`if`/`else` y operadores relacionales (lecciones anteriores de esta etapa). Vas a ver `int[]` (un array) usado de forma introductoria — se explica formalmente más adelante en el curso.
+
+## Recupera lo aprendido
+
+¿Qué diferencia hay entre el switch clásico y el moderno respecto al fall-through?
+
+<Reveal titulo="Respuesta">
+El switch clásico puede "caer" al siguiente case si falta `break`. El switch moderno (`->`) nunca tiene fall-through.
+</Reveal>
+
+## Problema
+
+Tenés una lista de precios de ventas del día y necesitás sumarlos todos. Escribir `precio1 + precio2 + precio3...` a mano no escala si son 500 ventas. Necesitás repetir la misma operación (sumar) sobre cada elemento.
+
+## Modelo mental
+
+```
+for (inicio; condición; incremento) {
+    repetir mientras condición sea verdadera
+}
+
+while (condición) {
+    repetir mientras condición sea verdadera
+    (se evalúa ANTES de cada vuelta)
+}
+
+do {
+    repetir al menos una vez
+} while (condición);
+    (se evalúa DESPUÉS de cada vuelta)
+```
+
+## Explicación sencilla
+
+Un bucle es "hacé esto de nuevo mientras se cumpla tal cosa". `for` es ideal cuando sabés cuántas veces (o sobre qué recorrer). `while` es ideal cuando no sabés cuántas veces de antemano, solo la condición de corte. `do-while` es como `while`, pero garantiza al menos una ejecución.
+
+## Explicación técnica
+
+- **`for` clásico**: `for (inicialización; condición; incremento)` — controla explícitamente un contador.
+- **`for-each` (enhanced for)**: `for (int precio : preciosDelDia)` — recorre cada elemento de una colección o array sin manejar un índice manualmente.
+- **`while`**: evalúa la condición **antes** de cada iteración; si es falsa desde el inicio, el cuerpo nunca se ejecuta.
+- **`do-while`**: evalúa la condición **después** de cada iteración; el cuerpo se ejecuta **al menos una vez**, siempre.
+- **`break`**: corta el bucle por completo, inmediatamente.
+- **`continue`**: salta el resto del cuerpo actual y pasa a la siguiente iteración, sin cortar el bucle.
+
+## Cómo funciona
+
+1. El `for` clásico suma cada `preciosDelDia[i]` incrementando `i` de 0 hasta `length - 1`.
+2. El `for-each` recorre los mismos valores sin índice, y usa `continue` para saltar los precios en cero (ventas anuladas).
+3. El `while` descuenta stock de a 3 unidades hasta que ya no queda stock positivo.
+4. El `do-while` ejecuta su cuerpo una vez incluso si la condición ya era falsa desde el principio.
+5. El segundo `for` usa `break` para cortar apenas encuentra el primer precio mayor a 5000.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-01/Bucles.java`
+
+```java
+public class Bucles {
+    public static void main(String[] args) {
+        int[] preciosDelDia = {1200, 3400, 0, 5600, 2100};
+
+        double totalVentas = 0;
+        for (int i = 0; i < preciosDelDia.length; i++) {
+            totalVentas += preciosDelDia[i];
+        }
+        System.out.println("Total ventas (for): " + totalVentas);
+
+        int cantidadValidas = 0;
+        for (int precio : preciosDelDia) {
+            if (precio == 0) {
+                continue;
+            }
+            cantidadValidas++;
+        }
+        System.out.println("Ventas validas (for-each + continue): " + cantidadValidas);
+
+        int stock = 10;
+        int pedidosProcesados = 0;
+        while (stock > 0) {
+            stock = stock - 3;
+            pedidosProcesados++;
+        }
+        System.out.println("Pedidos procesados (while): " + pedidosProcesados);
+        System.out.println("Stock final: " + stock);
+
+        int intentos = 0;
+        do {
+            intentos++;
+        } while (intentos < 1);
+        System.out.println("Intentos (do-while, corre al menos una vez): " + intentos);
+
+        for (int i = 0; i < preciosDelDia.length; i++) {
+            if (preciosDelDia[i] > 5000) {
+                System.out.println("Primer precio alto encontrado: " + preciosDelDia[i]);
+                break;
+            }
+        }
+    }
+}
+```
+
+## Predice
+
+El `while` descuenta de a 3 desde `stock = 10`. ¿En qué queda `stock` cuando el bucle corta (¿puede quedar negativo?)?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Total ventas (for): 12300.0
+Ventas validas (for-each + continue): 4
+Pedidos procesados (while): 4
+Stock final: -2
+Intentos (do-while, corre al menos una vez): 1
+Primer precio alto encontrado: 5600
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `10 → 7 → 4 → 1 → -2`: la condición `stock > 0` se revisa ANTES de restar de nuevo. Cuando `stock` vale 1 (positivo), entra a la cuarta vuelta y lo deja en -2 — el `while` no "sabe" que se va a pasar hasta después de restar.
+- El `do-while` con `intentos < 1` ya es falso desde el inicio (`0 < 1` es cierto en realidad — pero el punto es que aunque fuera falso, ya habría corrido una vez porque la condición se chequea al final).
+- El `continue` en el for-each saltea el precio `0` sin cortar el resto del recorrido.
+- El `break` corta apenas encuentra `5600 > 5000` — el resto del array (`2100`) nunca se revisa.
+
+## Ejemplo aplicado al proyecto
+
+Este patrón —recorrer una lista sumando o filtrando— es exactamente lo que va a hacer más adelante el cálculo del total de un pedido con varios `OrderItem`, cuando lo migremos de un array simple a una `List` real en la Etapa 4 (Collections).
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El programa se queda colgado (loop infinito) y hay que interrumpirlo manualmente."
+  diagnostico="El contador del bucle nunca cambia, o la condición nunca se vuelve falsa."
+  causa="Se olvidó incrementar el contador dentro del cuerpo del while."
+  solucion="Asegurarse de que la variable de la condición cambie en cada iteración, acercándose a que la condición se vuelva falsa."
+  prevencion="Antes de escribir un while, preguntate explícitamente: '¿qué variable cambia acá, y hacia dónde tiende?'"
+>
+```java
+int stock = 10;
+while (stock > 0) {
+    System.out.println("Procesando...");
+    // falta: stock = stock - 3;
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Contar cuántos precios del array superan los $3000:
+
+```java
+int contadorPreciosAltos = 0;
+for (int precio : preciosDelDia) {
+    if (precio > 3000) {
+        contadorPreciosAltos++;
+    }
+}
+System.out.println("Precios altos: " + contadorPreciosAltos);
+```
+
+## Ejercicio guiado
+
+Calculá el precio promedio del array, ignorando los ceros con `continue`.
+
+<Reveal titulo="Pista 1">
+Necesitás dos acumuladores: la suma total y la cantidad de precios válidos (distintos de cero).
+</Reveal>
+
+<Reveal titulo="Pista 2">
+El promedio es `suma / cantidadValidas` — atención al tipo: si ambos son `int`, la división trunca (Lección 2).
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+double suma = 0;
+int cantidad = 0;
+for (int precio : preciosDelDia) {
+    if (precio == 0) {
+        continue;
+    }
+    suma += precio;
+    cantidad++;
+}
+double promedio = suma / cantidad;
+System.out.println("Promedio: " + promedio);
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-01/`, escribí `ContadorPedidos.java`: usando un `while`, simulá procesar pedidos de a uno mientras haya "stock" (una variable `int` que arranca en un valor y se descuenta), y contá cuántos pedidos se alcanzaron a procesar completos (sin quedar negativo).
+
+## Transferencia
+
+Si necesitaras pedirle al usuario un número hasta que ingrese uno válido (sin saber cuántos intentos va a hacer), ¿usarías `for`, `while`, o `do-while`? ¿Por qué ese y no los otros dos?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál es la diferencia clave entre while y do-while?"
+  opciones={[
+    { texto: "while es más rápido que do-while", correcta: false, feedback: "No hay diferencia de rendimiento entre ambos — la diferencia es de cuándo se evalúa la condición, no de velocidad." },
+    { texto: "do-while ejecuta el cuerpo al menos una vez, incluso si la condición es falsa desde el inicio", correcta: true, feedback: "Correcto: do-while evalúa la condición DESPUÉS del cuerpo, así que ese cuerpo corre garantizado al menos una vez." },
+    { texto: "while no puede usar break ni continue", correcta: false, feedback: "Ambos, while y do-while, aceptan break y continue exactamente igual." },
+    { texto: "do-while no admite condiciones compuestas", correcta: false, feedback: "do-while acepta cualquier expresión boolean como condición, incluidas las compuestas con && u ||." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+for (int i = 0; i < preciosDelDia.length; i++) {
+    if (preciosDelDia[i] == 0) {
+        break;
+    }
+    totalVentas += preciosDelDia[i];
+}
+```
+
+¿Este código suma todos los precios distintos de cero, igual que el `continue` del ejemplo? ¿Por qué sí o por qué no?
+
+<Reveal titulo="Diagnóstico">
+No: `break` corta el bucle POR COMPLETO apenas encuentra el primer cero — nunca llega a revisar los precios que vienen después. `continue` salta solo esa iteración y sigue con las siguientes. Acá el bug es usar `break` cuando la intención real era `continue`.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que Java tiene tres formas distintas de bucle (`for`, `while`, `do-while`) en vez de una sola? ¿Qué se gana en legibilidad al elegir la correcta para cada caso?
+
+<Comparativa
+  columnas={["Bucle", "Cuándo se evalúa la condición", "Garantiza al menos 1 ejecución", "Uso típico"]}
+  filas={[
+    ["for", "Antes de cada vuelta", "No", "Sabés cuántas veces / recorrés un rango"],
+    ["while", "Antes de cada vuelta", "No", "No sabés cuántas veces, solo la condición de corte"],
+    ["do-while", "Después de cada vuelta", "Sí", "Necesitás ejecutar al menos una vez sí o sí"],
+  ]}
+/>
+
+## Resumen
+
+- `for` es ideal con un contador o rango conocido; `for-each` recorre colecciones sin índice.
+- `while` chequea antes; `do-while` chequea después y garantiza una ejecución.
+- `break` corta el bucle entero; `continue` solo salta la iteración actual.
+- Un bucle sin una condición que eventualmente se vuelva falsa es un loop infinito.
+
+## Modelo mental final
+
+Cuando pienses en `while` vs `do-while`, imaginá una puerta con guardia: `while` pregunta "¿puedo entrar?" antes de cada vez que entrás. `do-while` entra primero y recién en la salida pregunta "¿vuelvo a entrar?".
+
+## Conexión
+
+Usaste `if`/`else` de la lección anterior dentro de los bucles para decidir cuándo aplicar `continue` o `break`.
+
+## Próximo paso
+
+Etapa 1 / Lección 5: métodos — declaración, parámetros, retorno y sobrecarga.
+
+## Fuentes
+
+dev.java — sección de control de flujo (bucles). openjdk.org — especificación del lenguaje Java (JLS), sentencias for/while/do-while.
+
+<SelfCheck
+  leccionId="etapa-01-java-basico/leccion-04-bucles"
+  criterios={[
+    "Puedo elegir entre for, for-each, while y do-while según el problema.",
+    "Puedo explicar por qué do-while garantiza al menos una ejecución.",
+    "Puedo diferenciar cuándo usar break y cuándo continue.",
+    "Puedo detectar la causa de un loop infinito leyendo el código.",
+  ]}
+/>

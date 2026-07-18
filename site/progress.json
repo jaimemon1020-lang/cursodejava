@@ -27,6 +27,13 @@
       "leccion": 3,
       "titulo": "Control de flujo: if, else y switch",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-01-java-basico/leccion-04-bucles",
+      "etapa": 1,
+      "leccion": 4,
+      "titulo": "Bucles: for, while, do-while, break y continue",
+      "estado": "publicada"
     }
   ]
 }
