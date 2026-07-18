@@ -76,6 +76,13 @@
       "leccion": 4,
       "titulo": "Polimorfismo, abstracción: interfaces y clases abstractas",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-03-modelado-oo/leccion-01-del-negocio-a-las-clases",
+      "etapa": 3,
+      "leccion": 1,
+      "titulo": "Del problema del negocio a las clases: entidades y responsabilidades",
+      "estado": "publicada"
     }
   ]
 }
