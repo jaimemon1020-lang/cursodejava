@@ -97,6 +97,13 @@
       "leccion": 2,
       "titulo": "Set y Map: sin duplicados, y acceso por clave",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-04-collections/leccion-03-generics",
+      "etapa": 4,
+      "leccion": 3,
+      "titulo": "Generics: tus propias clases y métodos genéricos",
+      "estado": "publicada"
     }
   ]
 }
