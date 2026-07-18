@@ -48,6 +48,13 @@
       "leccion": 6,
       "titulo": "Arrays: creación, acceso, iteración y multidimensionales",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-02-poo/leccion-01-clases-y-objetos",
+      "etapa": 2,
+      "leccion": 1,
+      "titulo": "Clases, objetos, constructores y this",
+      "estado": "publicada"
     }
   ]
 }
