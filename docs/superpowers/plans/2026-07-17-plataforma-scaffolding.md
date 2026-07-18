@@ -1193,6 +1193,8 @@ git commit -m "feat(site): add progress catalog and dashboard page"
 **Interfaces:**
 - Consumes: `Reveal`, `Quiz`, `SelfCheck`, `Comparativa` components (Tasks 5–8); `LeccionLayout` route (Task 4).
 
+**Correction (found during implementation, 2026-07-18):** the plan's suggested error example (`java HolaMundo.java` vs `java HolaMundo`) does not reproduce on this JDK — JEP 330 single-file source-launch runs `java HolaMundo.java` directly without a separate compile step, so there's no error to show. It was replaced with a verified real error: saving the file as `holamundo.java` (lowercase) while the class is declared `public class HolaMundo`, which `javac` rejects with `class HolaMundo is public, should be declared in a file named HolaMundo.java`. The lesson content was also fixed for voseo leakage (the site otherwise uses tuteo/neutral Spanish) before publishing.
+
 - [ ] **Step 1: Write and verify the real Java code**
 
 Create `proyecto/etapa-00/HolaMundo.java`:
