@@ -83,6 +83,13 @@
       "leccion": 1,
       "titulo": "Del problema del negocio a las clases: entidades y responsabilidades",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-04-collections/leccion-01-list-arraylist",
+      "etapa": 4,
+      "leccion": 1,
+      "titulo": "List y ArrayList: colecciones de tamaño dinámico",
+      "estado": "publicada"
     }
   ]
 }
