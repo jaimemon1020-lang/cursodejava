@@ -273,6 +273,7 @@ git commit -m "feat(site): add Vitest and lesson content-collection schema"
 ### Task 4: Base layout + routing for lessons
 
 **Files:**
+- Modify: `site/astro.config.mjs` (register the MDX integration)
 - Create: `site/src/layouts/LeccionLayout.astro`
 - Create: `site/src/layouts/LeccionLayout.test.ts`
 - Create: `site/src/pages/lecciones/[...slug].astro`
@@ -281,6 +282,30 @@ git commit -m "feat(site): add Vitest and lesson content-collection schema"
 **Interfaces:**
 - Consumes: `leccionSchema` / `Leccion` type from Task 3.
 - Produces: `LeccionLayout` component with props `{ titulo: string, etapaTitulo: string }` and a default slot for the MDX body — later tasks (and every future lesson) render through it.
+
+**Correction (found during implementation, 2026-07-17):** lesson content uses `.mdx`, and Astro only parses `.md` out of the box — `.mdx` requires the official `@astrojs/mdx` integration, or the glob loader reports "No entry type found" and the collection resolves empty. This step was missing from the original plan; added as Step 0 below.
+
+- [ ] **Step 0: Install and register the MDX integration**
+
+```bash
+cd site
+npm install @astrojs/mdx
+```
+
+Edit `site/astro.config.mjs` to add it to `integrations`:
+
+```javascript
+import { defineConfig } from 'astro/config';
+import tailwindcss from '@tailwindcss/vite';
+import mdx from '@astrojs/mdx';
+
+export default defineConfig({
+  integrations: [mdx()],
+  vite: {
+    plugins: [tailwindcss()],
+  },
+});
+```
 
 - [ ] **Step 1: Write the failing container test**
 
