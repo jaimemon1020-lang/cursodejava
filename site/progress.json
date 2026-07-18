@@ -20,6 +20,13 @@
       "leccion": 2,
       "titulo": "Operadores, conversión de tipos (casting) y var",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-01-java-basico/leccion-03-control-de-flujo",
+      "etapa": 1,
+      "leccion": 3,
+      "titulo": "Control de flujo: if, else y switch",
+      "estado": "publicada"
     }
   ]
 }
