@@ -1,0 +1,23 @@
+---
+interface Props {
+  columnas: string[];
+  filas: string[][];
+}
+const { columnas, filas } = Astro.props;
+---
+<div class="my-4 overflow-x-auto">
+  <table class="w-full border-collapse text-sm">
+    <thead>
+      <tr>
+        {columnas.map((c) => <th class="border border-gray-300 bg-gray-100 px-3 py-2 text-left">{c}</th>)}
+      </tr>
+    </thead>
+    <tbody>
+      {filas.map((fila) => (
+        <tr>
+          {fila.map((celda) => <td class="border border-gray-300 px-3 py-2">{celda}</td>)}
+        </tr>
+      ))}
+    </tbody>
+  </table>
+</div>
