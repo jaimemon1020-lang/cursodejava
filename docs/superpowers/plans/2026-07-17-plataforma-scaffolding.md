@@ -1116,21 +1116,21 @@ import progressData from '../../progress.json';
     <ul id="lista" class="space-y-2"></ul>
 
     <script define:vars={{ catalogo: progressData.catalogo }}>
-      import('/src/lib/progreso.ts').then(async ({ calcularResumen }) => {
-        const { leerCompletadas } = await import('/src/lib/progresoStorage.ts');
-        const completadas = leerCompletadas();
-        const resumen = calcularResumen(catalogo, completadas);
+      import { calcularResumen } from '../lib/progreso';
+      import { leerCompletadas } from '../lib/progresoStorage';
 
-        document.getElementById('resumen').textContent =
-          `${resumen.totalCompletadas} / ${resumen.totalPublicadas} lecciones completadas (${resumen.porcentaje}%)`;
+      const completadas = leerCompletadas();
+      const resumen = calcularResumen(catalogo, completadas);
 
-        const lista = document.getElementById('lista');
-        catalogo.forEach((entrada) => {
-          const li = document.createElement('li');
-          const hecha = completadas.includes(entrada.id);
-          li.textContent = `${hecha ? '✅' : '⬜'} Etapa ${entrada.etapa} — Lección ${entrada.leccion}: ${entrada.titulo}`;
-          lista.appendChild(li);
-        });
+      document.getElementById('resumen').textContent =
+        `${resumen.totalCompletadas} / ${resumen.totalPublicadas} lecciones completadas (${resumen.porcentaje}%)`;
+
+      const lista = document.getElementById('lista');
+      catalogo.forEach((entrada) => {
+        const li = document.createElement('li');
+        const hecha = completadas.includes(entrada.id);
+        li.textContent = `${hecha ? '✅' : '⬜'} Etapa ${entrada.etapa} — Lección ${entrada.leccion}: ${entrada.titulo}`;
+        lista.appendChild(li);
       });
     </script>
   </body>
