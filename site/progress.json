@@ -111,6 +111,13 @@
       "leccion": 4,
       "titulo": "Enums: un conjunto fijo de valores posibles",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-04-collections/leccion-05-records",
+      "etapa": 4,
+      "leccion": 5,
+      "titulo": "Records: datos inmutables de forma compacta",
+      "estado": "publicada"
     }
   ]
 }
