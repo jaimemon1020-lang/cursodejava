@@ -1,0 +1,43 @@
+---
+import type { QuizOpcion } from '../lib/quiz';
+
+interface Props {
+  pregunta: string;
+  opciones: QuizOpcion[];
+}
+const { pregunta, opciones } = Astro.props;
+const quizId = `quiz-${Math.random().toString(36).slice(2, 9)}`;
+---
+<div class="my-4 rounded border border-gray-300 p-4" data-quiz={quizId} data-opciones={JSON.stringify(opciones)}>
+  <p class="font-semibold mb-2">{pregunta}</p>
+  <div class="flex flex-col gap-2">
+    {opciones.map((opcion, i) => (
+      <button type="button" class="text-left rounded border px-3 py-2 hover:bg-gray-50" data-indice={i}>
+        {opcion.texto}
+      </button>
+    ))}
+  </div>
+  <p class="mt-3 font-medium" data-feedback></p>
+</div>
+
+<script>
+  import { evaluarRespuesta, type QuizOpcion } from '../lib/quiz';
+
+  document.querySelectorAll<HTMLElement>('[data-quiz]').forEach((quizEl) => {
+    const opciones: QuizOpcion[] = JSON.parse(quizEl.dataset.opciones ?? '[]');
+    const feedbackEl = quizEl.querySelector<HTMLElement>('[data-feedback]');
+
+    quizEl.querySelectorAll<HTMLButtonElement>('button[data-indice]').forEach((boton) => {
+      boton.addEventListener('click', () => {
+        const indice = Number(boton.dataset.indice);
+        const resultado = evaluarRespuesta(opciones, indice);
+        if (feedbackEl) {
+          feedbackEl.textContent = resultado.feedback;
+          feedbackEl.className = resultado.correcta
+            ? 'mt-3 font-medium text-green-700'
+            : 'mt-3 font-medium text-red-700';
+        }
+      });
+    });
+  });
+</script>
