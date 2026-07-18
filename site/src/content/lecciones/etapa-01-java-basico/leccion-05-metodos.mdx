@@ -1,0 +1,255 @@
+---
+etapa: 1
+etapaTitulo: "Java Básico"
+leccion: 5
+titulo: "Métodos: declaración, parámetros, retorno y sobrecarga"
+objetivo: "Extraer lógica repetida a métodos con parámetros y valor de retorno, y usar sobrecarga para ofrecer variantes del mismo cálculo."
+prerrequisitos: ["etapa-01-java-basico/leccion-04-bucles"]
+version_proyecto: "v1 — Métodos"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de declarar un método con parámetros y valor de retorno, llamarlo con distintos argumentos, y ofrecer variantes del mismo cálculo mediante sobrecarga.
+
+## Por qué necesitas aprenderlo
+
+Hasta ahora todo el código vivió dentro de `main`. Un sistema real necesita partir la lógica en piezas reutilizables — "calcular el total de una venta" es algo que vas a necesitar en más de un lugar.
+
+## Qué debes saber antes
+
+Tipos primitivos y operadores (lecciones anteriores de esta etapa).
+
+## Recupera lo aprendido
+
+¿Qué imprime `break` en un bucle, comparado con `continue`?
+
+<Reveal titulo="Respuesta">
+`break` corta el bucle por completo. `continue` solo salta el resto de la iteración actual y sigue con la próxima.
+</Reveal>
+
+## Problema
+
+Necesitás calcular el total de una venta en varios lugares del programa: a veces con descuento, a veces sin. Copiar y pegar la misma cuenta en cada lugar es exactamente el tipo de duplicación que querés evitar.
+
+## Modelo mental
+
+```
+calcularTotal(precio, cantidad)
+      │              │
+   parámetro      parámetro
+      │              │
+      └──────┬───────┘
+             ▼
+        cuerpo del método
+             │
+             ▼
+        return resultado
+```
+
+## Explicación sencilla
+
+Un método es un bloque de código con nombre que recibe datos de entrada (parámetros) y devuelve un resultado (`return`). Lo escribís una vez y lo llamás cuantas veces necesites, con distintos valores cada vez.
+
+## Explicación técnica
+
+Un método se declara con: modificador (`static` por ahora — vas a ver por qué cambia en la próxima etapa), tipo de retorno, nombre, y una lista de parámetros entre paréntesis. El cuerpo termina con `return valor;` si el tipo de retorno no es `void`.
+
+**Sobrecarga (overloading):** podés declarar varios métodos con el **mismo nombre** siempre que tengan una lista de parámetros **distinta** (en cantidad o en tipo). Java decide cuál invocar según los argumentos que le pasás en cada llamada — esto se resuelve en tiempo de compilación, no es una decisión en tiempo de ejecución.
+
+## Cómo funciona
+
+1. `calcularTotal(1200.0, 5)` coincide con la versión de dos parámetros (`precio`, `cantidad`).
+2. `calcularTotal(1200.0, 5, 0.10)` coincide con la versión de tres parámetros (agrega `descuento`) — es un método completamente distinto, aunque comparta nombre.
+3. `hayStockSuficiente(10, 4)` devuelve un `boolean`, calculado y retornado en una sola expresión.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-01/Metodos.java`
+
+```java
+public class Metodos {
+
+    static double calcularTotal(double precio, int cantidad) {
+        return precio * cantidad;
+    }
+
+    static double calcularTotal(double precio, int cantidad, double descuento) {
+        double total = precio * cantidad;
+        return total - (total * descuento);
+    }
+
+    static boolean hayStockSuficiente(int stockActual, int cantidadPedida) {
+        return stockActual >= cantidadPedida;
+    }
+
+    public static void main(String[] args) {
+        double totalSinDescuento = calcularTotal(1200.0, 5);
+        System.out.println("Total sin descuento: " + totalSinDescuento);
+
+        double totalConDescuento = calcularTotal(1200.0, 5, 0.10);
+        System.out.println("Total con descuento: " + totalConDescuento);
+
+        boolean alcanza = hayStockSuficiente(10, 4);
+        System.out.println("Hay stock suficiente: " + alcanza);
+    }
+}
+```
+
+## Predice
+
+¿Cuál de los dos métodos `calcularTotal` se ejecuta cuando lo llamás con dos argumentos, y cuál con tres?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Total sin descuento: 6000.0
+Total con descuento: 5400.0
+Hay stock suficiente: true
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `calcularTotal(1200.0, 5)` → `1200.0 * 5 = 6000.0`, sin restar nada.
+- `calcularTotal(1200.0, 5, 0.10)` → mismo total `6000.0`, menos el 10% (`600.0`) = `5400.0`.
+- Java eligió automáticamente cuál de los dos métodos `calcularTotal` llamar, según cuántos argumentos le pasaste — eso es sobrecarga en acción.
+
+## Ejemplo aplicado al proyecto
+
+`calcularTotal` es, literalmente, el método que va a vivir dentro de la clase `Order` (o `OrderItem`) cuando lleguemos a la Etapa 2 — ahora es una función suelta, pronto va a ser el comportamiento de un objeto real.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El compilador rechaza el método con un error de tipo de retorno."
+  diagnostico="`javac` reporta: missing return statement"
+  causa="Un método declarado con un tipo de retorno (no void) debe garantizar un return en TODOS los caminos posibles de ejecución — si hay un if sin else que cubra todos los casos, algún camino se queda sin return."
+  solucion="Agregar el return faltante, o reestructurar el método para que todos los caminos retornen un valor."
+  prevencion="Cuando un método tenga if/else, verificá que cada rama termine en un return, o que haya un return final después de todas las ramas."
+>
+```java
+static String clasificarStock(int stock) {
+    if (stock > 10) {
+        return "Alto";
+    }
+    // falta el return para cuando stock <= 10
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar un método que calcule si un pedido supera el monto mínimo para envío gratis:
+
+```java
+static boolean tieneEnvioGratis(double totalCompra) {
+    return totalCompra >= 50000.0;
+}
+```
+
+## Ejercicio guiado
+
+Escribí una tercera sobrecarga de `calcularTotal` que además reciba un costo de envío fijo y lo sume al resultado.
+
+<Reveal titulo="Pista 1">
+La firma sería `calcularTotal(double precio, int cantidad, double descuento, double costoEnvio)` — cuatro parámetros, distinta de las otras dos.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+Podés llamar a la sobrecarga de tres parámetros DESDE la de cuatro, para no repetir la lógica del descuento.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+static double calcularTotal(double precio, int cantidad, double descuento, double costoEnvio) {
+    double totalConDescuento = calcularTotal(precio, cantidad, descuento);
+    return totalConDescuento + costoEnvio;
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-01/`, escribí `Validaciones.java` con un método `esPrecioValido(double precio)` que devuelva `false` si el precio es negativo o cero, y `true` en cualquier otro caso. Probalo con varios valores desde `main`.
+
+## Transferencia
+
+Si necesitaras un método que calcule el total de una venta pero a veces con IVA y a veces sin IVA, ¿usarías sobrecarga (dos métodos) o un parámetro `boolean incluirIva`? ¿Qué ventaja tiene cada enfoque?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="Java decide cuál método sobrecargado invocar..."
+  opciones={[
+    { texto: "En tiempo de ejecución, según el valor de las variables", correcta: false, feedback: "No: la decisión de qué sobrecarga usar se resuelve en tiempo de COMPILACIÓN, mirando el número y tipo de los argumentos en la llamada — no sus valores en runtime." },
+    { texto: "En tiempo de compilación, según el número y tipo de los argumentos", correcta: true, feedback: "Correcto: el compilador mira la firma de la llamada (cantidad y tipos de argumentos) y elige el método que coincide." },
+    { texto: "Al azar, si hay más de una coincidencia posible", correcta: false, feedback: "Nunca es al azar — si hay ambigüedad real, el compilador directamente rechaza el código con un error." },
+    { texto: "Según el orden en que los métodos fueron declarados en el archivo", correcta: false, feedback: "El orden de declaración de los métodos en la clase no influye en cuál se invoca." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+static int sumar(int a, int b) {
+    int resultado = a + b;
+}
+```
+
+¿Por qué no compila?
+
+<Reveal titulo="Diagnóstico">
+El método declara que devuelve `int`, pero el cuerpo nunca ejecuta un `return`. Calcular `resultado` no alcanza — hay que devolverlo explícitamente con `return resultado;`.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que `main` tiene que ser exactamente `public static void main(String[] args)` — sin sobrecargas posibles ahí — mientras que tus propios métodos sí pueden sobrecargarse libremente?
+
+<Comparativa
+  columnas={["Concepto", "Qué resuelve", "Se decide en"]}
+  filas={[
+    ["Parámetros", "Recibir datos de entrada variables en cada llamada", "Cada invocación"],
+    ["Return", "Devolver un resultado calculado al que llamó", "Ejecución del método"],
+    ["Sobrecarga", "Mismo nombre, distinta firma, distinto comportamiento", "Compilación"],
+  ]}
+/>
+
+## Resumen
+
+- Un método agrupa lógica repetida: nombre, parámetros, tipo de retorno, cuerpo.
+- Todo camino de ejecución de un método no-`void` debe terminar en `return`.
+- La sobrecarga permite el mismo nombre con distinta lista de parámetros.
+- Qué sobrecarga se ejecuta se decide en compilación, mirando la llamada, no en runtime.
+
+## Modelo mental final
+
+Cuando pienses en un método, imaginá una máquina expendedora: metés los parámetros (las monedas), la máquina hace su proceso interno, y te devuelve el resultado (`return`) — siempre el mismo proceso, con distintos insumos cada vez.
+
+## Conexión
+
+Usaste los tipos primitivos, operadores y control de flujo de toda esta etapa dentro del cuerpo de estos métodos.
+
+## Próximo paso
+
+Etapa 1 / Lección 6: arrays — creación, acceso e iteración (ya los viste de pasada en la lección de bucles; ahora se formalizan).
+
+## Fuentes
+
+dev.java — sección de métodos y sobrecarga. openjdk.org — especificación del lenguaje Java (JLS), declaración de métodos.
+
+<SelfCheck
+  leccionId="etapa-01-java-basico/leccion-05-metodos"
+  criterios={[
+    "Puedo declarar un método con parámetros y tipo de retorno correctos.",
+    "Sé que todo camino de un método no-void debe terminar en return.",
+    "Puedo explicar cómo Java decide cuál sobrecarga invocar.",
+    "Puedo identificar cuándo extraer código repetido a un método propio.",
+  ]}
+/>

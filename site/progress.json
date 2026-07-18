@@ -34,6 +34,13 @@
       "leccion": 4,
       "titulo": "Bucles: for, while, do-while, break y continue",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-01-java-basico/leccion-05-metodos",
+      "etapa": 1,
+      "leccion": 5,
+      "titulo": "Métodos: declaración, parámetros, retorno y sobrecarga",
+      "estado": "publicada"
     }
   ]
 }
