@@ -34,7 +34,7 @@ public class Product {
 
     public void venderUnidades(int cantidad) {
         if (cantidad > this.stock) {
-            throw new IllegalStateException("No hay stock suficiente");
+            throw new StockInsuficienteException(this.stock, cantidad);
         }
         this.stock = this.stock - cantidad;
     }

@@ -118,6 +118,13 @@
       "leccion": 5,
       "titulo": "Records: datos inmutables de forma compacta",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-04-collections/leccion-06-exceptions",
+      "etapa": 4,
+      "leccion": 6,
+      "titulo": "Exceptions: try/catch/finally, checked vs unchecked, y excepciones propias",
+      "estado": "publicada"
     }
   ]
 }

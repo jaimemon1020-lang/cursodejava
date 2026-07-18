@@ -1,0 +1,329 @@
+---
+etapa: 4
+etapaTitulo: "Collections, Generics, Enums, Records y Exceptions"
+leccion: 6
+titulo: "Exceptions: try/catch/finally, checked vs unchecked, y excepciones propias"
+objetivo: "Manejar errores formalmente con try/catch/finally, crear una excepción propia con información útil, y usar try-with-resources para liberar recursos automáticamente."
+prerrequisitos: ["etapa-04-collections/leccion-05-records"]
+version_proyecto: "v4 — StockInsuficienteException"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de capturar errores con `try`/`catch`/`finally` en vez de dejar que el programa se detenga, crear tu propia excepción con información específica del problema, y usar `try-with-resources` para garantizar que un recurso se cierre siempre.
+
+## Por qué necesitas aprenderlo
+
+Desde la Etapa 2, `Product.venderUnidades()` lanza una excepción cuando falta stock — pero cada demo hasta ahora dejaba que el programa se cortara ahí. Un sistema real necesita reaccionar al error (avisar al cliente, registrar el intento) sin detenerse por completo.
+
+## Qué debes saber antes
+
+Todo lo visto en esta etapa: Collections, Generics, enums, records.
+
+## Recupera lo aprendido
+
+¿Por qué `Dinero` es un buen candidato a record, y `Order` no?
+
+<Reveal titulo="Respuesta">
+Dinero se define por su VALOR (dos montos iguales son intercambiables); Order tiene identidad propia — dos pedidos con el mismo contenido siguen siendo pedidos distintos.
+</Reveal>
+
+## Problema
+
+Hasta ahora, cuando `venderUnidades(100)` fallaba por falta de stock, el programa entero se detenía con un stack trace. Un sistema real necesita capturar ese error, informarlo de forma controlada, y seguir funcionando — sin perder información específica sobre CUÁNTO stock había y CUÁNTO se pidió.
+
+## Modelo mental
+
+```
+try {
+    operación que puede fallar
+} catch (TipoDeExcepcion e) {
+    qué hacer si falla
+} finally {
+    esto se ejecuta SIEMPRE, haya fallado o no
+}
+```
+
+## Explicación sencilla
+
+`try` marca el código que puede fallar. `catch` atrapa el error si ocurre, y te da la oportunidad de reaccionar en vez de cortar el programa. `finally` se ejecuta pase lo que pase — falle o no falle — típicamente para liberar recursos.
+
+## Explicación técnica
+
+Java distingue dos familias de excepciones:
+
+- **Unchecked** (heredan de `RuntimeException`): el compilador NO te obliga a capturarlas ni a declararlas con `throws`. `IllegalArgumentException`, `IllegalStateException`, `NullPointerException`, `ArrayIndexOutOfBoundsException` — todas las que ya viste desde la Etapa 2 — son unchecked. Representan errores de programación o violaciones de reglas de negocio.
+- **Checked** (heredan de `Exception`, pero NO de `RuntimeException`): el compilador te OBLIGA a capturarlas o declarar `throws NombreExcepcion` en la firma del método. Representan condiciones externas esperables (un archivo que no existe, una conexión que falla) — las vas a ver en profundidad cuando trabajemos con I/O y bases de datos.
+
+Crear tu propia excepción es extender `RuntimeException` (unchecked, la elección más común hoy en día para reglas de negocio) o `Exception` (checked). Podés agregar campos propios (como `stockDisponible`, `cantidadSolicitada`) para que quien capture la excepción tenga información específica del problema, no solo un mensaje de texto.
+
+`try-with-resources` es una forma especial de `try` que cierra automáticamente un recurso al finalizar el bloque (haya éxito o excepción), siempre que ese recurso implemente `AutoCloseable`. Evita tener que escribir manualmente el cierre en un `finally`.
+
+## Cómo funciona
+
+1. `StockInsuficienteException extends RuntimeException` — es unchecked, no exige `throws` en la firma de `venderUnidades`.
+2. El constructor guarda `stockDisponible` y `cantidadSolicitada` como campos propios, además del mensaje heredado.
+3. `try { teclado.venderUnidades(100); } catch (StockInsuficienteException e) { ... }` captura el error específico y accede a `e.getStockDisponible()`.
+4. `finally` se ejecuta tanto si la venta tuvo éxito como si falló.
+5. `try (RegistroDeOperaciones registro = new RegistroDeOperaciones()) { ... }` cierra automáticamente el registro al salir del bloque, llamando a `close()` sin que lo pidas explícitamente.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-04/StockInsuficienteException.java`
+
+```java
+public class StockInsuficienteException extends RuntimeException {
+
+    private int stockDisponible;
+    private int cantidadSolicitada;
+
+    public StockInsuficienteException(int stockDisponible, int cantidadSolicitada) {
+        super("Stock insuficiente: disponible " + stockDisponible + ", solicitado " + cantidadSolicitada);
+        this.stockDisponible = stockDisponible;
+        this.cantidadSolicitada = cantidadSolicitada;
+    }
+
+    public int getStockDisponible() {
+        return this.stockDisponible;
+    }
+
+    public int getCantidadSolicitada() {
+        return this.cantidadSolicitada;
+    }
+}
+```
+
+**Fragmento actualizado de `proyecto/etapa-02/Product.java`:**
+
+```java
+public void venderUnidades(int cantidad) {
+    if (cantidad > this.stock) {
+        throw new StockInsuficienteException(this.stock, cantidad);
+    }
+    this.stock = this.stock - cantidad;
+}
+```
+
+**Archivo:** `proyecto/etapa-04/RegistroDeOperaciones.java`
+
+```java
+public class RegistroDeOperaciones implements AutoCloseable {
+
+    RegistroDeOperaciones() {
+        System.out.println("Registro de operaciones abierto");
+    }
+
+    public void registrar(String mensaje) {
+        System.out.println("LOG: " + mensaje);
+    }
+
+    @Override
+    public void close() {
+        System.out.println("Registro de operaciones cerrado");
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-04/ExceptionsDemo.java`
+
+```java
+public class ExceptionsDemo {
+    public static void main(String[] args) {
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+
+        try {
+            teclado.venderUnidades(100);
+            System.out.println("Venta realizada");
+        } catch (StockInsuficienteException e) {
+            System.out.println("No se pudo vender: " + e.getMessage());
+            System.out.println("Stock disponible era: " + e.getStockDisponible());
+        } finally {
+            System.out.println("Intento de venta finalizado (esto se ejecuta siempre)");
+        }
+
+        System.out.println("Stock actual: " + teclado.getStock());
+
+        try (RegistroDeOperaciones registro = new RegistroDeOperaciones()) {
+            registro.registrar("Venta procesada para " + teclado.getNombre());
+        }
+
+        System.out.println("Programa continua normalmente");
+    }
+}
+```
+
+## Predice
+
+La venta de 100 unidades falla (solo hay 15 en stock). ¿El programa se detiene ahí, o sigue ejecutando el resto de las líneas?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+No se pudo vender: Stock insuficiente: disponible 15, solicitado 100
+Stock disponible era: 15
+Intento de venta finalizado (esto se ejecuta siempre)
+Stock actual: 15
+Registro de operaciones abierto
+LOG: Venta procesada para Teclado mecanico
+Registro de operaciones cerrado
+Programa continua normalmente
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- El `catch` atrapa `StockInsuficienteException`, imprime el mensaje Y accede a `e.getStockDisponible()` — información específica que un `catch` genérico de `Exception` no te daría con la misma claridad.
+- `finally` se ejecuta SIEMPRE, incluso porque hubo excepción — por eso ves "Intento de venta finalizado" después del catch.
+- `teclado.getStock()` sigue en `15`: la venta nunca se completó, el stock quedó intacto.
+- `try (RegistroDeOperaciones registro = ...)` abre, usa, y CIERRA el registro automáticamente al final del bloque — sin un `finally` explícito escrito por vos.
+
+## Ejemplo aplicado al proyecto
+
+Esta es la primera vez que el sistema reacciona a un error de negocio en vez de simplemente crashear — exactamente lo que un sistema en producción necesita: capturar, informar, y seguir funcionando.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El compilador rechaza el catch, diciendo que ese tipo de excepción nunca se lanza en el try."
+  diagnostico="javac reporta algo como: exception StockInsuficienteException is never thrown in body of corresponding try statement"
+  causa="Se puso un catch para un tipo de excepción que ninguna línea dentro del try puede realmente lanzar."
+  solucion="Verificar qué excepción(es) puede lanzar el código dentro del try, y capturar exactamente esas."
+  prevencion="El compilador solo permite catch de excepciones checked que realmente podrían lanzarse; para unchecked, revisá igual la lógica: un catch que nunca se ejecuta suele ser una señal de código mal escrito."
+>
+```java
+try {
+    System.out.println("Hola");
+} catch (StockInsuficienteException e) {
+    // esta linea de try jamas lanza StockInsuficienteException
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Capturar más de un tipo de excepción con catches separados:
+
+```java
+try {
+    teclado.venderUnidades(-5);
+} catch (StockInsuficienteException e) {
+    System.out.println("Falta stock: " + e.getMessage());
+} catch (IllegalArgumentException e) {
+    System.out.println("Cantidad invalida: " + e.getMessage());
+}
+```
+
+## Ejercicio guiado
+
+Creá tu propia excepción `PrecioInvalidoException` (unchecked) con un campo `precioRecibido`, y usala en vez de `IllegalArgumentException` dentro del constructor de `Product`.
+
+<Reveal titulo="Pista 1">
+Extendé `RuntimeException`, igual que `StockInsuficienteException`.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+Llamá a `super(mensaje)` para heredar el comportamiento de mensaje de excepción, y guardá `precioRecibido` como campo propio.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+public class PrecioInvalidoException extends RuntimeException {
+    private double precioRecibido;
+
+    public PrecioInvalidoException(double precioRecibido) {
+        super("Precio invalido: " + precioRecibido);
+        this.precioRecibido = precioRecibido;
+    }
+
+    public double getPrecioRecibido() {
+        return this.precioRecibido;
+    }
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-04/`, escribí un método que intente vender varias cantidades distintas de un mismo producto en un bucle, capturando `StockInsuficienteException` en cada intento sin que el bucle se corte, y sumando cuántas ventas tuvieron éxito.
+
+## Transferencia
+
+Si tu sistema necesitara leer un archivo de configuración que podría no existir, ¿esa excepción sería checked o unchecked? ¿Por qué tiene sentido que el compilador te OBLIGUE a manejarla, a diferencia de `StockInsuficienteException`?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué diferencia hay entre una excepción checked y una unchecked?"
+  opciones={[
+    { texto: "Las checked son más graves que las unchecked", correcta: false, feedback: "La gravedad no es la diferencia — es sobre si el COMPILADOR te obliga a manejarlas o no, no sobre qué tan grave es el error." },
+    { texto: "El compilador obliga a capturar o declarar las checked; las unchecked no lo exige", correcta: true, feedback: "Correcto: extender Exception (no RuntimeException) crea una excepción checked, que el compilador exige capturar o declarar con throws." },
+    { texto: "Las unchecked no pueden tener campos propios", correcta: false, feedback: "StockInsuficienteException es unchecked (extends RuntimeException) y sí tiene campos propios (stockDisponible, cantidadSolicitada) — eso es independiente de checked/unchecked." },
+    { texto: "Las checked solo pueden lanzarse dentro de un try", correcta: false, feedback: "Cualquier excepción se puede lanzar (throw) en cualquier lugar del código — la diferencia checked/unchecked es sobre la obligación de manejo por parte del compilador." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+try {
+    teclado.venderUnidades(100);
+} finally {
+    System.out.println("Termine");
+}
+```
+
+Este código no tiene ningún `catch`. ¿Qué pasa cuando `venderUnidades` lanza la excepción?
+
+<Reveal titulo="Diagnóstico">
+`finally` se ejecuta igual (imprime "Termine"), pero la excepción SIGUE propagándose hacia arriba después — un `try`/`finally` sin `catch` no atrapa el error, solo garantiza que ese bloque se ejecute antes de que el error siga su curso normal (y probablemente corte el programa si nadie más lo captura).
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que `StockInsuficienteException` guarda `stockDisponible` y `cantidadSolicitada` como campos propios, en vez de solamente un mensaje de texto genérico? ¿Qué podría hacer quien capture la excepción con esos datos, que no podría hacer solo con el mensaje?
+
+<Comparativa
+  columnas={["Concepto", "El compilador exige manejo", "Hereda de", "Ejemplo en este curso"]}
+  filas={[
+    ["Unchecked", "No", "RuntimeException", "IllegalArgumentException, StockInsuficienteException"],
+    ["Checked", "Sí (catch o throws)", "Exception (no RuntimeException)", "Se profundiza con I/O y bases de datos, más adelante"],
+  ]}
+/>
+
+## Resumen
+
+- `try`/`catch` captura errores; `finally` se ejecuta siempre, con o sin error.
+- Unchecked (RuntimeException) no exige manejo del compilador; checked (Exception) sí.
+- Una excepción propia puede llevar campos con información específica del problema.
+- `try-with-resources` cierra automáticamente cualquier `AutoCloseable` al finalizar el bloque.
+
+## Modelo mental final
+
+Cuando pienses en try/catch/finally, imaginá un intento con red de seguridad: `try` es el intento, `catch` es la red que te atrapa si te caés, `finally` es lo que pasa después sin importar si te caíste o no.
+
+## Conexión
+
+`Product.venderUnidades()` (Etapa 2) ya lanzaba una excepción — esta lección solo cambió QUÉ excepción lanza (una propia, con más información) y AGREGÓ el manejo formal que faltaba desde entonces.
+
+## Próximo paso
+
+Etapa 4 / Lección 7: Optional y Date/Time API — cerrando esta etapa.
+
+## Fuentes
+
+dev.java — sección de excepciones. openjdk.org — especificación del lenguaje Java (JLS), try-catch-finally y try-with-resources.
+
+<SelfCheck
+  leccionId="etapa-04-collections/leccion-06-exceptions"
+  criterios={[
+    "Puedo capturar una excepción con try/catch y reaccionar sin cortar el programa.",
+    "Puedo explicar la diferencia entre excepciones checked y unchecked.",
+    "Puedo crear mi propia excepción con campos que aporten información específica.",
+    "Puedo usar try-with-resources para cerrar un recurso automáticamente.",
+  ]}
+/>
