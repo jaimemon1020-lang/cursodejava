@@ -69,6 +69,13 @@
       "leccion": 3,
       "titulo": "Herencia y composición",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-02-poo/leccion-04-polimorfismo-abstraccion",
+      "etapa": 2,
+      "leccion": 4,
+      "titulo": "Polimorfismo, abstracción: interfaces y clases abstractas",
+      "estado": "publicada"
     }
   ]
 }

@@ -1,0 +1,308 @@
+---
+etapa: 2
+etapaTitulo: "Programación Orientada a Objetos"
+leccion: 4
+titulo: "Polimorfismo, abstracción: interfaces y clases abstractas"
+objetivo: "Definir un contrato con interface, una base parcial con clase abstracta, y tratar distintas implementaciones de forma uniforme aprovechando el polimorfismo."
+prerrequisitos: ["etapa-02-poo/leccion-03-herencia-y-composicion"]
+version_proyecto: "v2 — Descuento y MetodoEnvio"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de definir un contrato con `interface`, una base parcialmente implementada con clase abstracta, y recorrer distintas implementaciones de forma uniforme gracias al polimorfismo — sin un `if`/`switch` gigante preguntando "¿qué tipo sos?".
+
+## Por qué necesitas aprenderlo
+
+Vas a tener varios tipos de descuento y de envío en el sistema real. Sin polimorfismo, cada vez que agregues uno nuevo tendrías que buscar y modificar cada `if` que distingue tipos en todo el código — con polimorfismo, agregás una clase nueva y el resto del código ni se entera.
+
+## Qué debes saber antes
+
+Herencia (`extends`, `super`, `@Override`) y composición (lección anterior de esta etapa).
+
+## Recupera lo aprendido
+
+¿Cuál es la diferencia entre herencia y composición?
+
+<Reveal titulo="Respuesta">
+Herencia modela "es un" (Cliente extends Persona). Composición modela "tiene un" (Order tiene un Cliente), sin jerarquía de clases.
+</Reveal>
+
+## Problema
+
+Necesitás aplicar distintos tipos de descuento (10% de descuento, o $5000 fijos) a un mismo total, y distintos métodos de envío (estándar, express) con costos distintos. Sin una forma común de tratarlos, terminarías con código como "si es descuento porcentual, hacé esto; si es descuento fijo, hacé esto otro" — y esa lista crece cada vez que agregás un tipo nuevo.
+
+## Modelo mental
+
+```
+interface Descuento
+      │
+      │ implements
+      ├──── DescuentoPorcentual
+      └──── DescuentoFijo
+
+Descuento[] descuentos = { new DescuentoPorcentual(...), new DescuentoFijo(...) };
+for (Descuento d : descuentos) {
+    d.aplicar(total);   ← cada uno ejecuta SU PROPIA versión, sin preguntar de qué tipo es
+}
+```
+
+## Explicación sencilla
+
+Una `interface` es un contrato: dice QUÉ métodos debe tener una clase, sin decir CÓMO los implementa. Una clase abstracta es parecida, pero puede tener código ya implementado (compartido) y dejar solo una parte como "pendiente" para las clases hijas. Polimorfismo es poder tratar objetos de distintas clases de forma uniforme, porque todos cumplen el mismo contrato.
+
+## Explicación técnica
+
+**`interface`:** declara métodos sin cuerpo (solo la firma). Una clase los implementa con `implements` y debe proveer el cuerpo de cada método. Una interfaz no tiene estado (atributos de instancia) ni constructor — es puro contrato. Una clase puede implementar **varias** interfaces a la vez.
+
+**Clase abstracta (`abstract class`):** puede mezclar métodos ya implementados (como `informar()`) con métodos abstractos (`calcularCosto()`, sin cuerpo, cada hija debe darle uno). A diferencia de una interfaz, SÍ puede tener atributos, constructor y estado. Una clase solo puede extender **una** clase abstracta (Java no permite herencia múltiple de clases).
+
+**Polimorfismo:** cuando declarás `Descuento descuento = new DescuentoPorcentual(...)`, la variable tiene el tipo del contrato (`Descuento`), pero en tiempo de ejecución Java llama a la implementación REAL del objeto (`DescuentoPorcentual.aplicar`), no una versión genérica. Eso permite que el mismo bucle `for` funcione con cualquier implementación futura de `Descuento`, sin tocarlo.
+
+## Cómo funciona
+
+1. `Descuento` declara `aplicar(double total)` sin implementación.
+2. `DescuentoPorcentual` y `DescuentoFijo` implementan `aplicar` cada una a su manera.
+3. El array `descuentosDisponibles` guarda ambos tipos como `Descuento[]` — el `for-each` no necesita saber cuál es cuál.
+4. `MetodoEnvio` (clase abstracta) ya implementa `informar()` una sola vez; cada hija (`EnvioEstandar`, `EnvioExpress`) solo agrega su propio `calcularCosto()`.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-02/Descuento.java`
+
+```java
+public interface Descuento {
+    double aplicar(double total);
+}
+```
+
+**Archivo:** `proyecto/etapa-02/DescuentoPorcentual.java`
+
+```java
+public class DescuentoPorcentual implements Descuento {
+    private double porcentaje;
+
+    DescuentoPorcentual(double porcentaje) {
+        this.porcentaje = porcentaje;
+    }
+
+    @Override
+    public double aplicar(double total) {
+        return total - (total * this.porcentaje);
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-02/MetodoEnvio.java`
+
+```java
+public abstract class MetodoEnvio {
+    protected String nombre;
+
+    MetodoEnvio(String nombre) {
+        this.nombre = nombre;
+    }
+
+    public abstract double calcularCosto(double totalCompra);
+
+    public void informar(double totalCompra) {
+        System.out.println(this.nombre + ": $" + this.calcularCosto(totalCompra));
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-02/PolimorfismoDemo.java`
+
+```java
+public class PolimorfismoDemo {
+    public static void main(String[] args) {
+        double totalOriginal = 40000.0;
+
+        Descuento[] descuentosDisponibles = {
+            new DescuentoPorcentual(0.10),
+            new DescuentoFijo(5000.0)
+        };
+
+        for (Descuento descuento : descuentosDisponibles) {
+            double totalConDescuento = descuento.aplicar(totalOriginal);
+            System.out.println("Total con descuento: " + totalConDescuento);
+        }
+
+        System.out.println("---");
+
+        MetodoEnvio[] enviosDisponibles = {
+            new EnvioEstandar(),
+            new EnvioExpress()
+        };
+
+        for (MetodoEnvio envio : enviosDisponibles) {
+            envio.informar(totalOriginal);
+        }
+    }
+}
+```
+
+## Predice
+
+El `for-each` recorre `Descuento[]` sin ningún `if` que distinga tipos. ¿Cómo sabe Java cuál `aplicar()` ejecutar en cada vuelta?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Total con descuento: 36000.0
+Total con descuento: 35000.0
+---
+Envio estandar: $1500.0
+Envio express: $3500.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `40000.0 * 0.10 = 4000.0` restado → `36000.0` (descuento porcentual).
+- `40000.0 - 5000.0 = 35000.0` (descuento fijo).
+- Java decide en tiempo de ejecución cuál `aplicar()` correr, mirando el tipo REAL del objeto guardado en cada posición del array — no el tipo declarado (`Descuento`).
+- `informar()` (heredado, escrito una sola vez en `MetodoEnvio`) llama a `this.calcularCosto(...)`, que ejecuta la versión de la subclase real (`EnvioEstandar` o `EnvioExpress`).
+
+## Ejemplo aplicado al proyecto
+
+Esto es exactamente el patrón que vas a reconocer formalmente como **Strategy** más adelante en el curso (Etapa 8, Patrones necesarios) — hoy lo construiste desde cero, sin saber todavía que tiene nombre propio.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El compilador rechaza la clase que implementa la interfaz."
+  diagnostico="javac reporta que la clase no es abstracta y no implementa el método abstracto aplicar(double) de Descuento."
+  causa="Una clase que hace implements de una interfaz debe proveer el cuerpo de TODOS sus métodos — si falta alguno, no compila, a menos que la clase misma se declare abstract."
+  solucion="Agregar la implementación faltante del método, con la firma exacta que declara la interfaz."
+  prevencion="Al implementar una interfaz, revisá que cada método declarado tenga su @Override correspondiente con cuerpo real."
+>
+```java
+public class DescuentoRoto implements Descuento {
+    // falta implementar aplicar(double total)
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar un tercer tipo de descuento, sin descuento real (para el caso "sin promoción"):
+
+```java
+public class SinDescuento implements Descuento {
+    @Override
+    public double aplicar(double total) {
+        return total;
+    }
+}
+```
+
+## Ejercicio guiado
+
+Agregá un tercer método de envío, `EnvioRetiroEnLocal`, con costo siempre en $0.
+
+<Reveal titulo="Pista 1">
+Extendé `MetodoEnvio` igual que las otras dos clases, llamando a `super("...")` con el nombre.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+`calcularCosto` puede ignorar directamente el parámetro `totalCompra` y devolver `0.0` siempre.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+public class EnvioRetiroEnLocal extends MetodoEnvio {
+    EnvioRetiroEnLocal() {
+        super("Retiro en local");
+    }
+
+    @Override
+    public double calcularCosto(double totalCompra) {
+        return 0.0;
+    }
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-02/`, agregá tu `SinDescuento` y `EnvioRetiroEnLocal` a los arrays de `PolimorfismoDemo` y confirmá que el mismo `for-each`, sin modificarlo, ya los procesa correctamente.
+
+## Transferencia
+
+Si mañana necesitaras un descuento que combine porcentaje Y un tope máximo de descuento en pesos, ¿seguiría siendo una simple implementación de `Descuento`? ¿Qué cambiaría en el resto del código para soportarlo?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál es la diferencia clave entre una interface y una clase abstracta en Java?"
+  opciones={[
+    { texto: "Una interface puede tener atributos de instancia y constructor; una clase abstracta no", correcta: false, feedback: "Es al revés: la clase abstracta SÍ puede tener atributos y constructor. La interfaz no tiene estado de instancia ni constructor." },
+    { texto: "Una clase puede implementar varias interfaces, pero solo extender una clase abstracta", correcta: true, feedback: "Correcto: Java permite implementar varias interfaces a la vez, pero solo extender una superclase (abstracta o no), porque la herencia de clases es simple." },
+    { texto: "Una clase abstracta no puede tener métodos ya implementados", correcta: false, feedback: "Al contrario: la clase abstracta puede mezclar métodos con cuerpo (como informar()) y métodos abstractos sin cuerpo." },
+    { texto: "Los métodos de una interface siempre tienen cuerpo por defecto", correcta: false, feedback: "Los métodos declarados en una interfaz (como en este ejemplo) no tienen cuerpo — cada clase que la implementa debe proveerlo." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Descuento descuento = new DescuentoPorcentual(0.10);
+descuento.porcentaje = 0.20;
+```
+
+¿Por qué no compila?
+
+<Reveal titulo="Diagnóstico">
+`Descuento` es una interfaz: no declara ningún atributo `porcentaje` (las interfaces no tienen estado). Aunque el objeto real sea un `DescuentoPorcentual`, la variable está declarada como `Descuento`, y solo podés acceder a lo que ESE tipo declara — el atributo privado de `DescuentoPorcentual` ni siquiera sería accesible desde afuera aunque lo declararas ahí.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que `MetodoEnvio` es una clase abstracta (con `informar()` ya implementado) en vez de una interfaz? ¿Qué se pierde si la convertís en interfaz?
+
+<Comparativa
+  columnas={["Concepto", "Estado (atributos)", "Métodos con cuerpo", "Herencia múltiple", "Cuándo usarla"]}
+  filas={[
+    ["interface", "No", "No (salvo default, fuera de esta lección)", "Sí (implements varias)", "Un contrato puro, sin comportamiento compartido"],
+    ["abstract class", "Sí", "Sí (mezclados con abstractos)", "No (extends una sola)", "Comportamiento compartido + partes que cada hija define distinto"],
+  ]}
+/>
+
+## Resumen
+
+- `interface` define un contrato sin estado; una clase puede implementar varias.
+- `abstract class` mezcla comportamiento compartido con métodos pendientes; solo se extiende una.
+- El polimorfismo permite tratar distintas implementaciones de forma uniforme, sin preguntar el tipo real.
+- Agregar una implementación nueva no requiere tocar el código que ya recorre el contrato.
+
+## Modelo mental final
+
+Cuando pienses en polimorfismo, imaginá un enchufe universal: no te importa qué aparato conectás (descuento porcentual, fijo, sin descuento), mientras respete la forma del enchufe (el contrato `Descuento`).
+
+## Conexión
+
+Reutilizaste el mismo patrón de herencia (`extends`, `super`, `@Override`) de la lección anterior, ahora combinado con interfaces para lograr comportamiento intercambiable.
+
+## Próximo paso
+
+Con esto cerrás Programación Orientada a Objetos. Etapa 3: modelado orientado a objetos — convertir un problema del negocio en clases y objetos reales.
+
+## Fuentes
+
+dev.java — sección de interfaces y clases abstractas. openjdk.org — especificación del lenguaje Java (JLS), interfaces y métodos abstractos.
+
+<SelfCheck
+  leccionId="etapa-02-poo/leccion-04-polimorfismo-abstraccion"
+  criterios={[
+    "Puedo definir una interface y varias clases que la implementen.",
+    "Puedo definir una clase abstracta que mezcle métodos implementados y abstractos.",
+    "Puedo explicar la diferencia entre interface y clase abstracta.",
+    "Puedo aprovechar polimorfismo para recorrer implementaciones distintas sin un if que distinga tipos.",
+  ]}
+/>
