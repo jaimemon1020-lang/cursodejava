@@ -1,0 +1,11 @@
+{
+  "catalogo": [
+    {
+      "id": "etapa-00-como-funciona-java/leccion-01-que-ocurre-cuando-ejecutas-java",
+      "etapa": 0,
+      "leccion": 1,
+      "titulo": "Qué ocurre cuando ejecutas un programa Java",
+      "estado": "publicada"
+    }
+  ]
+}

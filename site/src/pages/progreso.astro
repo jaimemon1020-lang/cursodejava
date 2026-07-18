@@ -1,0 +1,35 @@
+---
+import '../styles/global.css';
+---
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Tu progreso — cursodejava</title>
+  </head>
+  <body class="mx-auto max-w-3xl px-4 py-8">
+    <h1 class="text-3xl font-bold mb-6">Tu progreso</h1>
+    <div id="resumen" class="mb-6 rounded border border-gray-300 p-4"></div>
+    <ul id="lista" class="space-y-2"></ul>
+
+    <script>
+      import { calcularResumen } from '../lib/progreso';
+      import { leerCompletadas } from '../lib/progresoStorage';
+      import progressData from '../../progress.json';
+
+      const catalogo = progressData.catalogo;
+      const completadas = leerCompletadas();
+      const resumen = calcularResumen(catalogo, completadas);
+
+      document.getElementById('resumen').textContent =
+        `${resumen.totalCompletadas} / ${resumen.totalPublicadas} lecciones completadas (${resumen.porcentaje}%)`;
+
+      const lista = document.getElementById('lista');
+      catalogo.forEach((entrada) => {
+        const li = document.createElement('li');
+        const hecha = completadas.includes(entrada.id);
+        li.textContent = `${hecha ? '✅' : '⬜'} Etapa ${entrada.etapa} — Lección ${entrada.leccion}: ${entrada.titulo}`;
+        lista.appendChild(li);
+      });
+    </script>
+  </body>
+</html>
