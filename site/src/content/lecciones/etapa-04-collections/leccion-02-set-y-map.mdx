@@ -1,0 +1,258 @@
+---
+etapa: 4
+etapaTitulo: "Collections, Generics, Enums, Records y Exceptions"
+leccion: 2
+titulo: "Set y Map: sin duplicados, y acceso por clave"
+objetivo: "Usar Set para garantizar que no haya elementos repetidos, y Map para buscar valores por una clave en vez de por posición."
+prerrequisitos: ["etapa-04-collections/leccion-01-list-arraylist"]
+version_proyecto: "v4 — Set de categorías y Map de inventario"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de usar `Set` cuando necesitás garantizar que no haya elementos repetidos, y `Map` cuando necesitás buscar un valor por una clave (como un código de producto) en vez de por posición.
+
+## Por qué necesitas aprenderlo
+
+La lección anterior terminó preguntando: si necesitás que ningún producto se repita, ¿alcanza con `List`? No — `List` permite duplicados libremente. Y buscar un producto por su código recorriendo una lista entera, uno por uno, no escala.
+
+## Qué debes saber antes
+
+`List`/`ArrayList` y Generics básicos (`List<Tipo>`) de la lección anterior.
+
+## Recupera lo aprendido
+
+¿Qué diferencia hay entre `size()` de una `List` y `length` de un array?
+
+<Reveal titulo="Respuesta">
+`size()` es un método de List; `length` es un campo de array — sintaxis distinta para un concepto similar (cantidad de elementos).
+</Reveal>
+
+## Problema
+
+Necesitás dos cosas distintas: una colección de categorías de producto donde nunca se repita ninguna (aunque intentes agregarla dos veces), y una forma de buscar un producto por su código (`SKU-001`) sin tener que recorrer toda una lista comparando uno por uno.
+
+## Modelo mental
+
+```
+Set<String>                          Map<String, Product>
+┌─────────────┐                      ┌───────────┬─────────────┐
+│ Perifericos │                      │ "SKU-001" │ Teclado...  │
+│ Monitores   │  sin duplicados      │ "SKU-002" │ Mouse...    │
+└─────────────┘                      └───────────┴─────────────┘
+                                        clave         valor
+```
+
+## Explicación sencilla
+
+Un `Set` es como una `List` que rechaza silenciosamente los duplicados: si agregás algo que ya está, no pasa nada, pero tampoco se agrega de nuevo. Un `Map` no tiene posiciones numeradas — tiene **claves**: le pedís el valor asociado a una clave, y te lo devuelve directo, sin recorrer nada.
+
+## Explicación técnica
+
+`Set<Tipo>` es una interfaz; `HashSet` es su implementación más común. Determina duplicados usando `equals()` (y `hashCode()`, que vas a ver formalmente en la Etapa 6) — dos elementos que sean `equals` entre sí cuentan como el mismo, y el segundo `add()` simplemente no hace nada.
+
+`Map<Clave, Valor>` también es una interfaz; `HashMap` es su implementación más común. No se recorre por índice — se opera por clave:
+- `put(clave, valor)` — agrega o reemplaza el valor asociado a esa clave.
+- `get(clave)` — devuelve el valor asociado, o `null` si la clave no existe (no lanza excepción).
+- `containsKey(clave)` — verifica si la clave existe, sin necesidad de comparar con `null` después.
+
+## Cómo funciona
+
+1. `categorias.add("Perifericos")` se llama dos veces con el mismo valor — el `Set` solo lo guarda una vez.
+2. `inventarioPorCodigo.put("SKU-001", teclado)` asocia esa clave a ese producto.
+3. `inventarioPorCodigo.get("SKU-001")` devuelve el producto directamente, sin recorrer nada.
+4. `inventarioPorCodigo.get("SKU-999")` (clave inexistente) devuelve `null`, en vez de lanzar una excepción.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-04/SetMapDemo.java`
+
+```java
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+public class SetMapDemo {
+    public static void main(String[] args) {
+        Set<String> categorias = new HashSet<>();
+        categorias.add("Perifericos");
+        categorias.add("Monitores");
+        categorias.add("Perifericos");
+
+        System.out.println("Cantidad de categorias: " + categorias.size());
+        System.out.println("Contiene Perifericos: " + categorias.contains("Perifericos"));
+
+        Map<String, Product> inventarioPorCodigo = new HashMap<>();
+        inventarioPorCodigo.put("SKU-001", new Product("Teclado mecanico", 25000.0, 15));
+        inventarioPorCodigo.put("SKU-002", new Product("Mouse inalambrico", 8000.0, 40));
+
+        Product encontrado = inventarioPorCodigo.get("SKU-001");
+        System.out.println("Producto SKU-001: " + encontrado.getNombre());
+
+        System.out.println("Existe SKU-999: " + inventarioPorCodigo.containsKey("SKU-999"));
+
+        Product noEncontrado = inventarioPorCodigo.get("SKU-999");
+        System.out.println("Buscar SKU-999 (sin existir): " + noEncontrado);
+    }
+}
+```
+
+## Predice
+
+`categorias.add("Perifericos")` se llama dos veces con el mismo texto. ¿Cuánto va a dar `categorias.size()` — 2 o 3?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Cantidad de categorias: 2
+Contiene Perifericos: true
+Producto SKU-001: Teclado mecanico
+Existe SKU-999: false
+Buscar SKU-999 (sin existir): null
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `categorias.size()` da `2`, no `3` — el segundo `add("Perifericos")` fue ignorado silenciosamente por ser un duplicado.
+- `inventarioPorCodigo.get("SKU-001")` devuelve el `Product` real, sin ningún bucle explícito en tu código.
+- `get("SKU-999")` no lanza excepción: devuelve `null`, porque esa clave nunca fue puesta con `put`.
+- Por eso `containsKey` es más seguro que asumir: te deja preguntar "¿existe?" antes de operar sobre el resultado de `get`.
+
+## Ejemplo aplicado al proyecto
+
+Este `Map<String, Product>` es el germen de lo que va a convertirse en un repositorio real de productos: en vez de buscar en una lista comparando nombre por nombre, vas a poder recuperar un producto por su identificador directamente — la misma idea que después va a implementar una base de datos con una clave primaria.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El programa se cae con NullPointerException al intentar usar el resultado de una búsqueda en el Map."
+  diagnostico="El stack trace apunta a la línea donde se llama un método (como getNombre()) sobre el resultado de map.get(clave)."
+  causa="Se asumió que map.get(clave) siempre devuelve un objeto válido, sin verificar antes si la clave realmente existía — cuando la clave no existe, get devuelve null, y llamar un método sobre null falla."
+  solucion="Verificar con containsKey(clave) antes de operar, o comprobar que el resultado de get no sea null antes de usarlo."
+  prevencion="Nunca asumas que get() de un Map encontró algo — siempre es una búsqueda que puede fallar silenciosamente devolviendo null."
+>
+```java
+Product producto = inventarioPorCodigo.get("SKU-999"); // no existe
+System.out.println(producto.getNombre()); // NullPointerException
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Recorrer todas las claves de un `Map` con `for-each`:
+
+```java
+for (String clave : inventarioPorCodigo.keySet()) {
+    System.out.println(clave + " -> " + inventarioPorCodigo.get(clave).getNombre());
+}
+```
+
+## Ejercicio guiado
+
+Agregá un `Set<String>` que guarde los códigos SKU ya vendidos, y verificá antes de vender de nuevo si ese SKU ya fue vendido hoy.
+
+<Reveal titulo="Pista 1">
+`Set.add(elemento)` devuelve un `boolean`: `true` si se agregó de verdad, `false` si ya estaba.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+Podés usar ese valor de retorno directamente en un `if` para decidir si ya se había vendido.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+Set<String> vendidosHoy = new HashSet<>();
+boolean esNuevaVenta = vendidosHoy.add("SKU-001");
+if (!esNuevaVenta) {
+    System.out.println("Este SKU ya se vendio hoy");
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-04/`, escribí `BusquedaClienteDemo.java` con un `Map<String, Cliente>` que asocie email a `Cliente`, agregá dos clientes, y buscá uno por email confirmando primero con `containsKey` antes de hacer `get`.
+
+## Transferencia
+
+Si necesitaras mantener los productos de un inventario ORDENADOS alfabéticamente por nombre en todo momento, ¿`HashSet`/`HashMap` te lo garantizan? (Pista: investigá `TreeSet`/`TreeMap` — mantienen orden; `HashSet`/`HashMap` no garantizan ningún orden particular.)
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué devuelve Map.get(clave) cuando la clave no existe?"
+  opciones={[
+    { texto: "Lanza una excepción inmediatamente", correcta: false, feedback: "No lanza ninguna excepción — get() es una consulta segura que simplemente devuelve null si no encuentra la clave." },
+    { texto: "null", correcta: true, feedback: "Correcto: get() devuelve null cuando la clave no existe, lo cual puede causar NullPointerException si usás ese resultado sin verificar." },
+    { texto: "Un Map vacío", correcta: false, feedback: "get() devuelve el VALOR asociado a la clave (en este caso, un Product), no otro Map." },
+    { texto: "El primer valor del Map", correcta: false, feedback: "get() busca específicamente por la clave dada — nunca devuelve 'cualquier' valor al azar si no la encuentra." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Set<String> categorias = new HashSet<>();
+categorias.add("Perifericos");
+categorias.add("perifericos");
+System.out.println(categorias.size());
+```
+
+¿Da 1 o 2? ¿Por qué?
+
+<Reveal titulo="Diagnóstico">
+Da 2. `"Perifericos"` y `"perifericos"` son Strings DISTINTOS para `equals()` (la comparación es sensible a mayúsculas/minúsculas) — el Set los trata como dos elementos diferentes, aunque a un humano le parezcan "la misma" categoría.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que `Map.get()` devuelve `null` en vez de lanzar una excepción cuando la clave no existe, mientras que acceder a un índice inválido de un array SÍ lanza una excepción? ¿Qué decisión de diseño hay detrás?
+
+<Comparativa
+  columnas={["Concepto", "Permite duplicados", "Acceso", "Cuándo usarlo"]}
+  filas={[
+    ["List", "Sí", "Por índice (posición)", "Orden de inserción importa, se permiten repetidos"],
+    ["Set", "No", "Sin índice — solo contains/iteración", "Garantizar unicidad, no importa el orden"],
+    ["Map", "Claves no, valores sí", "Por clave (get/put)", "Necesitás buscar un valor asociado a un identificador"],
+  ]}
+/>
+
+## Resumen
+
+- `Set` garantiza que no haya elementos duplicados (según `equals`).
+- `Map` asocia claves a valores; `get`/`put`/`containsKey` son sus operaciones principales.
+- `Map.get()` con una clave inexistente devuelve `null`, no lanza excepción — hay que verificar antes de usar el resultado.
+- `HashSet`/`HashMap` no garantizan ningún orden particular de sus elementos.
+
+## Modelo mental final
+
+Cuando pienses en `Map`, imaginá un diccionario real: no buscás una palabra por "posición 47", buscás directamente por la palabra (la clave) y obtenés su definición (el valor).
+
+## Conexión
+
+Usaste `Product` de la Etapa 2 como valor del `Map`, sin modificarlo — Generics (`Map<String, Product>`) te dio seguridad de tipos sin necesitar casts.
+
+## Próximo paso
+
+Etapa 4 / Lección 3: Generics — crear tus propias clases y métodos genéricos.
+
+## Fuentes
+
+dev.java — sección de Collections (Set, Map). openjdk.org — especificación del Java Collections Framework, interfaces Set y Map.
+
+<SelfCheck
+  leccionId="etapa-04-collections/leccion-02-set-y-map"
+  criterios={[
+    "Puedo usar Set para garantizar que no haya elementos repetidos.",
+    "Puedo usar Map para buscar un valor por clave con get/put/containsKey.",
+    "Sé que Map.get() devuelve null si la clave no existe, y por qué eso es riesgoso sin verificar.",
+    "Puedo decidir entre List, Set y Map según lo que el problema necesite.",
+  ]}
+/>

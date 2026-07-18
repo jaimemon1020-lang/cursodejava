@@ -90,6 +90,13 @@
       "leccion": 1,
       "titulo": "List y ArrayList: colecciones de tamaño dinámico",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-04-collections/leccion-02-set-y-map",
+      "etapa": 4,
+      "leccion": 2,
+      "titulo": "Set y Map: sin duplicados, y acceso por clave",
+      "estado": "publicada"
     }
   ]
 }
