@@ -55,6 +55,13 @@
       "leccion": 1,
       "titulo": "Clases, objetos, constructores y this",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-02-poo/leccion-02-encapsulamiento",
+      "etapa": 2,
+      "leccion": 2,
+      "titulo": "Encapsulamiento: private, getters, setters e inmutabilidad",
+      "estado": "publicada"
     }
   ]
 }
