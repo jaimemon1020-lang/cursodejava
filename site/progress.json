@@ -279,6 +279,13 @@
       "leccion": 1,
       "titulo": "@SpringBootApplication y auto-configuración: arrancar una app real",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-11-spring-boot/leccion-02-application-properties-configuration-properties",
+      "etapa": 11,
+      "leccion": 2,
+      "titulo": "application.properties, @Value y @ConfigurationProperties",
+      "estado": "publicada"
     }
   ]
 }
