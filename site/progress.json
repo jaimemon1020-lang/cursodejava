@@ -167,6 +167,13 @@
       "leccion": 1,
       "titulo": "JVM, memoria: Stack, Heap y Garbage Collector (conceptual)",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-06-avanzado/leccion-02-equals-hashcode-tostring",
+      "etapa": 6,
+      "leccion": 2,
+      "titulo": "equals, hashCode y toString: comparar objetos por contenido",
+      "estado": "publicada"
     }
   ]
 }
