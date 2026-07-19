@@ -1,0 +1,300 @@
+---
+etapa: 17
+etapaTitulo: "Testing"
+leccion: 2
+titulo: "Mockito: @Mock, @InjectMocks y verify"
+objetivo: "Testear ServicioVentas de forma aislada usando un RepositorioProductos simulado con Mockito, sin necesitar una base de datos ni un repositorio real."
+prerrequisitos: ["etapa-17-testing/leccion-01-junit-parametrizados-ciclo-de-vida"]
+version_proyecto: "v17 — ServicioVentasTest con Mockito"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de testear una clase que depende de OTRAS clases (`ServicioVentas`, que depende de `RepositorioProductos`) SIN necesitar una implementación real de esas dependencias — usando Mockito para crear versiones SIMULADAS, controladas completamente por el test.
+
+## Por qué necesitas aprenderlo
+
+`ProductTest` (Etapa 17 Lección 1) testea `Product`, una clase SIN dependencias externas — fácil. `ServicioVentas` (Etapa 10) depende de `RepositorioProductos`, que en un test real necesitaría datos reales cargados de antemano. Mockito permite testear la LÓGICA de `ServicioVentas` de forma aislada, sin ese trabajo previo, y sin que un bug en `RepositorioProductos` pueda ocultar o causar un fallo en un test que en realidad debería probar solo `ServicioVentas`.
+
+## Qué debes saber antes
+
+Dependency Injection por constructor (Etapa 8/10) — Mockito se apoya EXACTAMENTE en ese patrón para poder "inyectar" un repositorio falso.
+
+## Recupera lo aprendido
+
+¿Por qué `@ParameterizedTest` con `@CsvSource` de tres filas cuenta como TRES tests en el reporte, no como uno solo?
+
+<Reveal titulo="Respuesta">
+Porque JUnit ejecuta el método parametrizado UNA VEZ POR CADA fila de datos, y cada ejecución es un test completamente independiente, con su propio resultado de pasa/falla — no una sola ejecución con tres verificaciones internas.
+</Reveal>
+
+## Problema
+
+`ServicioVentas.venderProducto(nombre, cantidad)` necesita un `RepositorioProductos` para funcionar — pero si testeás `ServicioVentas` con un `RepositorioProductos` REAL, necesitás cargarlo con datos de prueba primero, y cualquier bug en `RepositorioProductos` (una clase DISTINTA) podría hacer fallar un test que en teoría solo debería probar la lógica de `ServicioVentas`. Necesitás una forma de decir "asumí que el repositorio funciona perfectamente, y decime EXACTAMENTE qué va a devolver" — sin implementar un repositorio real.
+
+## Modelo mental
+
+```
+@Mock:         crea una version FALSA de una dependencia -- vos
+               le decis QUE devolver cuando se llame a cada metodo.
+
+@InjectMocks:  crea la clase REAL bajo test, inyectandole
+               automaticamente los @Mock declarados.
+
+verify():      confirma que un metodo del mock SE LLAMO,
+               ademas de controlar que devuelve.
+```
+
+## Explicación sencilla
+
+Mockito crea OBJETOS FALSOS (mocks) que se COMPORTAN como la clase real desde afuera, pero cuyo comportamiento vos CONTROLÁS completamente dentro del test — "cuando llamen a `buscar`, devolvé este producto específico", sin que exista ningún dato real detrás. `@InjectMocks` construye la clase que REALMENTE querés testear (`ServicioVentas`), pasándole automáticamente los `@Mock` que declaraste como si fueran sus dependencias reales.
+
+## Explicación técnica
+
+`@ExtendWith(MockitoExtension.class)` activa la integración de Mockito con JUnit 5 — sin esto, las anotaciones `@Mock`/`@InjectMocks` no se procesan. `@Mock private RepositorioProductos repositorio` crea un mock: un objeto que IMPLEMENTA la clase, pero cuyos métodos, por defecto, no hacen nada útil (devuelven `null`, `Optional.empty()`, etc.) hasta que vos configurás su comportamiento explícitamente.
+
+`when(repositorio.buscar(any())).thenReturn(Optional.of(teclado))` es la configuración: "cuando se llame a `buscar` con CUALQUIER argumento (`any()`), devolvé `Optional.of(teclado)`". `any()` es un **matcher** de Mockito — acepta cualquier valor del tipo esperado (`Predicate<Product>` en este caso), sin importar la lambda EXACTA que `ServicioVentas` le pase internamente.
+
+`@InjectMocks private ServicioVentas servicioVentas` crea una instancia REAL de `ServicioVentas`, usando su constructor `public ServicioVentas(RepositorioProductos repositorio)` (Etapa 10 Lección 1) — Mockito detecta ese constructor y le pasa automáticamente el `@Mock` declarado, exactamente como lo haría Spring en producción, pero sin ningún contenedor de por medio.
+
+`verify(repositorio).buscar(any())` confirma que el método SE LLAMÓ — útil para comprobar INTERACCIONES, no solo resultados: "¿`ServicioVentas` realmente consultó al repositorio, o hizo algo raro que evitó esa consulta?".
+
+## Cómo funciona
+
+1. `@Mock` crea un `RepositorioProductos` falso; `@InjectMocks` crea el `ServicioVentas` real bajo test, con el mock ya inyectado.
+2. `when(repositorio.buscar(any())).thenReturn(Optional.of(teclado))` configura: "cuando `ServicioVentas` busque un producto, dale este `Product` específico" — sin que exista ninguna lista real detrás.
+3. `servicioVentas.venderProducto("Teclado mecanico", 5)` ejecuta la lógica REAL de `ServicioVentas` (Etapa 10), que internamente llama a `repositorio.buscar(...)` — Mockito intercepta esa llamada y devuelve lo configurado.
+4. `assertEquals(10, teclado.getStock())` confirma que `venderUnidades` (Etapa 2/4) se ejecutó sobre el objeto `teclado` REAL — el mock solo reemplazó el REPOSITORIO, no el `Product` en sí.
+5. Cuando `buscar` está configurado para devolver `Optional.empty()`, `venderProducto` lanza `ProductoNoEncontradoException` (Etapa 14 Lección 2) — exactamente el mismo comportamiento que con un repositorio real vacío.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto-maven/src/test/java/com/curso/catalogo/ServicioVentasTest.java`
+
+```java
+package com.curso.catalogo;
+
+import java.util.Optional;
+
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class ServicioVentasTest {
+
+    @Mock
+    private RepositorioProductos repositorio;
+
+    @InjectMocks
+    private ServicioVentas servicioVentas;
+
+    @Test
+    @DisplayName("Vender un producto existente reduce su stock")
+    void venderProductoExistenteReduceElStock() {
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+        when(repositorio.buscar(any())).thenReturn(Optional.of(teclado));
+
+        servicioVentas.venderProducto("Teclado mecanico", 5);
+
+        assertEquals(10, teclado.getStock());
+    }
+
+    @Test
+    @DisplayName("Vender un producto inexistente lanza ProductoNoEncontradoException")
+    void venderProductoInexistenteLanzaExcepcion() {
+        when(repositorio.buscar(any())).thenReturn(Optional.empty());
+
+        assertThrows(ProductoNoEncontradoException.class, () -> servicioVentas.venderProducto("NoExiste", 1));
+    }
+
+    @Test
+    @DisplayName("Vender un producto consulta el repositorio exactamente una vez")
+    void venderProductoLlamaAlRepositorioUnaVez() {
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+        when(repositorio.buscar(any())).thenReturn(Optional.of(teclado));
+
+        servicioVentas.venderProducto("Teclado mecanico", 5);
+
+        verify(repositorio).buscar(any());
+    }
+}
+```
+
+## Predice
+
+`repositorio` es un mock que NUNCA tuvo datos reales cargados — solo se le configuró QUÉ devolver. ¿`servicioVentas.venderProducto` va a funcionar igual que con un repositorio real?
+
+<Reveal titulo="Resultado real (ejecutado con Maven)">
+```
+$ ./mvnw test -Dtest=ServicioVentasTest
+...
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "Tests run: 3, Failures: 0" confirma que los TRES escenarios pasaron: venta exitosa, producto inexistente, y verificación de la llamada al repositorio.
+- `venderProductoExistenteReduceElStock` funcionó SIN ningún `RepositorioProductos` real — el mock devolvió exactamente el `Product` que el test le pidió, y `ServicioVentas` operó sobre él normalmente.
+- `venderProductoInexistenteLanzaExcepcion` confirma que, cuando el mock devuelve `Optional.empty()` (simulando "no se encontró nada"), `ServicioVentas` reacciona EXACTAMENTE igual que lo haría con un repositorio real vacío — lanzando `ProductoNoEncontradoException`.
+- `verify(repositorio).buscar(any())` confirma que `ServicioVentas` realmente CONSULTÓ al repositorio (no encontró el producto "de la nada") — una verificación de COMPORTAMIENTO, no solo de resultado final.
+
+## Ejemplo aplicado al proyecto
+
+Con Mockito, `ServicioVentasTest` corre en MILISEGUNDOS, sin necesitar ninguna base de datos ni configuración previa de datos — un test AISLADO que prueba SOLO la lógica de `ServicioVentas` (validación de stock, manejo de "no encontrado"), dejando que `RepositorioProductosTest` (si existiera) pruebe el repositorio por separado.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El test falla con UnnecessaryStubbingException, quejandose de un stubbing 'innecesario'."
+  diagnostico="org.mockito.exceptions.misusing.UnnecessaryStubbingException: Unnecessary stubbings detected"
+  causa="Se configuro when(repositorio.buscar(any())).thenReturn(...) pero el metodo de test NUNCA llego a invocar ese camino -- por ejemplo, si servicioVentas.venderProducto lanzo una excepcion ANTES de llegar a usar el repositorio, por otra razon."
+  solucion="Revisar que el codigo bajo test realmente ejecute el camino que activa la configuracion del mock -- si el stubbing no es necesario para ESE test especifico, quitarlo."
+  prevencion="MockitoExtension.class (con configuracion estricta, el default) detecta stubbings no usados como un posible error del test -- tratalo como una senal de que el test no esta probando lo que vos crees que esta probando."
+>
+```java
+@Test
+void testConStubbingInnecesario() {
+    when(repositorio.buscar(any())).thenReturn(Optional.empty());
+    // pero el codigo bajo test nunca llama a buscar()
+    assertEquals(1, 1);
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que `verify` también puede comprobar CUÁNTAS veces se llamó un método:
+
+```java
+import static org.mockito.Mockito.times;
+
+verify(repositorio, times(1)).buscar(any());
+```
+
+## Ejercicio guiado
+
+Escribí un test que confirme que, cuando la venta EXCEDE el stock disponible, `verify` sigue mostrando que `buscar` se llamó (el producto SÍ se encontró), pero el stock del `Product` mockeado NO cambia.
+
+<Reveal titulo="Pista 1">
+Configurá un `Product` con poco stock, pedí vender más de lo disponible, y esperá `StockInsuficienteException` con `assertThrows` — después confirmá con `assertEquals` que el stock del producto no cambió.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+@Test
+@DisplayName("Vender mas del stock disponible no modifica el stock")
+void venderMasDelStockNoModificaNada() {
+    Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+    when(repositorio.buscar(any())).thenReturn(Optional.of(teclado));
+
+    assertThrows(StockInsuficienteException.class, () -> servicioVentas.venderProducto("Teclado mecanico", 100));
+
+    assertEquals(15, teclado.getStock());
+    verify(repositorio).buscar(any());
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, escribí `ProductoControllerTest` usando `@Mock` para `RepositorioProductos`, `ServicioVentas`, y `ProductoMapper`, confirmando que `listar()` devuelve la lista de `ProductoResponse` correcta cuando el repositorio mockeado devuelve una lista de `Product` de prueba.
+
+## Transferencia
+
+Si `ServicioVentas` dependiera TAMBIÉN de un `ServicioNotificaciones` (para avisar por email cuando una venta se completa), ¿cómo testearías que `venderProducto` llama a `enviarNotificacion` SOLO cuando la venta es exitosa, y NUNCA cuando lanza `StockInsuficienteException`? ¿Qué combinación de `@Mock` y `verify` (con `times(0)` o `never()`) usarías?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué testear ServicioVentas con Mockito es preferible a testearlo con un RepositorioProductos real, en un test UNITARIO?"
+  opciones={[
+    { texto: "Porque Mockito es más rápido en tiempo de EJECUCIÓN del código de producción", correcta: false, feedback: "Mockito no afecta la velocidad del código de producción — la ventaja es sobre la VELOCIDAD Y AISLAMIENTO de los TESTS: sin base de datos ni configuración previa, los tests corren en milisegundos y prueban solo la lógica de ServicioVentas." },
+    { texto: "Porque un mock aísla la lógica de ServicioVentas de cualquier bug o complejidad de RepositorioProductos, y no requiere cargar datos de prueba reales antes de cada test", correcta: true, feedback: "Correcto: si RepositorioProductos tuviera un bug, un test con Mockito seguiría probando ServicioVentas correctamente — con un repositorio real, ese bug ajeno podría hacer fallar un test que en realidad no debería depender de él." },
+    { texto: "Porque los mocks pueden probar código que no compila", correcta: false, feedback: "Los mocks no tienen ninguna relación con errores de compilación — todo el código sigue necesitando compilar normalmente, mocks incluidos." },
+    { texto: "Porque RepositorioProductos no puede usarse en tests bajo ninguna circunstancia", correcta: false, feedback: "RepositorioProductos SÍ puede (y en tests de integración, DEBERÍA) usarse real — la elección entre mock y real depende de si el test es UNITARIO (aislado, con mock) o de INTEGRACIÓN (con dependencias reales, próxima lección)." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+@Mock
+private RepositorioProductos repositorio;
+
+@InjectMocks
+private ServicioVentas servicioVentas;
+
+@Test
+void test() {
+    servicioVentas.venderProducto("Teclado mecanico", 5);
+}
+```
+
+Sin ningún `when(...)` configurado, ¿qué esperás que pase al ejecutar este test?
+
+<Reveal titulo="Diagnóstico">
+`ProductoNoEncontradoException`. Sin configuración explícita, Mockito devuelve el valor por defecto del tipo de retorno — para `Optional<Product>`, eso es `Optional.empty()`. `ServicioVentas.venderProducto` recibe ese `Optional` vacío y lanza `ProductoNoEncontradoException`, exactamente como lo haría con un repositorio real sin ese producto — el comportamiento por defecto de un mock SIN CONFIGURAR es "no hay nada ahí", no un error de Mockito.
+</Reveal>
+
+## Mini reto de diseño
+
+`@InjectMocks` funciona automáticamente porque `ServicioVentas` recibe su dependencia por CONSTRUCTOR (Etapa 8/10). ¿Qué hubiera pasado si `ServicioVentas` creara su propio `RepositorioProductos` internamente con `new` (violando Dependency Injection, como viste en el "Error común" de la Etapa 8 Lección 1)? ¿Podrías haber testeado esa versión con Mockito de la misma forma?
+
+<Comparativa
+  columnas={["Tipo de test", "Dependencias", "Velocidad", "Qué prueba"]}
+  filas={[
+    ["Unitario (Mockito)", "Mockeadas, controladas por el test", "Milisegundos", "Solo la lógica de la clase bajo test"],
+    ["Integración (próxima lección)", "Reales (H2, contexto de Spring)", "Más lento (segundos)", "Cómo interactúan varias piezas reales juntas"],
+  ]}
+/>
+
+## Resumen
+
+- `@Mock` crea una versión simulada de una dependencia, controlada completamente por el test.
+- `@InjectMocks` construye la clase real bajo test, inyectando automáticamente los mocks declarados por constructor.
+- `when(...).thenReturn(...)` configura qué devuelve un mock; `verify(...)` confirma que un método del mock se llamó.
+- Los tests con Mockito son rápidos y aíslan la lógica de UNA clase, sin depender de que otras clases (o una base de datos) funcionen correctamente.
+
+## Modelo mental final
+
+Pensá en un mock como un actor de reparto en un ensayo de teatro: no es el actor principal REAL (la base de datos), pero recita EXACTAMENTE las líneas que el director (el test) le indicó — suficiente para ensayar la escena principal (`ServicioVentas`) sin necesitar al elenco completo presente.
+
+## Conexión
+
+`ServicioVentas` recibiendo `RepositorioProductos` por constructor (Etapa 8 Lección 1, Etapa 10 Lección 1) es EXACTAMENTE lo que hace posible `@InjectMocks` — Dependency Injection no solo ayuda en producción, hace que el código sea TESTEABLE de forma aislada.
+
+## Próximo paso
+
+Etapa 17 / Lección 3: testing de integración con `@DataJpaTest` — probando `ClienteRepository` contra una base de datos H2 real, cerrando Etapa 17.
+
+## Fuentes
+
+dev.java — mocking con Mockito. site.mockito.org — documentación oficial de Mockito, guía de introducción.
+
+<SelfCheck
+  leccionId="etapa-17-testing/leccion-02-mockito-mock-injectmocks-verify"
+  criterios={[
+    "Puedo crear un mock con @Mock y configurar su comportamiento con when/thenReturn.",
+    "Puedo usar @InjectMocks para construir la clase real bajo test con dependencias mockeadas.",
+    "Puedo usar verify() para confirmar que un método del mock se llamó.",
+    "Puedo explicar por qué Dependency Injection por constructor es lo que hace posible testear con Mockito.",
+  ]}
+/>

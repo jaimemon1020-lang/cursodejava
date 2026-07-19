@@ -363,6 +363,13 @@
       "leccion": 1,
       "titulo": "JUnit avanzado: tests parametrizados y ciclo de vida",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-17-testing/leccion-02-mockito-mock-injectmocks-verify",
+      "etapa": 17,
+      "leccion": 2,
+      "titulo": "Mockito: @Mock, @InjectMocks y verify",
+      "estado": "publicada"
     }
   ]
 }
