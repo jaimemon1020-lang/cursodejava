@@ -1,0 +1,260 @@
+---
+etapa: 15
+etapaTitulo: "Bases de datos"
+leccion: 3
+titulo: "Métodos de consulta derivados y @Query"
+objetivo: "Extender un JpaRepository con búsquedas específicas sin escribir SQL, usando la convención de nombres de Spring Data, y usar @Query con JPQL cuando el nombre del método no alcanza."
+prerrequisitos: ["etapa-15-bases-de-datos/leccion-02-entity-id-jparepository"]
+version_proyecto: "v14 — findByEmail, findByNombreContaining, @Query buscarPorCiudad (cierra Etapa 15)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de agregar búsquedas específicas a un `JpaRepository` escribiendo SOLO la firma del método (Spring Data genera el SQL a partir del NOMBRE), y de usar `@Query` con JPQL cuando la consulta es demasiado compleja para expresarse en un nombre de método.
+
+## Por qué necesitas aprenderlo
+
+`ClienteRepository` (Etapa 15 Lección 2) solo tenía los métodos heredados de `JpaRepository` (`save`, `findById`, `findAll`, `count`) — genéricos, sin conocer nada específico de `Cliente`. Necesitás buscar un cliente por email, o por fragmento de nombre, o por ciudad — consultas de NEGOCIO que `JpaRepository` no puede adivinar por sí solo.
+
+## Qué debes saber antes
+
+`JpaRepository`, `@Entity` (Etapa 15 Lección 2) — esta lección extiende `ClienteRepository` con métodos nuevos.
+
+## Recupera lo aprendido
+
+¿Por qué `Cliente` necesita un constructor `protected Cliente() { }` sin argumentos, ADEMÁS de su constructor de negocio?
+
+<Reveal titulo="Respuesta">
+Porque Hibernate lo necesita internamente (vía reflection) para reconstruir objetos Cliente a partir de filas de la base de datos — es un requisito del contrato de JPA, no algo que tu código de aplicación use directamente.
+</Reveal>
+
+## Problema
+
+Necesitás: buscar un cliente por su email exacto, buscar clientes cuyo nombre CONTENGA cierto texto, y buscar clientes por ciudad (un campo que vive DENTRO de `direccionEnvio`, no como columna separada). Ninguna de estas consultas existe en `JpaRepository` — no hay forma de que Spring Data adivine QUÉ campo específico de `Cliente` te interesa sin que se lo digas.
+
+## Modelo mental
+
+```
+Metodo derivado:   Spring Data LEE el nombre del método
+                    (findByEmail, findByNombreContaining) y
+                    genera el SQL correspondiente automáticamente.
+
+@Query:            vos escribís la consulta explícitamente
+                    (en JPQL, no SQL) cuando el nombre del
+                    método no alcanza para expresar la lógica.
+```
+
+## Explicación sencilla
+
+Spring Data JPA puede LEER el nombre de un método que declarás en la interfaz y, siguiendo una convención (`findBy` + nombre del campo + palabras clave como `Containing`), genera automáticamente la consulta SQL correspondiente — sin que escribas ni una línea de SQL. Cuando la consulta es demasiado específica para expresarse con ese patrón de nombres, `@Query` te permite escribir la consulta explícitamente en JPQL (una versión de SQL orientada a objetos, que usa nombres de clases y campos Java en vez de nombres de tablas y columnas).
+
+## Explicación técnica
+
+`Optional<Cliente> findByEmail(String email)` — Spring Data interpreta `findBy` + `Email` (el nombre del CAMPO en `Cliente`) y genera `SELECT * FROM clientes WHERE email = ?` automáticamente. El tipo de retorno `Optional<Cliente>` (Etapa 4 Lección 7) es apropiado porque puede no haber ningún cliente con ese email.
+
+`List<Cliente> findByNombreContaining(String fragmento)` — la palabra clave `Containing` le agrega un `LIKE '%valor%'` a la consulta generada, en vez de una igualdad exacta. Spring Data soporta MUCHAS palabras clave similares: `StartingWith`, `EndingWith`, `GreaterThan`, `OrderBy`, y más — todas se combinan en el NOMBRE del método.
+
+`@Query("SELECT c FROM Cliente c WHERE c.direccionEnvio LIKE %:ciudad%")` es JPQL (Jakarta Persistence Query Language) — se parece a SQL, pero opera sobre ENTIDADES Java (`Cliente`, `c.direccionEnvio`) en vez de tablas y columnas SQL directamente (`clientes`, `direccion_envio`). `@Param("ciudad")` conecta el parámetro del método con el placeholder `:ciudad` en la consulta. `@Query` es necesario acá porque "buscar por un FRAGMENTO dentro de un campo que no es exactamente 'ciudad'" no tiene una convención de nombre de método directa y clara.
+
+## Cómo funciona
+
+1. `findByEmail(String email)` genera `WHERE email = ?` — coincidencia EXACTA.
+2. `findByNombreContaining(String fragmento)` genera `WHERE nombre LIKE '%fragmento%'` — coincidencia PARCIAL, en cualquier parte del campo.
+3. `buscarPorCiudad(String ciudad)`, con `@Query` explícito, busca dentro de `direccionEnvio` (un campo que combina calle Y ciudad) — algo que ninguna convención de nombre de método podría expresar directamente, porque "ciudad" no es un campo real de `Cliente`.
+4. Ninguno de los tres métodos tiene CUERPO — son solo firmas en una interfaz; Spring Data genera la implementación completa (el SQL, la ejecución, el mapeo del resultado) en tiempo de ejecución.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/ClienteRepository.java`
+
+```java
+package com.curso.catalogo;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface ClienteRepository extends JpaRepository<Cliente, Long> {
+
+    Optional<Cliente> findByEmail(String email);
+
+    List<Cliente> findByNombreContaining(String fragmento);
+
+    @Query("SELECT c FROM Cliente c WHERE c.direccionEnvio LIKE %:ciudad%")
+    List<Cliente> buscarPorCiudad(@Param("ciudad") String ciudad);
+}
+```
+
+**Fragmento actualizado de `proyecto-maven/src/main/java/com/curso/catalogo/Application.java`:**
+
+```java
+clienteRepository.save(new Cliente("Juan Gomez", "juan.gomez@ejemplo.com", "Calle Falsa 456, Rosario"));
+
+Optional<Cliente> porEmail = clienteRepository.findByEmail("juan@ejemplo.com");
+porEmail.ifPresent(c -> System.out.println("Encontrado por email: " + c.getNombre()));
+
+List<Cliente> porNombre = clienteRepository.findByNombreContaining("Juan");
+System.out.println("Clientes con 'Juan' en el nombre: " + porNombre.size());
+
+List<Cliente> porCiudad = clienteRepository.buscarPorCiudad("Cordoba");
+System.out.println("Clientes en Cordoba: " + porCiudad.size());
+```
+
+## Predice
+
+Hay dos clientes: "Juan Perez" (Córdoba) y "Juan Gomez" (Rosario). ¿Cuántos coinciden con `findByNombreContaining("Juan")`, y cuántos con `buscarPorCiudad("Cordoba")`?
+
+<Reveal titulo="Resultado real (ejecutado con Spring Boot)">
+```
+$ ./mvnw -q spring-boot:run
+...
+Cliente guardado con id: 1
+Cliente encontrado: Juan Perez
+Total de clientes: 1
+Encontrado por email: Juan Perez
+Clientes con 'Juan' en el nombre: 2
+Clientes en Cordoba: 1
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "Encontrado por email: Juan Perez" confirma que `findByEmail("juan@ejemplo.com")` encontró EXACTAMENTE el cliente correcto, sin ambigüedad — coincidencia exacta de campo.
+- "Clientes con 'Juan' en el nombre: 2" — AMBOS clientes ("Juan Perez" y "Juan Gomez") coinciden, porque `Containing` busca el fragmento "Juan" en CUALQUIER parte del campo `nombre`.
+- "Clientes en Cordoba: 1" — solo "Juan Perez" (`direccionEnvio` = "Av. Siempre Viva 123, Cordoba") coincide; "Juan Gomez" vive en Rosario, así que el `LIKE '%Cordoba%'` generado por `@Query` lo excluye correctamente.
+- Ninguno de estos tres métodos tiene una sola línea de implementación en `ClienteRepository` — Spring Data generó TODO el SQL a partir de la firma del método (los dos primeros) o de la anotación `@Query` (el tercero).
+
+## Ejemplo aplicado al proyecto
+
+Con estos métodos, `ClienteRepository` ahora expresa consultas de NEGOCIO reales (buscar por email para login, buscar por nombre para autocompletado, buscar por ciudad para logística de envíos) sin que ninguna de esas consultas requiera escribir SQL manualmente, como hubiera sido necesario con `JdbcTemplate` (Etapa 15 Lección 1).
+
+## Error común
+
+<ErrorChallenge
+  sintoma="findByNombre(String nombre) lanza una excepcion en tiempo de ejecucion sobre no poder crear la consulta (QueryCreationException)."
+  diagnostico="org.springframework.data.mapping.PropertyReferenceException: No property nombreCompleto found for type Cliente"
+  causa="El nombre del metodo hace referencia a un campo que NO EXISTE exactamente asi en la entidad -- por ejemplo, findByNombreCompleto cuando el campo real en Cliente se llama simplemente nombre."
+  solucion="El nombre del metodo debe coincidir EXACTAMENTE con el nombre del campo de la entidad (respetando mayusculas/minusculas de cada palabra) -- revisar el campo real en la clase @Entity antes de nombrar el metodo del repositorio."
+  prevencion="Spring Data valida los nombres de metodo derivados al ARRANCAR la aplicacion, no en tiempo de compilacion -- un typo en el nombre del metodo se descubre recien cuando la app intenta iniciar, no antes. Revisar los logs de arranque despues de agregar un metodo derivado nuevo."
+>
+```java
+public interface ClienteRepository extends JpaRepository<Cliente, Long> {
+    List<Cliente> findByNombreCompleto(String nombre);
+    // Cliente no tiene un campo "nombreCompleto", tiene "nombre"
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Combinar dos criterios en un solo método derivado:
+
+```java
+List<Cliente> findByNombreContainingAndDireccionEnvioContaining(String fragmentoNombre, String fragmentoDireccion);
+```
+
+## Ejercicio guiado
+
+Agregá un método derivado `existsByEmail(String email)` que devuelva `boolean`, útil para validar si un email ya está registrado ANTES de crear un cliente nuevo.
+
+<Reveal titulo="Pista 1">
+Spring Data soporta el prefijo `existsBy` además de `findBy` — genera una consulta optimizada que solo confirma existencia, sin traer el objeto completo.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+boolean existsByEmail(String email);
+```
+
+```java
+boolean yaExiste = clienteRepository.existsByEmail("juan@ejemplo.com");
+System.out.println("Email ya registrado: " + yaExiste);
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, agregá un método `@Query` que cuente cuántos clientes hay por ciudad usando JPQL con `COUNT`, y probalo con las dos ciudades del demo (Córdoba, Rosario).
+
+## Transferencia
+
+Si necesitaras una consulta MUY compleja (por ejemplo, clientes ordenados por cantidad de compras en los últimos 30 días, con un JOIN a la tabla de órdenes), ¿seguiría siendo razonable expresarla como nombre de método derivado, o directamente necesitarías `@Query`? ¿Dónde está el límite práctico de "el nombre del método se vuelve más difícil de leer que el SQL que reemplaza"?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuándo conviene usar @Query en vez de un método de consulta derivado (findByXxx)?"
+  opciones={[
+    { texto: "Siempre — @Query es más rápido en tiempo de ejecución", correcta: false, feedback: "No hay diferencia de performance entre ambos enfoques — Spring Data genera SQL eficiente en ambos casos. La elección es sobre EXPRESIVIDAD y claridad, no velocidad." },
+    { texto: "Cuando la consulta no se puede expresar claramente con la convención de nombres (campos que no existen literalmente en la entidad, lógica compleja, JOINs)", correcta: true, feedback: "Correcto: buscarPorCiudad necesitó @Query porque 'ciudad' no es un campo real de Cliente — es un fragmento DENTRO de direccionEnvio, algo que la convención de nombres no puede expresar." },
+    { texto: "Nunca — los métodos derivados siempre son suficientes para cualquier consulta", correcta: false, feedback: "Los métodos derivados tienen límites reales: consultas con JOINs complejos, agregaciones específicas, o lógica que no mapea a un campo literal necesitan @Query." },
+    { texto: "Solo cuando la entidad no tiene un @Id definido", correcta: false, feedback: "@Id es obligatorio para CUALQUIER entidad JPA (Etapa 15 Lección 2) — no tiene relación con la elección entre método derivado y @Query." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+@Query("SELECT * FROM clientes WHERE email = :email")
+Optional<Cliente> buscarPorEmailMalEscrito(@Param("email") String email);
+```
+
+¿Qué problema tiene esta consulta, sabiendo que `@Query` en Spring Data JPA usa JPQL por defecto (no SQL nativo)?
+
+<Reveal titulo="Diagnóstico">
+`SELECT * FROM clientes` es SQL, no JPQL — JPQL opera sobre ENTIDADES y sus CAMPOS (`SELECT c FROM Cliente c WHERE c.email = :email`), no sobre tablas y columnas SQL directamente. Esta consulta fallaría al arrancar la aplicación con un error de sintaxis JPQL. Para usar SQL nativo real, `@Query` necesita el atributo adicional `nativeQuery = true`.
+</Reveal>
+
+## Mini reto de diseño
+
+`findByNombreContaining` y `buscarPorCiudad` (con `@Query`) ambos terminan generando un `LIKE '%valor%'` por debajo. ¿Por qué el PRIMERO se pudo expresar como método derivado y el SEGUNDO necesitó `@Query` explícito? Pensá en qué tienen en común "nombre" y "ciudad" como conceptos, y qué los diferencia en términos de cómo están representados en la entidad `Cliente`.
+
+<Comparativa
+  columnas={["Mecanismo", "Cuándo usarlo", "Ejemplo en el proyecto"]}
+  filas={[
+    ["Método derivado (findByXxx)", "Consulta simple sobre uno o varios campos reales de la entidad", "findByEmail, findByNombreContaining"],
+    ["@Query (JPQL)", "Consulta que no mapea directamente a un campo, o lógica más compleja", "buscarPorCiudad (busca dentro de direccionEnvio)"],
+  ]}
+/>
+
+## Resumen
+
+- Spring Data JPA genera consultas automáticamente a partir del NOMBRE de un método (`findBy` + campo + palabras clave como `Containing`).
+- `@Query` con JPQL cubre los casos donde la convención de nombres no alcanza.
+- JPQL opera sobre entidades y campos Java (`Cliente`, `c.direccionEnvio`), no sobre tablas y columnas SQL directamente.
+- Ningún método de consulta (derivado o `@Query`) necesita implementación escrita a mano — Spring Data genera todo en tiempo de ejecución.
+
+## Modelo mental final
+
+Pensá en un método derivado como pedirle algo a un asistente MUY literal: si le decís exactamente "buscame por email", entiende perfecto. Pero si la petición es más elaborada ("buscame por la ciudad que está escondida dentro de la dirección"), necesitás darle instrucciones explícitas (`@Query`) en vez de confiar en que adivine solo con el nombre.
+
+## Conexión
+
+Esta lección cierra la Etapa 15: `JdbcTemplate` (Lección 1) mostró el trabajo manual; `@Entity`/`JpaRepository` (Lección 2) lo automatizó para el caso básico; métodos derivados y `@Query` (esta lección) extienden esa automatización a consultas de negocio específicas — el mismo patrón `buscar(Predicate<T>)` de `RepositorioProductos` (Etapa 10), ahora resuelto por el framework en vez de código Java manual con Streams.
+
+## Próximo paso
+
+Etapa 16: Migraciones (Flyway/Liquibase) — versionando el esquema de base de datos en vez de dejar que `spring.jpa.hibernate.ddl-auto` lo genere automáticamente, algo apropiado para desarrollo pero riesgoso en producción.
+
+## Fuentes
+
+dev.java — consultas derivadas y JPQL en Spring Data. spring.io — documentación oficial de Spring Data JPA, secciones "Query Methods" y "Using @Query".
+
+<SelfCheck
+  leccionId="etapa-15-bases-de-datos/leccion-03-derived-queries-query"
+  criterios={[
+    "Puedo escribir métodos de consulta derivados (findByXxx, con Containing y otras palabras clave) en un JpaRepository.",
+    "Puedo escribir una consulta JPQL con @Query cuando la convención de nombres no alcanza.",
+    "Puedo explicar la diferencia entre JPQL (opera sobre entidades) y SQL (opera sobre tablas).",
+    "Puedo decidir cuándo usar un método derivado versus @Query según la complejidad de la consulta.",
+  ]}
+/>

@@ -342,6 +342,13 @@
       "leccion": 2,
       "titulo": "@Entity, @Id y JpaRepository: el ORM en acción",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-15-bases-de-datos/leccion-03-derived-queries-query",
+      "etapa": 15,
+      "leccion": 3,
+      "titulo": "Métodos de consulta derivados y @Query",
+      "estado": "publicada"
     }
   ]
 }

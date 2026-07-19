@@ -56,13 +56,24 @@ public class Application {
     public CommandLineRunner jpaDemo(ClienteRepository clienteRepository) {
         return args -> {
             Cliente guardado = clienteRepository.save(
-                    new Cliente("Juan Perez", "juan@ejemplo.com", "Av. Siempre Viva 123"));
+                    new Cliente("Juan Perez", "juan@ejemplo.com", "Av. Siempre Viva 123, Cordoba"));
             System.out.println("Cliente guardado con id: " + guardado.getId());
 
             Optional<Cliente> encontrado = clienteRepository.findById(guardado.getId());
             encontrado.ifPresent(c -> System.out.println("Cliente encontrado: " + c.getNombre()));
 
             System.out.println("Total de clientes: " + clienteRepository.count());
+
+            clienteRepository.save(new Cliente("Juan Gomez", "juan.gomez@ejemplo.com", "Calle Falsa 456, Rosario"));
+
+            Optional<Cliente> porEmail = clienteRepository.findByEmail("juan@ejemplo.com");
+            porEmail.ifPresent(c -> System.out.println("Encontrado por email: " + c.getNombre()));
+
+            List<Cliente> porNombre = clienteRepository.findByNombreContaining("Juan");
+            System.out.println("Clientes con 'Juan' en el nombre: " + porNombre.size());
+
+            List<Cliente> porCiudad = clienteRepository.buscarPorCiudad("Cordoba");
+            System.out.println("Clientes en Cordoba: " + porCiudad.size());
         };
     }
 }
