@@ -286,6 +286,13 @@
       "leccion": 2,
       "titulo": "application.properties, @Value y @ConfigurationProperties",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-12-http-rest/leccion-01-restcontroller-getmapping",
+      "etapa": 12,
+      "leccion": 1,
+      "titulo": "@RestController y @GetMapping: la app deja de ser solo consola",
+      "estado": "publicada"
     }
   ]
 }

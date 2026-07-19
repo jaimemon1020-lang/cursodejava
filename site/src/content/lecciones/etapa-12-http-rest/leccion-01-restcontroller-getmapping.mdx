@@ -1,0 +1,278 @@
+---
+etapa: 12
+etapaTitulo: "HTTP y REST"
+leccion: 1
+titulo: "@RestController y @GetMapping: la app deja de ser solo consola"
+objetivo: "Exponer datos del catálogo a través de endpoints HTTP reales con @RestController y @GetMapping, entendiendo cómo Spring serializa objetos Java a JSON automáticamente."
+prerrequisitos: ["etapa-11-spring-boot/leccion-02-application-properties-configuration-properties"]
+version_proyecto: "v6 — spring-boot-starter-web, ProductoController (primeros endpoints HTTP)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de exponer datos de tu aplicación a través de endpoints HTTP reales usando `@RestController` y `@GetMapping`, y entender cómo Spring convierte automáticamente tus objetos Java (`Product`) a JSON sin que escribas ningún código de serialización manual.
+
+## Por qué necesitas aprenderlo
+
+Todo el proyecto, desde la Etapa 0, fue una aplicación de CONSOLA: se ejecutaba, imprimía resultados con `System.out.println`, y terminaba. Un sistema real necesita responder a PETICIONES externas (de un navegador, una app móvil, otro servicio) en cualquier momento, no solo ejecutar una vez y terminar — eso es exactamente lo que HTTP y REST hacen posible.
+
+## Qué debes saber antes
+
+`RepositorioProductos`, `ServicioVentas` (Etapa 10), `@SpringBootApplication` (Etapa 11) — el controlador de esta lección reutiliza el repositorio ya construido, sin duplicar su lógica.
+
+## Recupera lo aprendido
+
+¿Por qué `CatalogoProperties` (un `record` con `@ConfigurationProperties`) detecta un error de tipos al ARRANCAR la aplicación, en vez de fallar más adelante durante su uso?
+
+<Reveal titulo="Respuesta">
+Porque Spring intenta construir el record completo (con todos sus campos tipados) apenas arranca el contexto — si un valor de application.properties no puede convertirse al tipo declarado, el binding falla inmediatamente, antes de que la aplicación termine de arrancar.
+</Reveal>
+
+## Problema
+
+Necesitás que otro sistema (o un navegador, o `curl`) pueda pedirle a tu aplicación "dame la lista de productos" o "dame el producto llamado X" — sin tener que ejecutar el programa de nuevo cada vez, y sin que quien pregunta necesite saber Java. HTTP es el protocolo universal para eso, y REST es la convención más común para diseñar esas peticiones.
+
+## Modelo mental
+
+```
+Cliente (navegador, curl, otra app)
+    --  HTTP GET /api/productos  -->
+                                        Tu aplicación Spring Boot
+    <-- JSON: [{...}, {...}]     --
+```
+
+## Explicación sencilla
+
+`@RestController` marca una clase como un componente que RESPONDE a peticiones HTTP, devolviendo datos (típicamente JSON) en vez de una vista visual. `@GetMapping` marca un método como el que responde a peticiones HTTP `GET` en una ruta (URL) específica. Cuando ese método devuelve un objeto Java, Spring lo CONVIERTE automáticamente a JSON antes de enviarlo — vos nunca escribís código de serialización manual.
+
+## Explicación técnica
+
+`@RestController` es una combinación de `@Controller` (marca la clase como manejadora de peticiones web) y `@ResponseBody` (le dice a Spring que el valor de RETORNO de cada método debe escribirse directamente en el cuerpo de la respuesta HTTP, en vez de interpretarse como el nombre de una vista HTML). `@RequestMapping("/api/productos")` a nivel de CLASE define el prefijo común de ruta para todos los métodos de ese controlador.
+
+`@GetMapping` (sin argumentos) responde a `GET /api/productos`; `@GetMapping("/{nombre}")` responde a `GET /api/productos/CUALQUIER-VALOR`, capturando ese valor como **path variable**. `@PathVariable String nombre` extrae ese fragmento de la URL y lo inyecta como parámetro del método.
+
+La conversión de objetos Java a JSON la hace **Jackson** (una librería incluida automáticamente por `spring-boot-starter-web`), usando los GETTERS del objeto — `Product.getNombre()`, `getPrecio()`, `getStock()`, `getFechaIngreso()` se convierten en las claves `nombre`, `precio`, `stock`, `fechaIngreso` del JSON resultante, sin ninguna anotación adicional necesaria. Spring Boot también auto-configura el soporte para tipos de `java.time` (como `LocalDate`, Etapa 4 Lección 7), serializándolos como texto en formato ISO-8601 (`"2026-07-19"`).
+
+## Cómo funciona
+
+1. `spring-boot-starter-web` en `pom.xml` trae Spring MVC, un servidor Tomcat embebido, y Jackson para JSON — todo auto-configurado por Boot sin configuración manual.
+2. `@RestController @RequestMapping("/api/productos")` sobre `ProductoController` define el prefijo de ruta base.
+3. `ProductoController` recibe `RepositorioProductos` por constructor — el MISMO patrón de Dependency Injection visto desde la Etapa 8, ahora usado por un controlador web.
+4. `listar()` (con `@GetMapping` sin ruta adicional) responde a `GET /api/productos`, devolviendo `repositorio.listarTodos()` — Spring serializa la `List<Product>` completa a un array JSON.
+5. `buscarPorNombre(@PathVariable String nombre)` responde a `GET /api/productos/{nombre}`, reutilizando `repositorio.buscar(Predicate<T>)` (Etapa 4 Lección 7) para encontrar el producto exacto.
+6. Al arrancar `SpringApplication.run`, Boot inicia un servidor Tomcat embebido en el puerto 8080 (por defecto) — la aplicación queda ESCUCHANDO peticiones, en vez de terminar apenas ejecuta su lógica de inicio.
+
+## Ejemplo mínimo
+
+**Fragmento agregado a `proyecto-maven/pom.xml`:**
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/ProductoController.java`
+
+```java
+package com.curso.catalogo;
+
+import java.util.List;
+
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/productos")
+public class ProductoController {
+
+    private final RepositorioProductos repositorio;
+
+    public ProductoController(RepositorioProductos repositorio) {
+        this.repositorio = repositorio;
+    }
+
+    @GetMapping
+    public List<Product> listar() {
+        return repositorio.listarTodos();
+    }
+
+    @GetMapping("/{nombre}")
+    public Product buscarPorNombre(@PathVariable String nombre) {
+        return repositorio.buscar(p -> p.getNombre().equals(nombre))
+                .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado: " + nombre));
+    }
+}
+```
+
+## Predice
+
+El `CommandLineRunner` de `demo` (Etapa 11) agrega "Teclado mecanico" al repositorio y le vende 5 unidades ANTES de que puedas hacer cualquier petición HTTP. ¿Qué stock esperás ver si pedís `GET /api/productos`?
+
+<Reveal titulo="Resultado real (ejecutado con Spring Boot + curl)">
+```
+$ ./mvnw spring-boot:run &
+...
+Tomcat started on port 8080 (http) with context path '/'
+Started Application in 1.04 seconds
+Vendido: 5 x Teclado mecanico
+...
+
+$ curl -s http://localhost:8080/api/productos
+[{"nombre":"Teclado mecanico","precio":25000.0,"stock":10,"fechaIngreso":"2026-07-19"}]
+
+$ curl -s http://localhost:8080/api/productos/Teclado%20mecanico
+{"nombre":"Teclado mecanico","precio":25000.0,"stock":10,"fechaIngreso":"2026-07-19"}
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- El stock es `10`, no `15` — el `CommandLineRunner` de la Etapa 11 ya vendió 5 unidades ANTES de que el servidor terminara de arrancar, así que la petición HTTP ve el estado YA MODIFICADO del repositorio.
+- El JSON de `GET /api/productos` es un ARRAY (`[{...}]`) porque `listar()` devuelve una `List<Product>` — Jackson serializa colecciones como arrays JSON automáticamente.
+- El JSON de `GET /api/productos/Teclado%20mecanico` es un OBJETO SUELTO (`{...}`, sin corchetes) porque `buscarPorNombre` devuelve un solo `Product` — el `%20` en la URL es el espacio codificado (Teclado mecanico tiene un espacio).
+- `fechaIngreso` aparece como `"2026-07-19"` — un `LocalDate` de Java serializado automáticamente como texto ISO-8601, sin ninguna configuración adicional de tu parte.
+- El campo `nombre` en el JSON coincide EXACTAMENTE con lo que `getNombre()` devuelve — Jackson usa reflection sobre los getters (Etapa 6 Lección 4) para construir el JSON.
+
+## Ejemplo aplicado al proyecto
+
+`RepositorioProductos` (Etapa 10) ahora es accesible desde FUERA de la aplicación, vía HTTP — sin que su código interno cambiara ni una línea. El controlador es una capa NUEVA que traduce entre el mundo HTTP y la lógica de negocio ya existente, el mismo espíritu de Adapter (Etapa 8) aplicado a un contexto distinto.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="curl http://localhost:8080/api/productos devuelve 404 Not Found."
+  diagnostico="{'timestamp':'...','status':404,'error':'Not Found','path':'/api/productos'} (respuesta JSON de error estándar de Spring Boot)"
+  causa="La ruta pedida no coincide con ninguna combinada de @RequestMapping (a nivel de clase) + @GetMapping (a nivel de método) — por ejemplo, un typo en la URL, o el controlador no fue descubierto porque está fuera del paquete escaneado por @SpringBootApplication."
+  solucion="Verificar que la URL coincida EXACTAMENTE con @RequestMapping + @GetMapping combinados, y que ProductoController esté en com.curso.catalogo (o un subpaquete), donde @SpringBootApplication lo escanea automáticamente."
+  prevencion="Antes de asumir que un endpoint 'no funciona', confirmá con los logs de arranque de Spring Boot que el controlador se registró (Boot loguea las rutas mapeadas al iniciar) — la mayoría de los 404 son typos de ruta, no errores de configuración profunda."
+>
+```bash
+curl http://localhost:8080/api/producto
+# (falta la 's' final — no coincide con /api/productos)
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que pedir un producto inexistente responde con un error, no con un JSON vacío silencioso:
+
+```bash
+curl -s http://localhost:8080/api/productos/NoExiste
+# Responde con un error 500 y el mensaje de IllegalArgumentException,
+# porque el controlador todavía no maneja esa excepción explícitamente
+# (algo que la Etapa 14, Validación y manejo de errores, va a resolver)
+```
+
+## Ejercicio guiado
+
+Agregá un endpoint `GET /api/productos/con-stock-bajo/{umbral}` que use Streams (Etapa 5) para devolver solo los productos con `stock` menor al umbral recibido.
+
+<Reveal titulo="Pista 1">
+`@PathVariable int umbral` captura el número de la URL; `repositorio.listarTodos().stream().filter(p -> p.getStock() < umbral).collect(Collectors.toList())` arma la respuesta.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+@GetMapping("/con-stock-bajo/{umbral}")
+public List<Product> conStockBajo(@PathVariable int umbral) {
+    return repositorio.listarTodos().stream()
+            .filter(p -> p.getStock() < umbral)
+            .collect(Collectors.toList());
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, arrancá la aplicación con `./mvnw spring-boot:run` y probá el endpoint del ejercicio guiado con `curl http://localhost:8080/api/productos/con-stock-bajo/20`, confirmando que devuelve el Teclado (stock 10, después de la venta del `CommandLineRunner`).
+
+## Transferencia
+
+Si quisieras agregar un endpoint que permita VENDER un producto (no solo consultarlo), ¿qué verbo HTTP (GET, POST, PUT, DELETE) sería el apropiado, sabiendo que vender modifica el estado del sistema? ¿Por qué usar `GET` para eso sería semánticamente incorrecto, incluso si técnicamente funcionara?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué hace @RestController que @Controller (sin 'Rest') no hace por sí solo?"
+  opciones={[
+    { texto: "@RestController es más rápido en tiempo de ejecución", correcta: false, feedback: "No hay diferencia de performance — la diferencia es de comportamiento: qué se hace con el valor de retorno de cada método." },
+    { texto: "@RestController combina @Controller con @ResponseBody, escribiendo el valor de retorno directamente en el cuerpo de la respuesta (como JSON) en vez de interpretarlo como el nombre de una vista", correcta: true, feedback: "Correcto: sin @ResponseBody, Spring MVC buscaría una VISTA (una página HTML) con el nombre del String devuelto — @RestController evita eso, sirviendo APIs de datos directamente." },
+    { texto: "Solo @RestController puede usar @GetMapping", correcta: false, feedback: "@GetMapping funciona igual en @Controller y @RestController — la diferencia está en qué pasa con lo que el método RETORNA, no en qué anotaciones de mapping podés usar." },
+    { texto: "@RestController requiere que la clase tenga un constructor sin argumentos", correcta: false, feedback: "ProductoController tiene un constructor CON argumento (RepositorioProductos), inyectado por Spring — @RestController no impone ninguna restricción sobre constructores, funciona igual que cualquier otro bean." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+@RestController
+public class ProductoController {
+
+    @GetMapping("/api/productos")
+    public List<Product> listar() {
+        return repositorio.listarTodos();
+    }
+}
+```
+
+Sin `@RequestMapping("/api/productos")` a nivel de clase, y sin inyectar `repositorio` por constructor, ¿qué esperás que pase al compilar?
+
+<Reveal titulo="Diagnóstico">
+No compila: `repositorio` nunca se declaró como campo ni se inyectó — es una variable inexistente dentro de `listar()`. Este ejemplo también muestra que `@RequestMapping` a nivel de clase es OPCIONAL (podrías poner la ruta completa directamente en cada `@GetMapping`), pero olvidar declarar e inyectar las dependencias que el controlador necesita sí es un error real de compilación, no de configuración de Spring.
+</Reveal>
+
+## Mini reto de diseño
+
+`ProductoController` recibe `RepositorioProductos` DIRECTAMENTE, en vez de `ServicioVentas` (que ya tiene lógica de negocio como validar antes de vender). ¿Por qué exponer el REPOSITORIO crudo en un controlador de solo LECTURA (GET) tiene sentido, mientras que un endpoint que modifique datos (vender, por ejemplo) debería pasar por el SERVICIO en vez del repositorio directamente?
+
+<Comparativa
+  columnas={["Capa", "Responsabilidad", "Ejemplo en el proyecto"]}
+  filas={[
+    ["Controller", "Traducir HTTP <-> lógica de negocio", "ProductoController"],
+    ["Service", "Lógica de negocio y validaciones", "ServicioVentas"],
+    ["Repository", "Acceso a los datos", "RepositorioProductos"],
+  ]}
+/>
+
+## Resumen
+
+- `@RestController` + `@RequestMapping` + `@GetMapping` exponen datos a través de HTTP, con JSON generado automáticamente por Jackson.
+- `@PathVariable` captura fragmentos de la URL como parámetros del método.
+- Un `@RestController` recibe sus dependencias por constructor, exactamente igual que cualquier otro bean de Spring (Etapa 10).
+- El servidor Tomcat embebido (traído por `spring-boot-starter-web`) mantiene la aplicación escuchando peticiones, en vez de terminar apenas ejecuta su lógica de inicio.
+
+## Modelo mental final
+
+Pensá en `@RestController` como un mostrador de atención: alguien de afuera hace una pregunta (petición HTTP), el mostrador la traduce a una consulta interna (llamando al repositorio o servicio), y devuelve la respuesta en un idioma universal (JSON) que cualquiera puede entender, sin que quien pregunta necesite saber Java.
+
+## Conexión
+
+`RepositorioProductos` (Etapa 10 Lección 1) y `Product` con sus getters (Etapa 2, con `equals`/`hashCode`/`toString` desde Etapa 6) se reutilizan sin cambios — el controlador es una capa NUEVA que expone lo que ya existía, el mismo patrón de "envolver sin modificar" visto en Adapter (Etapa 8).
+
+## Próximo paso
+
+Etapa 12 / Lección 2: `@PostMapping` y el cuerpo de la petición (`@RequestBody`) — crear y modificar datos vía HTTP, no solo consultarlos.
+
+## Fuentes
+
+dev.java — construyendo APIs REST con Spring. spring.io — documentación oficial de Spring Web MVC, secciones de anotaciones de mapeo de peticiones (`@RequestMapping` y variantes).
+
+<SelfCheck
+  leccionId="etapa-12-http-rest/leccion-01-restcontroller-getmapping"
+  criterios={[
+    "Puedo crear un @RestController con @RequestMapping y @GetMapping para exponer datos vía HTTP.",
+    "Puedo usar @PathVariable para capturar valores de la URL.",
+    "Puedo explicar cómo Jackson serializa un objeto Java a JSON usando sus getters.",
+    "Puedo probar un endpoint con curl y verificar el JSON de respuesta.",
+  ]}
+/>
