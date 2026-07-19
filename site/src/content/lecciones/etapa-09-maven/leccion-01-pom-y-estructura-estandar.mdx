@@ -1,0 +1,288 @@
+---
+etapa: 9
+etapaTitulo: "Maven"
+leccion: 1
+titulo: "Anatomía de un proyecto Maven: pom.xml y estructura estándar"
+objetivo: "Migrar el proyecto de compilación manual multi-carpeta a un proyecto Maven real, entendiendo pom.xml, la estructura estándar src/main/java, y por qué los paquetes empiezan a importar."
+prerrequisitos: ["etapa-08-patrones/leccion-03-adapter"]
+version_proyecto: "v1 — proyecto-maven/ (pom.xml, com.curso.catalogo.Product/StockInsuficienteException/App)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de leer y escribir un `pom.xml` básico, entender la estructura estándar de carpetas que Maven espera (`src/main/java`), y compilar/empaquetar un proyecto con `mvn` (o su versión portable, `mvnw`) en vez de armar manualmente el `classpath` con `javac` como hiciste desde la Etapa 3.
+
+## Por qué necesitas aprenderlo
+
+Desde la Etapa 3, cada demo se compiló combinando archivos de distintas carpetas `etapa-NN/` a mano en la línea de comandos (`javac etapa-02/Product.java etapa-04/RepositorioEnMemoria.java ...`). Eso funciona para un curso, pero es completamente inviable en un proyecto real con cientos de archivos y dependencias externas (como las que vas a necesitar para Spring, JPA, testing). Maven resuelve exactamente ese problema.
+
+## Qué debes saber antes
+
+Todo el código Java visto hasta la Etapa 8 — esta lección no agrega sintaxis Java nueva, cambia la HERRAMIENTA que compila y organiza ese código.
+
+## Recupera lo aprendido
+
+¿Qué patrón resuelve el problema de "tengo una interfaz que mi código espera, pero una librería externa tiene una API incompatible"?
+
+<Reveal titulo="Respuesta">
+Adapter: una clase que implementa la interfaz esperada, y por dentro traduce hacia/desde la API incompatible de la librería externa, sin modificar ninguna de las dos partes.
+</Reveal>
+
+## Problema
+
+Compilar manualmente listando cada archivo (`javac etapa-02/Product.java etapa-04/StockInsuficienteException.java ...`) no escala: a medida que el proyecto crece, esa lista de archivos crece, y agregar una DEPENDENCIA EXTERNA (una librería de un tercero, como las que vas a necesitar para JSON, testing, o bases de datos) es directamente imposible sin descargarla y gestionar su classpath a mano.
+
+## Modelo mental
+
+```
+Sin Maven:  vos armás manualmente la lista de archivos y el classpath
+            en cada comando javac/java.
+
+Con Maven:  un archivo (pom.xml) describe QUÉ es el proyecto y QUÉ
+            necesita — Maven se encarga de compilar, empaquetar,
+            y descargar dependencias siguiendo una estructura
+            de carpetas ESTÁNDAR que ya no hay que explicarle.
+```
+
+## Explicación sencilla
+
+Maven es una herramienta de build (construcción) y gestión de dependencias. En vez de que vos le digas a `javac` exactamente qué archivos compilar y en qué classpath, Maven asume una estructura de carpetas ESTÁNDAR (`src/main/java` para tu código, `src/test/java` para tests) y un archivo de configuración (`pom.xml`) que describe el proyecto: su nombre, su versión, y qué librerías externas necesita. Con eso, `mvn compile` o `mvn package` hacen todo el trabajo que antes hacías a mano.
+
+## Explicación técnica
+
+`pom.xml` (Project Object Model) es el archivo central de un proyecto Maven. Los datos mínimos:
+
+- **`groupId`**: identifica quién/qué organización posee el proyecto (convención: dominio invertido, como `com.curso`).
+- **`artifactId`**: el nombre del proyecto en sí (`catalogo-app`).
+- **`version`**: la versión actual — `1.0-SNAPSHOT` indica que es una versión EN DESARROLLO, no una release estable.
+- **`packaging`**: qué tipo de artefacto produce el build — `jar` (el más común para una app standalone o librería).
+
+La **estructura estándar de directorios** (Maven la llama "convention over configuration" — convención sobre configuración) espera el código de producción en `src/main/java`, organizado en subcarpetas que reflejan el PAQUETE Java (`com.curso.catalogo` vive en `src/main/java/com/curso/catalogo/`). Maven NUNCA necesita que le digas dónde está cada archivo — simplemente los encuentra siguiendo esa convención.
+
+Antes de Maven, todo el código del curso vivía en el **paquete por defecto** (sin declaración `package`), lo cual funciona para un curso pero es mala práctica en cualquier proyecto real: sin paquetes, es imposible tener dos clases con el mismo nombre en módulos distintos, y el código no se puede organizar jerárquicamente. Migrar a Maven obligó a agregarle `package com.curso.catalogo;` a cada clase — y con paquetes con NOMBRE, los modificadores de acceso (como el constructor `package-private` que tenía `Product` desde la Etapa 2) empiezan a importar de verdad: por eso el constructor de `Product` pasó a ser `public` en esta migración.
+
+**Maven Wrapper** (`mvnw`/`mvnw.cmd`) es un script que descarga automáticamente la versión EXACTA de Maven que el proyecto necesita, sin que quien clona el repositorio tenga que instalar Maven manualmente ni preocuparse por versiones incompatibles — es el equivalente, para Maven, a lo que sería tener Java empaquetado junto al proyecto.
+
+## Cómo funciona
+
+1. `pom.xml` en la raíz de `proyecto-maven/` declara `groupId`, `artifactId`, `version`, y la versión de Java a usar (`maven.compiler.release`).
+2. `src/main/java/com/curso/catalogo/Product.java` (y las demás clases) viven en la ruta que refleja EXACTAMENTE su paquete `com.curso.catalogo`.
+3. `./mvnw compile` compila todo el código de `src/main/java`, generando las clases en `target/classes` — sin que hiciera falta listar archivos manualmente.
+4. `./mvnw package` compila Y empaqueta todo en un `.jar` dentro de `target/`, listo para distribuir.
+5. `java -cp target/classes com.curso.catalogo.App` ejecuta la clase con el paquete completo — a diferencia de antes, el nombre de clase ahora incluye su paquete.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto-maven/pom.xml`
+
+```xml
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.curso</groupId>
+    <artifactId>catalogo-app</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <packaging>jar</packaging>
+
+    <properties>
+        <maven.compiler.release>17</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    </properties>
+</project>
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/App.java`
+
+```java
+package com.curso.catalogo;
+
+public class App {
+    public static void main(String[] args) {
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+        teclado.describir();
+
+        teclado.venderUnidades(5);
+        System.out.println("Stock restante: " + teclado.getStock());
+        System.out.println("Valor de inventario: " + teclado.calcularValorInventario());
+    }
+}
+```
+
+## Predice
+
+Después de `./mvnw compile` y ejecutar `App`, sabiendo que el teclado arranca con 15 unidades y se venden 5 (`venderUnidades(5)`), ¿qué stock restante y qué valor de inventario esperás?
+
+<Reveal titulo="Resultado real (compilado y ejecutado con Maven)">
+```
+$ ./mvnw -q clean package
+$ java -cp target/classes com.curso.catalogo.App
+Teclado mecanico | precio: 25000.0 | stock: 15
+Stock restante: 10
+Valor de inventario: 250000.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `./mvnw -q clean package` limpia el `target/` anterior, compila TODO `src/main/java`, y empaqueta el resultado en un `.jar` — sin que se haya escrito ningún nombre de archivo en el comando.
+- `describir()` imprime el estado inicial: stock 15.
+- `venderUnidades(5)` reduce el stock a 10, exactamente igual que en la Etapa 2 — el comportamiento de `Product` no cambió, solo CÓMO se compila.
+- `calcularValorInventario()` da `10 * 25000 = 250000.0` — la lógica de negocio es idéntica a la de `proyecto/etapa-02/Product.java`, migrada sin cambios de comportamiento.
+- La clase se ejecuta como `com.curso.catalogo.App`, no solo `App` — el paquete es ahora parte de su identidad.
+
+## Ejemplo aplicado al proyecto
+
+`Product` (con `equals`/`hashCode`/`toString`/`Comparable`, evolucionado desde la Etapa 2 hasta la Etapa 6) migra intacto a Maven — el comportamiento no cambia, solo la organización del código y la forma de compilarlo. A partir de esta etapa, el desarrollo continúa en `proyecto-maven/`, dejando `proyecto/etapa-00/` a `etapa-08/` como el registro histórico de cómo llegó el proyecto hasta acá.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="java -jar target/catalogo-app-1.0-SNAPSHOT.jar falla con 'no main manifest attribute'."
+  diagnostico="no hay ningún atributo de manifiesto principal en target/catalogo-app-1.0-SNAPSHOT.jar (o el equivalente en inglés: no main manifest attribute)"
+  causa="El jar generado por mvn package NO sabe cuál es la clase con el metodo main() a ejecutar — por defecto, Maven empaqueta las clases compiladas sin configurar esa información en el manifiesto del jar."
+  solucion="Para este curso, ejecutar con java -cp target/classes com.curso.catalogo.App (usando las clases sin empaquetar) es suficiente. Para producir un jar EJECUTABLE directamente con java -jar, se necesita configurar el plugin maven-jar-plugin (o maven-shade-plugin, para incluir dependencias) especificando la clase principal — algo que vas a ver en detalle cuando el proyecto necesite distribuirse como un artefacto standalone."
+  prevencion="No asumas que cualquier .jar generado por mvn package es directamente ejecutable con java -jar — solo lo es si el pom.xml configuró explícitamente el Main-Class en el manifiesto."
+>
+```bash
+./mvnw -q package
+java -jar target/catalogo-app-1.0-SNAPSHOT.jar
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que `mvn compile` (sin `package`) también funciona, generando solo las clases sin empaquetar:
+
+```bash
+./mvnw -q compile
+java -cp target/classes com.curso.catalogo.App
+```
+
+## Ejercicio guiado
+
+Migrá `StockInsuficienteException` (ya migrada como referencia) y agregale una clase nueva `Cliente` a `com.curso.catalogo`, con los mismos campos que la versión de la Etapa 2 (`nombre`, `email`, `direccion`), recordando declarar el `package` correcto.
+
+<Reveal titulo="Pista 1">
+El archivo debe vivir en `src/main/java/com/curso/catalogo/Cliente.java`, empezando con `package com.curso.catalogo;` — la ruta de carpetas DEBE coincidir exactamente con el paquete declarado.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+package com.curso.catalogo;
+
+public class Cliente {
+    private String nombre;
+    private String email;
+    private String direccion;
+
+    public Cliente(String nombre, String email, String direccion) {
+        this.nombre = nombre;
+        this.email = email;
+        this.direccion = direccion;
+    }
+
+    public String getNombre() {
+        return this.nombre;
+    }
+
+    public String getEmail() {
+        return this.email;
+    }
+
+    public String getDireccion() {
+        return this.direccion;
+    }
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, ejecutá `./mvnw clean compile` y confirmá en la salida del comando que Maven reporta cuántos archivos fuente compiló — comparalo con tener que escribir esa lista de archivos vos mismo, como hacías desde la Etapa 3.
+
+## Transferencia
+
+Si tu equipo agregara un segundo desarrollador que clona el repositorio en una máquina SIN Maven instalado, ¿podría compilar el proyecto usando `./mvnw`? ¿Qué tendría que tener instalado como único requisito previo?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué la carpeta de un archivo Java en un proyecto Maven debe coincidir exactamente con su declaración de package?"
+  opciones={[
+    { texto: "Es solo una convención de estilo recomendada, pero no obligatoria", correcta: false, feedback: "Es obligatorio, no solo recomendado — Maven (y el compilador de Java en general) usa la ruta de carpetas para resolver el paquete; si no coinciden, la compilación falla." },
+    { texto: "Maven usa la estructura de carpetas (convención sobre configuración) para saber dónde está cada clase, sin que vos tengas que listar archivos manualmente — por eso la ruta debe reflejar el paquete", correcta: true, feedback: "Correcto: esa es la esencia de 'convention over configuration' — Maven asume src/main/java/<ruta-del-paquete> sin que se lo configures, y esa asunción solo funciona si la carpeta coincide con el package declarado." },
+    { texto: "Solo importa para clases públicas, las package-private pueden estar en cualquier carpeta", correcta: false, feedback: "La regla aplica a TODAS las clases Java, sean públicas o no — la ubicación en el sistema de archivos siempre debe reflejar el paquete declarado, sin excepciones." },
+    { texto: "Maven ignora la estructura de carpetas y compila cualquier archivo .java que encuentre en cualquier lugar", correcta: false, feedback: "Es al revés: Maven específicamente ESPERA la convención src/main/java — archivos fuera de esa estructura, o con una ruta que no coincida con su paquete, no se resuelven correctamente." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```
+src/main/java/com/curso/catalogo/Product.java
+
+package com.curso.catalogoo;  // <- typo: dos "o"
+
+public class Product { ... }
+```
+
+¿Qué esperás que pase al ejecutar `./mvnw compile`?
+
+<Reveal titulo="Diagnóstico">
+Compila SIN error de Maven, pero cualquier otra clase en `com.curso.catalogo` (sin el typo) que intente usar `Product` sin un `import` explícito va a fallar con `cannot find symbol` — porque `Product` ahora vive TÉCNICAMENTE en un paquete distinto (`com.curso.catalogoo`) al de la carpeta donde está guardado, aunque Maven no valide esa inconsistencia en tiempo de compilación de ESE archivo en particular.
+</Reveal>
+
+## Mini reto de diseño
+
+`Product` migró de constructor `package-private` (Etapa 2, funcionaba porque todo estaba en el paquete por defecto) a constructor `public` (esta lección, necesario porque ahora vive en un paquete con nombre). ¿Por qué esta migración fue una mejora real, y no solo un cambio técnico necesario? ¿Qué problema traería mantenerlo `package-private` en un proyecto Maven real con múltiples paquetes?
+
+<Comparativa
+  columnas={["Aspecto", "Antes (proyecto/, sin Maven)", "Después (proyecto-maven/)"]}
+  filas={[
+    ["Compilación", "javac listando archivos manualmente", "./mvnw compile, automático"],
+    ["Organización", "Carpetas etapa-NN/, sin paquetes Java", "Paquetes com.curso.catalogo, con jerarquía real"],
+    ["Dependencias externas", "Imposibles de gestionar a mano de forma práctica", "Se declaran en pom.xml (próxima lección)"],
+    ["Portabilidad", "Requiere que quien clone sepa el comando exacto", "./mvnw funciona igual en cualquier máquina con Java"],
+  ]}
+/>
+
+## Resumen
+
+- `pom.xml` describe el proyecto (`groupId`, `artifactId`, `version`) y sus propiedades de build.
+- La estructura estándar `src/main/java/<paquete>` reemplaza la necesidad de listar archivos manualmente.
+- `./mvnw compile`/`package` compilan y empaquetan sin que definas el classpath a mano.
+- Migrar a paquetes con nombre real hace que los modificadores de acceso (`public`, `package-private`) empiecen a importar de verdad.
+
+## Modelo mental final
+
+Pensá en el proyecto sin Maven como una casa sin planos, donde vos tenés que recordar dónde está cada cosa; y en un proyecto Maven como una casa con planos estándar (`src/main/java`) que cualquier otra persona (o herramienta) puede leer sin que se los expliques — el `pom.xml` es la ficha técnica de la casa completa.
+
+## Conexión
+
+`Product`, `StockInsuficienteException` y toda la lógica de negocio construida desde la Etapa 2 migran SIN cambios de comportamiento — Maven cambia CÓMO se organiza y compila el código, no QUÉ hace. A partir de acá, el desarrollo continúa en `proyecto-maven/`.
+
+## Próximo paso
+
+Etapa 9 / Lección 2: dependencias y el ciclo de vida de Maven — agregar una librería externa real al `pom.xml` y entender qué hace cada fase (`validate`, `compile`, `test`, `package`).
+
+## Fuentes
+
+dev.java — introducción a Maven. maven.apache.org — Guía oficial "Maven in 5 Minutes" y referencia del modelo POM.
+
+<SelfCheck
+  leccionId="etapa-09-maven/leccion-01-pom-y-estructura-estandar"
+  criterios={[
+    "Puedo explicar qué son groupId, artifactId, version y packaging en un pom.xml.",
+    "Puedo ubicar código Java correctamente según la estructura estándar src/main/java y su paquete.",
+    "Puedo compilar y empaquetar un proyecto Maven con mvn/mvnw sin listar archivos manualmente.",
+    "Puedo explicar para qué sirve el Maven Wrapper (mvnw) y por qué mejora la portabilidad del proyecto.",
+  ]}
+/>

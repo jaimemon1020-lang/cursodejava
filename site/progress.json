@@ -237,6 +237,13 @@
       "leccion": 3,
       "titulo": "Adapter: conectar una interfaz incompatible con la que tu código espera",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-09-maven/leccion-01-pom-y-estructura-estandar",
+      "etapa": 9,
+      "leccion": 1,
+      "titulo": "Anatomía de un proyecto Maven: pom.xml y estructura estándar",
+      "estado": "publicada"
     }
   ]
 }
