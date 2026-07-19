@@ -54,6 +54,6 @@ public class ProductoController {
 
     private Product buscarOFallar(String nombre) {
         return repositorio.buscar(p -> p.getNombre().equals(nombre))
-                .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado: " + nombre));
+                .orElseThrow(() -> new ProductoNoEncontradoException(nombre));
     }
 }

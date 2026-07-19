@@ -1,0 +1,292 @@
+---
+etapa: 14
+etapaTitulo: "Validación y manejo de errores"
+leccion: 2
+titulo: "@ExceptionHandler y @ControllerAdvice: respuestas de error correctas"
+objetivo: "Centralizar el manejo de excepciones con @RestControllerAdvice, mapeando cada tipo de excepción al código HTTP correcto (400, 404, 409) con un cuerpo de respuesta útil, en vez del 500 genérico por defecto."
+prerrequisitos: ["etapa-14-validacion-manejo-errores/leccion-01-bean-validation-valid"]
+version_proyecto: "v11 — ProductoNoEncontradoException, ManejadorDeErrores @RestControllerAdvice (cierra Etapa 14)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de centralizar el manejo de TODAS las excepciones de tu API en una única clase con `@RestControllerAdvice`, mapeando cada tipo de excepción al código de estado HTTP semánticamente correcto, con un cuerpo de respuesta JSON útil para quien consume la API.
+
+## Por qué necesitas aprenderlo
+
+Desde la Etapa 12, `ProductoNoEncontradoException` y `StockInsuficienteException` (sin manejar) devolvían `500 Internal Server Error` — el código genérico de "algo salió mal en el servidor", aunque el problema real era del CLIENTE (pidió un producto inexistente, o más stock del disponible). Y la Etapa 14 Lección 1 mostró que Bean Validation devuelve `400` pero SIN detalle de qué campo falló. Ambos problemas se resuelven con la misma herramienta.
+
+## Qué debes saber antes
+
+`StockInsuficienteException` (Etapa 4 Lección 6), Bean Validation y `@Valid` (Etapa 14 Lección 1) — esta lección captura y transforma ambos tipos de fallos.
+
+## Recupera lo aprendido
+
+¿Por qué la respuesta `400 Bad Request` por defecto de Spring Boot (Etapa 14 Lección 1) no incluye los mensajes personalizados que escribiste en `@NotBlank`/`@Positive`?
+
+<Reveal titulo="Respuesta">
+Porque Spring Boot oculta detalles de validación por defecto, por razones de seguridad (no revelar información interna a un cliente no autenticado) — hace falta un manejador de excepciones personalizado para exponer esos mensajes explícitamente.
+</Reveal>
+
+## Problema
+
+`GET /api/productos/NoExiste` lanza `ProductoNoEncontradoException` (una excepción de NEGOCIO: el producto simplemente no existe), pero sin manejo explícito, Spring Boot responde `500 Internal Server Error` — el código para "algo se rompió en el servidor", cuando en realidad el cliente pidió algo que nunca existió. De la misma forma, vender más unidades de las disponibles (`StockInsuficienteException`) también termina en `500`, ocultando información útil como cuánto stock había realmente disponible.
+
+## Modelo mental
+
+```
+@RestControllerAdvice:  una clase que INTERCEPTA excepciones
+                         lanzadas por CUALQUIER controlador.
+
+@ExceptionHandler(Tipo.class): un método que maneja UN tipo
+                                específico de excepción.
+
+ResponseEntity<T>:      control TOTAL sobre el código de estado
+                         Y el cuerpo de la respuesta.
+```
+
+## Explicación sencilla
+
+`@RestControllerAdvice` marca una clase como un manejador GLOBAL de excepciones — cualquier excepción que "escape" de cualquier controlador de la aplicación pasa primero por acá, antes de convertirse en una respuesta HTTP. Cada método anotado con `@ExceptionHandler(TipoDeExcepcion.class)` se encarga de UN tipo específico, devolviendo exactamente el código de estado y el cuerpo que quieras — en vez del `500` genérico por defecto.
+
+## Explicación técnica
+
+`ResponseEntity<T>` representa una respuesta HTTP COMPLETA: código de estado (`HttpStatus.NOT_FOUND`, `HttpStatus.CONFLICT`, etc.) más el cuerpo (`T`, que Jackson serializa a JSON igual que cualquier objeto de retorno normal, Etapa 12 Lección 1). `ResponseEntity.status(HttpStatus.NOT_FOUND).body(error)` construye una respuesta `404` con un cuerpo JSON personalizado.
+
+`MethodArgumentNotValidException` es la excepción que Spring lanza INTERNAMENTE cuando `@Valid` (Etapa 14 Lección 1) detecta una violación de Bean Validation — `ex.getBindingResult().getFieldErrors()` da acceso a la lista de errores POR CAMPO, cada uno con su `getField()` (nombre del campo) y `getDefaultMessage()` (el mensaje que escribiste en `@NotBlank(message = "...")`). Recorrerlos y armar un `Map<String, String>` produce exactamente el detalle que faltaba en la Lección 1.
+
+Cada tipo de excepción se mapea al código HTTP SEMÁNTICAMENTE correcto: `ProductoNoEncontradoException` → `404 Not Found` (el recurso pedido no existe); `StockInsuficienteException` → `409 Conflict` (la petición es válida en forma, pero entra en conflicto con el ESTADO actual del sistema — hay stock, pero no el suficiente); errores de validación → `400 Bad Request` (la petición en sí está mal formada o es inválida).
+
+## Cómo funciona
+
+1. `ProductoNoEncontradoException` (nueva, extiende `RuntimeException`) reemplaza el `IllegalArgumentException` genérico que `ProductoController.buscarOFallar` y `ServicioVentas.venderProducto` usaban antes — un tipo de excepción PROPIO y específico, siguiendo el mismo patrón que `StockInsuficienteException` (Etapa 4 Lección 6).
+2. `ManejadorDeErrores` (`@RestControllerAdvice`) declara TRES `@ExceptionHandler`: uno para `MethodArgumentNotValidException` (validación), uno para `ProductoNoEncontradoException` (404), uno para `StockInsuficienteException` (409).
+3. Cuando `buscarOFallar` lanza `ProductoNoEncontradoException`, Spring NO devuelve `500` — busca en `ManejadorDeErrores` un método que maneje ESE tipo, lo encuentra, y usa SU `ResponseEntity` como respuesta final.
+4. `manejarStockInsuficiente` accede a `ex.getStockDisponible()` y `ex.getCantidadSolicitada()` (los campos propios de `StockInsuficienteException`, Etapa 4 Lección 6) para armar un cuerpo de error MÁS informativo que un simple mensaje de texto.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/ProductoNoEncontradoException.java`
+
+```java
+package com.curso.catalogo;
+
+public class ProductoNoEncontradoException extends RuntimeException {
+
+    public ProductoNoEncontradoException(String nombre) {
+        super("Producto no encontrado: " + nombre);
+    }
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/ManejadorDeErrores.java`
+
+```java
+package com.curso.catalogo;
+
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.bind.annotation.RestControllerAdvice;
+
+@RestControllerAdvice
+public class ManejadorDeErrores {
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    public ResponseEntity<Map<String, String>> manejarValidacion(MethodArgumentNotValidException ex) {
+        Map<String, String> errores = new LinkedHashMap<>();
+        ex.getBindingResult().getFieldErrors()
+                .forEach(error -> errores.put(error.getField(), error.getDefaultMessage()));
+        return ResponseEntity.badRequest().body(errores);
+    }
+
+    @ExceptionHandler(ProductoNoEncontradoException.class)
+    public ResponseEntity<Map<String, String>> manejarProductoNoEncontrado(ProductoNoEncontradoException ex) {
+        Map<String, String> error = new LinkedHashMap<>();
+        error.put("error", ex.getMessage());
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(error);
+    }
+
+    @ExceptionHandler(StockInsuficienteException.class)
+    public ResponseEntity<Map<String, Object>> manejarStockInsuficiente(StockInsuficienteException ex) {
+        Map<String, Object> error = new LinkedHashMap<>();
+        error.put("error", ex.getMessage());
+        error.put("stockDisponible", ex.getStockDisponible());
+        error.put("cantidadSolicitada", ex.getCantidadSolicitada());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(error);
+    }
+}
+```
+
+## Predice
+
+Tres situaciones distintas: (1) crear con `nombre` vacío, (2) buscar un producto inexistente, (3) vender más de lo disponible. ¿Qué código HTTP esperás para cada una?
+
+<Reveal titulo="Resultado real (ejecutado con Spring Boot + curl)">
+```
+$ curl -s -w "\nHTTP %{http_code}\n" -X POST http://localhost:8080/api/productos \
+    -H "Content-Type: application/json" -d '{"nombre":"","precio":-100.0,"stock":5}'
+{"nombre":"El nombre no puede estar vacio","precio":"El precio debe ser mayor a cero"}
+HTTP 400
+
+$ curl -s -w "\nHTTP %{http_code}\n" http://localhost:8080/api/productos/NoExiste
+{"error":"Producto no encontrado: NoExiste"}
+HTTP 404
+
+$ curl -s -w "\nHTTP %{http_code}\n" -X POST "http://localhost:8080/api/productos/Teclado%20mecanico/vender?cantidad=999"
+{"error":"Stock insuficiente: disponible 10, solicitado 999","stockDisponible":10,"cantidadSolicitada":999}
+HTTP 409
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- El primer caso ahora muestra el DETALLE que faltaba en la Lección 1: `{"nombre":"El nombre no puede estar vacio","precio":"El precio debe ser mayor a cero"}` — los mensajes personalizados de `@NotBlank`/`@Positive` finalmente llegan al cliente, gracias a `manejarValidacion`.
+- `GET /api/productos/NoExiste` responde `404 Not Found` con un mensaje claro — ya NO es un `500` genérico, es exactamente el código que describe "este recurso no existe".
+- Vender 999 unidades de un Teclado con solo 10 disponibles responde `409 Conflict`, CON los datos exactos (`stockDisponible: 10`, `cantidadSolicitada: 999`) que un cliente necesitaría para mostrar un mensaje útil a un usuario final, sin tener que parsear un mensaje de texto libre.
+- Los TRES casos comparten la misma estructura de respuesta (JSON con información específica del error), en vez de la página de error genérica de Spring Boot.
+
+## Ejemplo aplicado al proyecto
+
+`StockInsuficienteException` (Etapa 4 Lección 6) fue diseñada desde el principio con campos propios (`stockDisponible`, `cantidadSolicitada`) en vez de solo un mensaje de texto — esa decisión de diseño, tomada mucho antes de que existiera HTTP en el proyecto, ahora rinde frutos directamente: el manejador de errores puede exponer esos campos como datos JSON estructurados, no solo como texto.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="ManejadorDeErrores está anotado correctamente, pero las excepciones siguen devolviendo 500."
+  diagnostico="No hay indicios de que ManejadorDeErrores se esté ejecutando — la respuesta sigue siendo la página de error genérica de Spring Boot."
+  causa="ManejadorDeErrores está en un paquete FUERA de com.curso.catalogo (o un subpaquete), así que @ComponentScan (implícito desde @SpringBootApplication, Etapa 11) nunca lo descubre como bean."
+  solucion="Mover ManejadorDeErrores al paquete com.curso.catalogo (o cualquier subpaquete de este), donde el escaneo automático de Application lo detecta."
+  prevencion="Cualquier clase con @RestControllerAdvice, @Component, @Service, etc. necesita vivir dentro del árbol de paquetes escaneado — la misma regla que ya viste con @ComponentScan en la Etapa 10."
+>
+```java
+package com.otro.paquete;
+
+@RestControllerAdvice
+public class ManejadorDeErrores { ... }
+// Fuera de com.curso.catalogo — nunca se descubre
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que un manejador SIN tipo específico también es posible, como red de seguridad para excepciones no anticipadas:
+
+```java
+@ExceptionHandler(Exception.class)
+public ResponseEntity<Map<String, String>> manejarGenerico(Exception ex) {
+    Map<String, String> error = new LinkedHashMap<>();
+    error.put("error", "Ocurrio un error inesperado");
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(error);
+}
+```
+
+## Ejercicio guiado
+
+Agregá un `@ExceptionHandler` para `IllegalArgumentException` (el que `Product.setPrecio` sigue lanzando si se intenta un precio negativo, Etapa 2), devolviendo `400 Bad Request`.
+
+<Reveal titulo="Pista 1">
+El patrón es idéntico a `manejarProductoNoEncontrado`, cambiando el tipo de excepción y el `HttpStatus`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+@ExceptionHandler(IllegalArgumentException.class)
+public ResponseEntity<Map<String, String>> manejarArgumentoInvalido(IllegalArgumentException ex) {
+    Map<String, String> error = new LinkedHashMap<>();
+    error.put("error", ex.getMessage());
+    return ResponseEntity.badRequest().body(error);
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, arrancá la aplicación y probá los TRES casos de esta lección con `curl`, confirmando los códigos `400`, `404` y `409` — y agregá un cuarto caso de tu elección (por ejemplo, `stock` negativo en la creación) para confirmar que cae en el manejador de validación.
+
+## Transferencia
+
+Si `ManejadorDeErrores` tuviera un `@ExceptionHandler(RuntimeException.class)` genérico ADEMÁS de `@ExceptionHandler(ProductoNoEncontradoException.class)` (que EXTIENDE `RuntimeException`), ¿cuál de los dos manejadores se ejecutaría cuando se lanza específicamente `ProductoNoEncontradoException`? ¿Por qué Spring elige el manejador MÁS ESPECÍFICO disponible, en vez del más genérico?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué StockInsuficienteException se mapea a 409 Conflict en vez de 400 Bad Request?"
+  opciones={[
+    { texto: "Porque 409 es el código por defecto para cualquier excepción de negocio", correcta: false, feedback: "No hay un código 'por defecto' universal para excepciones de negocio — cada situación se mapea al código HTTP que mejor describe SEMÁNTICAMENTE el problema." },
+    { texto: "Porque la petición en sí es válida (un nombre de producto real, una cantidad numérica válida), pero entra en CONFLICTO con el estado actual del sistema (no hay suficiente stock) — eso es exactamente lo que 409 Conflict representa", correcta: true, feedback: "Correcto: 400 es para peticiones MAL FORMADAS o inválidas en sí mismas; 409 es para peticiones válidas que chocan con el estado actual — pedir más stock del disponible es el ejemplo canónico de esto último." },
+    { texto: "Porque StockInsuficienteException es checked y ProductoNoEncontradoException es unchecked", correcta: false, feedback: "Ambas son unchecked (extienden RuntimeException, Etapa 4 Lección 6) — la elección de código HTTP no tiene relación con checked/unchecked, es sobre semántica REST." },
+    { texto: "409 es el único código que Spring permite usar con @ExceptionHandler", correcta: false, feedback: "ResponseEntity.status() acepta CUALQUIER HttpStatus — 400, 404, 409, 422, 500, lo que corresponda semánticamente. No hay ninguna restricción de ese tipo en @ExceptionHandler." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+@ExceptionHandler(ProductoNoEncontradoException.class)
+public ResponseEntity<String> manejarProductoNoEncontrado(ProductoNoEncontradoException ex) {
+    return ResponseEntity.ok(ex.getMessage());
+}
+```
+
+¿Qué problema tiene este manejador, aunque técnicamente "maneje" la excepción sin lanzar un 500?
+
+<Reveal titulo="Diagnóstico">
+`ResponseEntity.ok(...)` construye una respuesta con código `200 OK` — el código para "todo salió bien". Un cliente que reciba esta respuesta pensaría que la búsqueda fue EXITOSA, cuando en realidad el producto NO se encontró. El código de estado HTTP es información tan importante como el cuerpo de la respuesta — "manejar" una excepción no es solo evitar el 500, es devolver el código SEMÁNTICAMENTE correcto para lo que realmente pasó.
+</Reveal>
+
+## Mini reto de diseño
+
+`ManejadorDeErrores` centraliza el manejo de errores para TODOS los controladores de la aplicación (aunque hoy solo exista `ProductoController`). ¿Por qué esta centralización es preferible a que CADA controlador maneje sus propias excepciones con bloques `try`/`catch` individuales? Pensá en términos de SRP (Etapa 7) y de qué pasaría si mañana agregás un `ClienteController` que también pueda lanzar `ProductoNoEncontradoException`-style excepciones.
+
+<Comparativa
+  columnas={["Excepción", "Código HTTP", "Significado"]}
+  filas={[
+    ["MethodArgumentNotValidException", "400 Bad Request", "La petición en sí es inválida (datos mal formados)"],
+    ["ProductoNoEncontradoException", "404 Not Found", "El recurso pedido no existe"],
+    ["StockInsuficienteException", "409 Conflict", "La petición es válida pero choca con el estado actual"],
+  ]}
+/>
+
+## Resumen
+
+- `@RestControllerAdvice` centraliza el manejo de excepciones para TODA la aplicación, no por controlador.
+- `@ExceptionHandler(Tipo.class)` mapea un tipo específico de excepción a una respuesta HTTP controlada.
+- Cada excepción debería mapearse al código de estado que SEMÁNTICAMENTE describe el problema: 400 (petición inválida), 404 (no existe), 409 (conflicto de estado).
+- `MethodArgumentNotValidException` da acceso a los mensajes de Bean Validation por campo, resolviendo la limitación de la Lección 1.
+
+## Modelo mental final
+
+Pensá en `@RestControllerAdvice` como el departamento de atención al cliente de la aplicación: sin importar en qué mostrador (controlador) haya surgido el problema, todas las quejas pasan por el MISMO protocolo de respuesta — un código claro sobre qué tipo de problema fue, y una explicación útil, en vez de un genérico "algo salió mal" para todo.
+
+## Conexión
+
+Esta lección cierra la Etapa 14: Bean Validation (Lección 1) declara las reglas; `@RestControllerAdvice` (esta lección) decide QUÉ hacer cuando esas reglas (u otras excepciones de negocio como `StockInsuficienteException`, Etapa 4) se violan. `ProductoNoEncontradoException` sigue el MISMO patrón de excepción propia con información específica que `StockInsuficienteException` estableció en la Etapa 4 Lección 6.
+
+## Próximo paso
+
+Etapa 15: Bases de datos — reemplazando `RepositorioProductos` (en memoria, se pierde al reiniciar) por persistencia real con JPA e Hibernate, empezando el camino hacia una aplicación que sobrevive a un reinicio.
+
+## Fuentes
+
+dev.java — manejo de excepciones en Spring MVC. spring.io — documentación oficial de Spring Framework, sección "Exception Handling" con `@ExceptionHandler` y `@ControllerAdvice`.
+
+<SelfCheck
+  leccionId="etapa-14-validacion-manejo-errores/leccion-02-exceptionhandler-controlleradvice"
+  criterios={[
+    "Puedo crear un @RestControllerAdvice con múltiples @ExceptionHandler para distintos tipos de excepción.",
+    "Puedo elegir el código de estado HTTP semánticamente correcto según el tipo de error (400, 404, 409).",
+    "Puedo extraer los mensajes de Bean Validation desde MethodArgumentNotValidException.",
+    "Puedo crear una excepción propia (ProductoNoEncontradoException) siguiendo el mismo patrón que StockInsuficienteException.",
+  ]}
+/>

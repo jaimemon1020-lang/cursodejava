@@ -321,6 +321,13 @@
       "leccion": 1,
       "titulo": "Bean Validation: @Valid, @NotBlank y @Positive",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-14-validacion-manejo-errores/leccion-02-exceptionhandler-controlleradvice",
+      "etapa": 14,
+      "leccion": 2,
+      "titulo": "@ExceptionHandler y @ControllerAdvice: respuestas de error correctas",
+      "estado": "publicada"
     }
   ]
 }
