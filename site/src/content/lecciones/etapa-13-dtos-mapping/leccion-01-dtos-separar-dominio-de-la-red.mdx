@@ -1,0 +1,265 @@
+---
+etapa: 13
+etapaTitulo: "DTOs y Mapping"
+leccion: 1
+titulo: "DTOs: separar el dominio de lo que viaja por la red"
+objetivo: "Formalizar el patrón DTO (Data Transfer Object) con un ProductoResponse que controla exactamente qué datos salen de la aplicación, mapeando manualmente desde el objeto de dominio."
+prerrequisitos: ["etapa-12-http-rest/leccion-02-postmapping-requestbody-requestparam"]
+version_proyecto: "v8 — ProductoResponse (DTO de salida), ProductoController devuelve DTOs en vez de Product"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de crear un DTO (Data Transfer Object) de RESPUESTA que controla exactamente qué campos salen de tu aplicación hacia el cliente, y de mapear manualmente entre el objeto de dominio (`Product`) y ese DTO, entendiendo por qué NUNCA deberías devolver tu modelo de dominio directamente desde un controlador.
+
+## Por qué necesitas aprenderlo
+
+`ProductoController.listar()` (Etapa 12) devolvía `List<Product>` directamente — el objeto de dominio COMPLETO, con TODOS sus campos, viajaba tal cual hacia cualquier cliente HTTP. Eso funciona hoy, pero es una bomba de tiempo: cualquier campo nuevo que agregues a `Product` en el futuro (por ejemplo, un costo interno de proveedor) se expondría automáticamente a CUALQUIERA que llame a la API, sin que lo decidieras explícitamente.
+
+## Qué debes saber antes
+
+`NuevoProductoRequest` (Etapa 12 Lección 2) — ya usaste un DTO de ENTRADA sin nombrarlo formalmente; esta lección completa el par con un DTO de SALIDA.
+
+## Recupera lo aprendido
+
+¿Por qué `NuevoProductoRequest` es una clase separada de `Product`, en vez de reutilizar `Product` directamente para `@RequestBody`?
+
+<Reveal titulo="Respuesta">
+Porque lo que un cliente externo puede ENVIAR no debería coincidir necesariamente con la estructura completa del dominio — por ejemplo, fechaIngreso se calcula internamente, el cliente no debería poder elegirla al crear un producto.
+</Reveal>
+
+## Problema
+
+`GET /api/productos` (Etapa 12) devolvía `Product` completo, incluyendo `fechaIngreso` — un dato que quizás no le importa a ningún cliente externo, y que en el futuro podría contener información que NO querés exponer (imaginá un campo `costoProveedor` agregado más adelante). Sin un límite explícito entre "lo que Product ES" y "lo que la API DEVUELVE", cualquier cambio interno al dominio se filtra automáticamente hacia afuera.
+
+## Modelo mental
+
+```
+Product (dominio):        toda la información que tu aplicación
+                           necesita internamente.
+
+ProductoResponse (DTO):   SOLO lo que decidís explícitamente
+                           exponer hacia afuera — un subconjunto,
+                           una transformación, nunca automático.
+```
+
+## Explicación sencilla
+
+Un **DTO** (Data Transfer Object) es un objeto cuyo ÚNICO propósito es transportar datos entre capas o sistemas — sin lógica de negocio, sin comportamiento, solo datos. `NuevoProductoRequest` (Etapa 12) es un DTO de ENTRADA: define qué puede mandar un cliente. `ProductoResponse` (esta lección) es un DTO de SALIDA: define qué puede recibir un cliente. Ninguno de los dos es "el mismo objeto" que `Product` — son TRADUCCIONES deliberadas, en cada dirección.
+
+## Explicación técnica
+
+`ProductoResponse` es un `record` (Etapa 4 Lección 5) con solo TRES campos (`nombre`, `precio`, `stock`) — deliberadamente SIN `fechaIngreso`, aunque `Product` sí la tenga. Esta es la decisión explícita del DTO: "esto es lo que un cliente de la API necesita saber, ni más ni menos".
+
+El método estático `ProductoResponse.desde(Product producto)` es el **mapper** (mapeador): la función que transforma un `Product` en un `ProductoResponse`. Ponerlo como método ESTÁTICO en el propio DTO es una estrategia de mapeo MANUAL, simple y explícita — cada campo se copia a mano, sin ninguna librería intermedia. Es la forma más básica de mapping, y suficiente para DTOs pequeños; proyectos con MUCHOS campos o mapeos repetitivos suelen usar librerías como MapStruct para generar ese código automáticamente (algo que la próxima lección explora).
+
+`ProductoResponse::desde` es una **method reference** (Etapa 5 Lección 2) — se usa directamente como argumento de `.map()` en un Stream, transformando cada `Product` de una lista en su `ProductoResponse` correspondiente, sin escribir una lambda explícita.
+
+## Cómo funciona
+
+1. `ProductoResponse(String nombre, double precio, int stock)` define la FORMA exacta de lo que sale de la API — sin `fechaIngreso`.
+2. `ProductoResponse.desde(Product producto)` construye un `ProductoResponse` copiando solo los tres campos elegidos, ignorando el resto de `Product`.
+3. `listar()` usa `repositorio.listarTodos().stream().map(ProductoResponse::desde).collect(Collectors.toList())` — transforma la lista COMPLETA de `Product` en una lista de `ProductoResponse`, reutilizando Streams (Etapa 5).
+4. `buscarPorNombre`, `crear`, y `vender` ahora también devuelven `ProductoResponse` en vez de `Product` — consistencia en TODO el controlador sobre qué forma tiene la API hacia afuera.
+5. Se extrajo `buscarOFallar(String nombre)` como método privado — la misma búsqueda con `orElseThrow` se repetía en tres lugares del controlador, y extraerla es exactamente Clean Code (Etapa 7): eliminar duplicación con una función bien nombrada.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/ProductoResponse.java`
+
+```java
+package com.curso.catalogo;
+
+public record ProductoResponse(String nombre, double precio, int stock) {
+
+    public static ProductoResponse desde(Product producto) {
+        return new ProductoResponse(producto.getNombre(), producto.getPrecio(), producto.getStock());
+    }
+}
+```
+
+**Fragmento actualizado de `proyecto-maven/src/main/java/com/curso/catalogo/ProductoController.java`:**
+
+```java
+@GetMapping
+public List<ProductoResponse> listar() {
+    return repositorio.listarTodos().stream()
+            .map(ProductoResponse::desde)
+            .collect(Collectors.toList());
+}
+
+@GetMapping("/{nombre}")
+public ProductoResponse buscarPorNombre(@PathVariable String nombre) {
+    Product producto = buscarOFallar(nombre);
+    return ProductoResponse.desde(producto);
+}
+
+private Product buscarOFallar(String nombre) {
+    return repositorio.buscar(p -> p.getNombre().equals(nombre))
+            .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado: " + nombre));
+}
+```
+
+## Predice
+
+`Product` internamente tiene `fechaIngreso` (Etapa 4 Lección 7), pero `ProductoResponse` no la incluye. ¿El JSON de `GET /api/productos` va a mostrar `fechaIngreso` o no?
+
+<Reveal titulo="Resultado real (ejecutado con Spring Boot + curl)">
+```
+$ curl -s http://localhost:8080/api/productos
+[{"nombre":"Teclado mecanico","precio":25000.0,"stock":10}]
+
+$ curl -s "http://localhost:8080/api/productos/Teclado%20mecanico"
+{"nombre":"Teclado mecanico","precio":25000.0,"stock":10}
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- Ningún JSON de respuesta incluye `fechaIngreso` — comparado con la Etapa 12 Lección 1 (`{"nombre":"...","precio":...,"stock":...,"fechaIngreso":"..."}`), ahora el campo desapareció COMPLETAMENTE, porque `ProductoResponse` nunca lo declaró.
+- Esto NO significa que `Product` perdió el campo — `Product.getFechaIngreso()` sigue existiendo y funcionando internamente (Etapa 4 Lección 7); simplemente el DTO decidió NO exponerlo.
+- `stock` sigue en `10` (después de la venta del `CommandLineRunner`, Etapa 11) — el mapeo copia el valor ACTUAL del objeto de dominio en el momento de la conversión, no un valor fijo.
+- Si mañana agregás un campo interno sensible a `Product` (como `costoProveedor`), NO aparecería automáticamente en la API — tendrías que agregarlo EXPLÍCITAMENTE a `ProductoResponse` para exponerlo, exactamente el control que un DTO te da.
+
+## Ejemplo aplicado al proyecto
+
+El límite entre `Product` (dominio) y `ProductoResponse`/`NuevoProductoRequest` (DTOs) es la primera frontera EXPLÍCITA del proyecto entre "lo que la aplicación sabe internamente" y "lo que el mundo exterior puede ver o enviar" — una separación que se vuelve crítica a medida que el sistema crece y acumula más lógica interna sensible.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Un campo interno sensible (por ejemplo, un futuro costoProveedor) aparece en la respuesta JSON de la API sin que nadie lo haya decidido explícitamente."
+  diagnostico="No hay excepción — el problema es un JSON con MÁS información de la que debería tener, descubierto normalmente en una revisión de seguridad o por un cliente confundido."
+  causa="El controlador devuelve el objeto de DOMINIO directamente (Product), en vez de un DTO — cualquier campo nuevo agregado al dominio se expone automáticamente por Jackson, sin ningún punto de control intermedio."
+  solucion="Los controladores NUNCA deberían devolver objetos de dominio directamente — siempre a través de un DTO de respuesta que declare EXPLÍCITAMENTE qué campos exponer, como ProductoResponse."
+  prevencion="Cualquier vez que agregues un campo nuevo a una clase de dominio, preguntate primero si ese campo debería aparecer en algún DTO de salida — nunca asumas que 'total transparencia' es el comportamiento por defecto correcto."
+>
+```java
+@GetMapping
+public List<Product> listar() {
+    return repositorio.listarTodos();
+    // Si Product gana un campo sensible mañana, se expone automaticamente
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que el mapeo funciona igual sobre una lista completa, no solo sobre un elemento individual:
+
+```java
+List<ProductoResponse> respuestas = repositorio.listarTodos().stream()
+        .map(ProductoResponse::desde)
+        .collect(Collectors.toList());
+System.out.println("Cantidad de DTOs generados: " + respuestas.size());
+```
+
+## Ejercicio guiado
+
+Creá un DTO `ClienteResponse(String nombre, String email)` (omitiendo `direccion`, que `Cliente` de la Etapa 2 sí tiene), con su método estático `desde(Cliente cliente)`.
+
+<Reveal titulo="Pista 1">
+El patrón es idéntico a `ProductoResponse`: un `record` con MENOS campos que la clase de dominio, y un método estático `desde` que copia solo los campos elegidos.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+package com.curso.catalogo;
+
+public record ClienteResponse(String nombre, String email) {
+
+    public static ClienteResponse desde(Cliente cliente) {
+        return new ClienteResponse(cliente.getNombre(), cliente.getEmail());
+    }
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, agregá un campo `activo` (booleano, calculado como `stock > 0`) a `ProductoResponse`, modificando `desde(Product)` para calcularlo — sin agregar ningún campo nuevo a `Product` mismo, demostrando que un DTO también puede tener datos DERIVADOS que no existen literalmente en el dominio.
+
+## Transferencia
+
+Si `NuevoProductoRequest` (DTO de entrada) y `ProductoResponse` (DTO de salida) tuvieran los MISMOS tres campos exactos (`nombre`, `precio`, `stock`), ¿tendría sentido fusionarlos en una sola clase? ¿Qué problema aparecería más adelante si el DTO de entrada necesitara un campo que el de salida NUNCA debería exponer (como una contraseña en un DTO de usuario)?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué un controlador nunca debería devolver un objeto de dominio directamente?"
+  opciones={[
+    { texto: "Porque los objetos de dominio no pueden convertirse a JSON", correcta: false, feedback: "Product SÍ se convierte a JSON perfectamente (Etapa 12) — el problema no es técnico, es de CONTROL: qué campos deberían ser públicos hacia la API." },
+    { texto: "Porque cualquier campo nuevo agregado al dominio se expondría automáticamente hacia afuera, sin que nadie lo decida explícitamente — un DTO establece ese límite de forma consciente", correcta: true, feedback: "Correcto: ProductoResponse demuestra exactamente esto — fechaIngreso existe en Product pero NO aparece en la API, porque el DTO decidió explícitamente no incluirla." },
+    { texto: "Porque los objetos de dominio son más lentos de procesar que los DTOs", correcta: false, feedback: "No hay una diferencia de performance relevante entre devolver Product o ProductoResponse — la razón es de diseño y seguridad de la API, no de velocidad." },
+    { texto: "Porque Spring Boot no permite devolver clases con más de tres campos desde un @RestController", correcta: false, feedback: "No existe ese límite — Product tiene varios campos y métodos (getters, equals, etc.) y se devolvía sin problema en la Etapa 12. La razón de usar DTOs es de diseño y control de la API, no una restricción técnica de Spring." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+public record ProductoResponse(String nombre, double precio, int stock) {
+    public static ProductoResponse desde(Product producto) {
+        return new ProductoResponse(producto.getNombre(), producto.getPrecio(), 0);
+    }
+}
+```
+
+¿Qué problema tiene este mapeo, aunque compile perfectamente?
+
+<Reveal titulo="Diagnóstico">
+El campo `stock` siempre se hardcodea en `0`, ignorando `producto.getStock()` — un bug de mapeo SILENCIOSO: el código compila, la API responde, pero el dato de stock siempre es incorrecto. Este es exactamente el riesgo del mapeo MANUAL: cada campo hay que copiarlo correctamente a mano, y un error de copy-paste (o de simple descuido) no lo detecta el compilador, solo un test que verifique el valor real (algo que la Etapa 17, Testing, va a reforzar).
+</Reveal>
+
+## Mini reto de diseño
+
+`ProductoResponse.desde` es un método ESTÁTICO en el propio DTO. ¿Qué ventaja tendría, en cambio, tener una clase SEPARADA `ProductoMapper` con un método `desde(Product)` (no estático, como un bean de Spring)? Pensá en términos de Dependency Injection (Etapa 8/10) y testabilidad — ¿por qué un mapper que no depende de nada más (como este) casi no necesita esa separación, pero uno que SÍ tuviera dependencias (por ejemplo, para calcular un precio con IVA usando un servicio externo) sí la necesitaría?
+
+<Comparativa
+  columnas={["Aspecto", "Product (dominio)", "ProductoResponse (DTO)"]}
+  filas={[
+    ["Campos", "nombre, precio, stock, fechaIngreso", "nombre, precio, stock (subconjunto explícito)"],
+    ["Comportamiento", "venderUnidades, equals, hashCode, compareTo", "Ninguno — solo datos"],
+    ["Quién lo usa", "Lógica de negocio interna (ServicioVentas, etc.)", "Clientes externos de la API"],
+    ["Quién decide su forma", "Necesidades internas del dominio", "Necesidades del contrato público de la API"],
+  ]}
+/>
+
+## Resumen
+
+- Un DTO transporta datos entre capas o sistemas, sin lógica de negocio propia.
+- `NuevoProductoRequest` (Etapa 12) es DTO de entrada; `ProductoResponse` (esta lección) es DTO de salida.
+- Un controlador NUNCA debería devolver el objeto de dominio directamente — siempre a través de un DTO que declare explícitamente qué exponer.
+- El mapeo manual (método estático `desde`) es simple y explícito, apropiado para DTOs pequeños.
+
+## Modelo mental final
+
+Pensá en `Product` como el expediente COMPLETO de un empleado (con datos internos de RRHH), y en `ProductoResponse` como la tarjeta de presentación que le entregás a un cliente — misma persona, pero la tarjeta muestra SOLO lo que decidiste que sea público, nunca el expediente entero por accidente.
+
+## Conexión
+
+`NuevoProductoRequest` (Etapa 12 Lección 2) y `ProductoResponse` (esta lección) completan el par ENTRADA/SALIDA del patrón DTO. `record` (Etapa 4 Lección 5) y method references (Etapa 5 Lección 2) se reutilizan como las herramientas naturales para modelar y mapear estos objetos.
+
+## Próximo paso
+
+Etapa 13 / Lección 2: estrategias de mapeo — comparando el mapeo manual de esta lección con un `Mapper` dedicado como bean de Spring, preparando el terreno para casos con dependencias.
+
+## Fuentes
+
+dev.java — el patrón DTO en aplicaciones Java. martinfowler.com — artículo clásico sobre Data Transfer Object.
+
+<SelfCheck
+  leccionId="etapa-13-dtos-mapping/leccion-01-dtos-separar-dominio-de-la-red"
+  criterios={[
+    "Puedo explicar qué es un DTO y por qué se usa en el límite entre el dominio y la API.",
+    "Puedo crear un DTO de respuesta que exponga solo un subconjunto de campos del dominio.",
+    "Puedo escribir un mapeo manual entre un objeto de dominio y su DTO correspondiente.",
+    "Puedo explicar el riesgo de devolver objetos de dominio directamente desde un controlador.",
+  ]}
+/>

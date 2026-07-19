@@ -300,6 +300,13 @@
       "leccion": 2,
       "titulo": "@PostMapping, @RequestBody y @RequestParam: crear y modificar vía HTTP",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-13-dtos-mapping/leccion-01-dtos-separar-dominio-de-la-red",
+      "etapa": 13,
+      "leccion": 1,
+      "titulo": "DTOs: separar el dominio de lo que viaja por la red",
+      "estado": "publicada"
     }
   ]
 }

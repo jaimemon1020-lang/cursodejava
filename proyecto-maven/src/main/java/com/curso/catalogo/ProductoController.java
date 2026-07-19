@@ -1,6 +1,7 @@
 package com.curso.catalogo;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,26 +24,33 @@ public class ProductoController {
     }
 
     @GetMapping
-    public List<Product> listar() {
-        return repositorio.listarTodos();
+    public List<ProductoResponse> listar() {
+        return repositorio.listarTodos().stream()
+                .map(ProductoResponse::desde)
+                .collect(Collectors.toList());
     }
 
     @GetMapping("/{nombre}")
-    public Product buscarPorNombre(@PathVariable String nombre) {
-        return repositorio.buscar(p -> p.getNombre().equals(nombre))
-                .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado: " + nombre));
+    public ProductoResponse buscarPorNombre(@PathVariable String nombre) {
+        Product producto = buscarOFallar(nombre);
+        return ProductoResponse.desde(producto);
     }
 
     @PostMapping
-    public Product crear(@RequestBody NuevoProductoRequest request) {
+    public ProductoResponse crear(@RequestBody NuevoProductoRequest request) {
         Product producto = new Product(request.nombre(), request.precio(), request.stock());
         repositorio.agregar(producto);
-        return producto;
+        return ProductoResponse.desde(producto);
     }
 
     @PostMapping("/{nombre}/vender")
-    public Product vender(@PathVariable String nombre, @RequestParam int cantidad) {
+    public ProductoResponse vender(@PathVariable String nombre, @RequestParam int cantidad) {
         servicioVentas.venderProducto(nombre, cantidad);
-        return repositorio.buscar(p -> p.getNombre().equals(nombre)).orElseThrow();
+        return ProductoResponse.desde(buscarOFallar(nombre));
+    }
+
+    private Product buscarOFallar(String nombre) {
+        return repositorio.buscar(p -> p.getNombre().equals(nombre))
+                .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado: " + nombre));
     }
 }
