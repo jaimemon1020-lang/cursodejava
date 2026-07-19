@@ -153,6 +153,13 @@
       "leccion": 3,
       "titulo": "Streams: reduce, sorted y Comparator",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-05-funcional/leccion-04-collectors-groupingby-partitioningby",
+      "etapa": 5,
+      "leccion": 4,
+      "titulo": "Collectors.groupingBy y partitioningBy: agrupar y particionar colecciones",
+      "estado": "publicada"
     }
   ]
 }
