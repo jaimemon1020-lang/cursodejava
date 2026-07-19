@@ -188,6 +188,13 @@
       "leccion": 4,
       "titulo": "Annotations propias y reflection básica",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-06-avanzado/leccion-05-nio-path-files",
+      "etapa": 6,
+      "leccion": 5,
+      "titulo": "NIO: Path y Files para leer y escribir archivos",
+      "estado": "publicada"
     }
   ]
 }
