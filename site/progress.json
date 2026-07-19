@@ -244,6 +244,13 @@
       "leccion": 1,
       "titulo": "Anatomía de un proyecto Maven: pom.xml y estructura estándar",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-09-maven/leccion-02-dependencias-y-ciclo-de-vida",
+      "etapa": 9,
+      "leccion": 2,
+      "titulo": "Dependencias y el ciclo de vida de Maven",
+      "estado": "publicada"
     }
   ]
 }
