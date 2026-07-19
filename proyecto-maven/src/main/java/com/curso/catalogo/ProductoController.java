@@ -3,6 +3,8 @@ package com.curso.catalogo;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import jakarta.validation.Valid;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -38,7 +40,7 @@ public class ProductoController {
     }
 
     @PostMapping
-    public ProductoResponse crear(@RequestBody NuevoProductoRequest request) {
+    public ProductoResponse crear(@Valid @RequestBody NuevoProductoRequest request) {
         Product producto = mapper.toEntity(request);
         repositorio.agregar(producto);
         return mapper.toResponse(producto);
