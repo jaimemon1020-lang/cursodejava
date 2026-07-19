@@ -1,7 +1,7 @@
 import java.time.LocalDate;
 import java.util.Objects;
 
-public class Product {
+public class Product implements Comparable<Product> {
 
     private String nombre;
     private double precio;
@@ -78,5 +78,10 @@ public class Product {
     @Override
     public String toString() {
         return "Product{nombre='" + this.nombre + "', precio=" + this.precio + ", stock=" + this.stock + "}";
+    }
+
+    @Override
+    public int compareTo(Product otro) {
+        return Double.compare(this.precio, otro.precio);
     }
 }
