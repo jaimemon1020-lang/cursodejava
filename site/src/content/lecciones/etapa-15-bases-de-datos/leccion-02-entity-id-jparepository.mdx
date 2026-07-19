@@ -1,0 +1,313 @@
+---
+etapa: 15
+etapaTitulo: "Bases de datos"
+leccion: 2
+titulo: "@Entity, @Id y JpaRepository: el ORM en acción"
+objetivo: "Convertir una clase en una entidad JPA gestionada por Hibernate, y usar Spring Data JpaRepository para guardar y consultar sin escribir SQL manualmente."
+prerrequisitos: ["etapa-15-bases-de-datos/leccion-01-jdbc-jdbctemplate"]
+version_proyecto: "v13 — Cliente (@Entity), ClienteRepository (JpaRepository)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de convertir una clase Java en una entidad JPA (`@Entity`) con clave primaria autogenerada (`@Id`, `@GeneratedValue`), y usar `JpaRepository` de Spring Data para guardar, buscar y contar registros SIN escribir ni una línea de SQL — comparando esto directamente con el trabajo manual de la lección anterior.
+
+## Por qué necesitas aprenderlo
+
+`JdbcTemplate` (Etapa 15 Lección 1) te hizo escribir `CREATE TABLE`, `INSERT`, y un `RowMapper` a mano — funcional, pero repetitivo para cada entidad nueva del sistema. JPA (Jakarta Persistence API) e Hibernate (su implementación) automatizan TODO eso a partir de anotaciones sobre tus clases Java — el mismo principio de "declarar QUÉ, no CÓMO" que ya viste con Spring en general (Etapa 10).
+
+## Qué debes saber antes
+
+`JdbcTemplate`, `RowMapper`, H2 (Etapa 15 Lección 1) — esta lección automatiza exactamente lo que hiciste ahí a mano.
+
+## Recupera lo aprendido
+
+¿Por qué concatenar valores directamente en un string SQL (`"... VALUES (" + id + ")"`) es peligroso, comparado con usar `?` como placeholder?
+
+<Reveal titulo="Respuesta">
+Porque es vulnerable a inyección SQL: si el valor viene de una entrada externa, podría contener código SQL que se ejecutaría como parte de la consulta. Los placeholders (?) le dicen a la base de datos que el valor es SIEMPRE un dato, nunca código.
+</Reveal>
+
+## Problema
+
+`Cliente` (Etapa 2) es una clase Java normal — sin ninguna forma de guardarse en una base de datos. Escribir manualmente el `CREATE TABLE clientes`, el `INSERT` con sus columnas, y el `RowMapper` para reconstruir un `Cliente` desde una fila (como hiciste con `personas_demo` en la lección anterior) sería trabajo REPETITIVO para cada entidad nueva del sistema — Producto, Cliente, Order, y las que vengan después.
+
+## Modelo mental
+
+```
+@Entity + @Id:        le dice a Hibernate "esta clase es una tabla,
+                       este campo es la clave primaria".
+
+JpaRepository<T, ID>: una interfaz que Spring Data IMPLEMENTA
+                       automáticamente — save, findById, findAll,
+                       count, delete — sin que escribas ningún SQL.
+```
+
+## Explicación sencilla
+
+`@Entity` marca una clase como una TABLA de base de datos — Hibernate genera automáticamente el `CREATE TABLE` correspondiente (un campo Java se convierte en una columna). `@Id` marca el campo que es la CLAVE PRIMARIA, y `@GeneratedValue` le dice a la base de datos que genere ese valor automáticamente (autoincremental). `JpaRepository<Cliente, Long>` es una interfaz VACÍA que extendés — Spring Data genera la IMPLEMENTACIÓN completa en tiempo de ejecución, dándote `save`, `findById`, `findAll`, `count`, y más, sin que escribas una sola línea de código para esos métodos.
+
+## Explicación técnica
+
+`@Entity` (de `jakarta.persistence`) es la anotación estándar de JPA que marca una clase como entidad gestionada. `@Table(name = "clientes")` especifica el nombre de la tabla explícitamente (sin esta anotación, Hibernate usaría el nombre de la clase). `@Id` marca `id` como clave primaria; `@GeneratedValue(strategy = GenerationType.IDENTITY)` delega la generación del valor a la base de datos (equivalente a `AUTO_INCREMENT` en SQL).
+
+JPA REQUIERE un constructor SIN ARGUMENTOS (Hibernate lo usa internamente, vía reflection, para reconstruir objetos desde filas de la base) — por eso `Cliente` tiene `protected Cliente() { }` ADEMÁS de su constructor público de negocio con los tres parámetros. El constructor protegido no está pensado para que TU código lo use directamente, solo para que Hibernate lo use internamente.
+
+`ClienteRepository extends JpaRepository<Cliente, Long>` no tiene NINGÚN método propio — Spring Data JPA genera un PROXY en tiempo de ejecución que implementa la interfaz completa: `save(Cliente)` inserta o actualiza, `findById(Long)` devuelve un `Optional<Cliente>` (Etapa 4 Lección 7, reutilizado directamente por Spring Data), `findAll()` devuelve `List<Cliente>`, `count()` devuelve un `long` con el total de filas.
+
+Con `spring.jpa.hibernate.ddl-auto=update` (Etapa 15 Lección 1), Hibernate genera automáticamente el `CREATE TABLE` a partir de las anotaciones de `Cliente` — sin que escribieras el SQL vos mismo, a diferencia de `personas_demo` en la lección anterior.
+
+## Cómo funciona
+
+1. `@Entity @Table(name = "clientes")` sobre `Cliente` la convierte en una tabla gestionada.
+2. `@Id @GeneratedValue(strategy = GenerationType.IDENTITY) private Long id;` define la clave primaria autoincremental.
+3. El constructor `protected Cliente() { }` satisface el requisito de JPA; el constructor público `Cliente(nombre, email, direccionEnvio)` sigue siendo el que USA tu código de negocio.
+4. `ClienteRepository extends JpaRepository<Cliente, Long>` — sin implementación, Spring Data la genera.
+5. `clienteRepository.save(new Cliente(...))` inserta la fila y devuelve el `Cliente` CON su `id` ya asignado por la base de datos.
+6. `clienteRepository.findById(id)` y `clienteRepository.count()` ejecutan el `SELECT` correspondiente automáticamente.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/Cliente.java`
+
+```java
+package com.curso.catalogo;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+
+@Entity
+@Table(name = "clientes")
+public class Cliente {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String nombre;
+    private String email;
+    private String direccionEnvio;
+
+    protected Cliente() {
+    }
+
+    public Cliente(String nombre, String email, String direccionEnvio) {
+        this.nombre = nombre;
+        this.email = email;
+        this.direccionEnvio = direccionEnvio;
+    }
+
+    public Long getId() {
+        return this.id;
+    }
+
+    public String getNombre() {
+        return this.nombre;
+    }
+
+    public String getEmail() {
+        return this.email;
+    }
+
+    public String getDireccionEnvio() {
+        return this.direccionEnvio;
+    }
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/ClienteRepository.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ClienteRepository extends JpaRepository<Cliente, Long> {
+}
+```
+
+**Fragmento agregado a `proyecto-maven/src/main/java/com/curso/catalogo/Application.java`:**
+
+```java
+@Bean
+public CommandLineRunner jpaDemo(ClienteRepository clienteRepository) {
+    return args -> {
+        Cliente guardado = clienteRepository.save(
+                new Cliente("Juan Perez", "juan@ejemplo.com", "Av. Siempre Viva 123"));
+        System.out.println("Cliente guardado con id: " + guardado.getId());
+
+        Optional<Cliente> encontrado = clienteRepository.findById(guardado.getId());
+        encontrado.ifPresent(c -> System.out.println("Cliente encontrado: " + c.getNombre()));
+
+        System.out.println("Total de clientes: " + clienteRepository.count());
+    };
+}
+```
+
+## Predice
+
+`Cliente` nunca tuvo `id` asignado manualmente — la base de datos lo genera. ¿Qué `id` esperás para el PRIMER cliente guardado en una base recién creada?
+
+<Reveal titulo="Resultado real (ejecutado con Spring Boot)">
+```
+$ ./mvnw -q spring-boot:run
+...
+Hibernate: create table clientes (id bigint generated by default as identity, direccion_envio varchar(255), email varchar(255), nombre varchar(255), primary key (id))
+...
+Hibernate: insert into clientes (direccion_envio,email,nombre,id) values (?,?,?,default)
+Cliente guardado con id: 1
+Hibernate: select c1_0.id,c1_0.direccion_envio,c1_0.email,c1_0.nombre from clientes c1_0 where c1_0.id=?
+Cliente encontrado: Juan Perez
+Hibernate: select count(*) from clientes c1_0
+Total de clientes: 1
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `Hibernate: create table clientes (...)` es el `CREATE TABLE` GENERADO AUTOMÁTICAMENTE a partir de las anotaciones de `Cliente` — vos nunca escribiste ese SQL, a diferencia de `personas_demo` en la Lección 1.
+- `id` sale en `1` — el primer registro en una tabla vacía, generado automáticamente por la estrategia `IDENTITY`.
+- `Hibernate: insert into clientes (...)` muestra el SQL REAL que Hibernate ejecutó — `spring.jpa.show-sql=true` (Etapa 15 Lección 1) hace visible ese SQL generado, útil para entender qué está pasando por debajo sin tener que adivinar.
+- `findById` y `count` generan sus propios `SELECT` automáticamente — comparado con `jdbcTemplate.query(sql, RowMapper)` de la lección anterior, ACÁ no escribiste ningún SQL ni ningún mapeo manual.
+
+## Ejemplo aplicado al proyecto
+
+`Cliente` (definido conceptualmente desde la Etapa 2, nunca antes persistido) ahora es una entidad completamente gestionada por JPA/Hibernate — sin tocar `Product`, `ServicioVentas`, ni `ProductoController`, que siguen funcionando exactamente igual (en memoria), demostrando que la migración a persistencia real es INCREMENTAL, entidad por entidad, no un cambio de todo el sistema de una vez.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="La aplicacion falla al arrancar con InstantiationException o un error sobre no poder crear instancias de Cliente."
+  diagnostico="org.hibernate.InstantiationException: No default constructor for entity (o un mensaje similar sobre falta de constructor sin argumentos)"
+  causa="Cliente no tiene un constructor SIN ARGUMENTOS — Hibernate necesita poder crear instancias 'vacias' internamente (via reflection) para despues llenarlas con los datos de cada fila leida."
+  solucion="Agregar un constructor sin argumentos (puede ser protected, no necesita ser public) ademas del constructor de negocio con los parametros reales."
+  prevencion="Toda clase @Entity necesita un constructor sin argumentos, incluso si tu codigo de aplicacion nunca lo usa directamente — es un requisito del contrato de JPA, no una sugerencia."
+>
+```java
+@Entity
+public class Cliente {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    public Cliente(String nombre, String email, String direccionEnvio) {
+        // sin constructor vacio -- Hibernate no puede reconstruir el objeto
+    }
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que `findAll()` devuelve una lista, incluso con un solo registro:
+
+```java
+List<Cliente> todos = clienteRepository.findAll();
+System.out.println("Clientes en la base: " + todos.size());
+```
+
+## Ejercicio guiado
+
+Agregá un segundo cliente y confirmá que `count()` refleja el total correcto.
+
+<Reveal titulo="Pista 1">
+Un segundo `clienteRepository.save(new Cliente(...))` con datos distintos, seguido de otra llamada a `count()`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+clienteRepository.save(new Cliente("Maria Lopez", "maria@ejemplo.com", "Calle Falsa 456"));
+System.out.println("Total de clientes: " + clienteRepository.count());
+// Total de clientes: 2
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, agregá un método `deleteById` (ya incluido gratis en `JpaRepository`) para borrar el primer cliente guardado, y confirmá con `count()` que el total baja de vuelta.
+
+## Transferencia
+
+Si `Product` (Etapa 2, con `equals`/`hashCode`/`toString`/`Comparable`, Etapa 6) se convirtiera también en `@Entity` como `Cliente`, ¿qué cambios necesitaría (pensá en el `id`, el constructor sin argumentos)? ¿Su `equals`/`hashCode` actual (basado en nombre/precio/stock) seguiría siendo una buena idea una vez que exista un `id` único generado por la base de datos?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué JpaRepository<Cliente, Long> no necesita ninguna implementación escrita por vos?"
+  opciones={[
+    { texto: "Porque Cliente ya implementa todos esos métodos internamente", correcta: false, feedback: "Cliente es solo la entidad (los datos) — no tiene ningún método save/findById/count. Esos métodos viven en la interfaz JpaRepository, no en la entidad." },
+    { texto: "Porque Spring Data JPA genera un PROXY en tiempo de ejecución que implementa la interfaz completa, traduciendo cada método a SQL automáticamente basándose en las anotaciones de la entidad", correcta: true, feedback: "Correcto: JpaRepository es una interfaz VACÍA — Spring Data la implementa dinámicamente, generando el SQL necesario para save, findById, findAll, count, etc." },
+    { texto: "Porque JpaRepository usa reflection para copiar los métodos de RepositorioProductos", correcta: false, feedback: "No hay ninguna relación entre JpaRepository y RepositorioProductos (Etapa 10) — son mecanismos completamente distintos: uno es in-memory manual, el otro es un proxy generado por Spring Data JPA." },
+    { texto: "Porque H2 provee esos métodos directamente", correcta: false, feedback: "H2 es solo la base de datos — no provee métodos Java. La generación de la implementación de JpaRepository es responsabilidad de Spring Data JPA, independiente de qué base de datos se use por debajo." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Cliente cliente = new Cliente("Juan Perez", "juan@ejemplo.com", "Av. Siempre Viva 123");
+System.out.println("Id antes de guardar: " + cliente.getId());
+clienteRepository.save(cliente);
+```
+
+¿Qué esperás que imprima `cliente.getId()` ANTES de llamar a `save`?
+
+<Reveal titulo="Diagnóstico">
+`null`. El `id` se genera en la BASE DE DATOS cuando el `INSERT` realmente se ejecuta — antes de `save()`, el objeto `Cliente` recién creado con `new` no tiene ningún `id` asignado (el campo queda en su valor por defecto, `null` para `Long`). Después de `save()`, Hibernate actualiza el objeto EN MEMORIA con el `id` real que la base de datos generó — por eso `guardado.getId()` (después de save) sí muestra un valor.
+</Reveal>
+
+## Mini reto de diseño
+
+`Cliente` tiene un constructor `protected Cliente() { }` — no `private`. ¿Por qué `protected` (visible dentro del paquete y subclases) es la elección correcta, en vez de `private` (invisible incluso para Hibernate en algunos escenarios) o `public` (visible y usable por CUALQUIER código, incluso por error)?
+
+<Comparativa
+  columnas={["Aspecto", "JdbcTemplate (Lección 1)", "JPA/Hibernate (esta lección)"]}
+  filas={[
+    ["Crear tabla", "SQL manual (CREATE TABLE)", "Generado desde @Entity"],
+    ["Guardar un registro", "SQL manual (INSERT) + parámetros", "repository.save(objeto)"],
+    ["Consultar por id", "SQL manual (SELECT) + RowMapper", "repository.findById(id)"],
+    ["Mapeo fila -> objeto", "Escrito a mano en el RowMapper", "Automático, por reflection"],
+  ]}
+/>
+
+## Resumen
+
+- `@Entity` convierte una clase en una tabla gestionada por Hibernate; `@Id`/`@GeneratedValue` definen la clave primaria autogenerada.
+- JPA requiere un constructor sin argumentos, además del constructor de negocio normal.
+- `JpaRepository<T, ID>` es una interfaz vacía que Spring Data implementa automáticamente en tiempo de ejecución.
+- `spring.jpa.show-sql=true` hace visible el SQL que Hibernate genera por debajo, útil para entender (no para adivinar) qué está pasando.
+
+## Modelo mental final
+
+Pensá en `@Entity` como llenar un formulario de registro que una fábrica (Hibernate) usa para construir automáticamente TODA la infraestructura (tabla, columnas, operaciones CRUD) — vos completás el formulario UNA vez (las anotaciones), y la fábrica se encarga de todo el trabajo repetitivo que antes hacías a mano con `JdbcTemplate`.
+
+## Conexión
+
+`Optional<Cliente>` (`findById`) reutiliza directamente el tipo de la Etapa 4 Lección 7 — Spring Data JPA no inventó un nuevo mecanismo para "puede no existir", usó el que Java ya tiene. La comparación línea por línea con `JdbcTemplate` (Lección 1) hace tangible CUÁNTO automatiza JPA.
+
+## Próximo paso
+
+Etapa 15 / Lección 3: métodos de consulta derivados y `@Query` — cerrando Etapa 15, extendiendo `JpaRepository` con búsquedas específicas sin escribir SQL manualmente.
+
+## Fuentes
+
+dev.java — introducción a JPA e Hibernate. spring.io — documentación oficial de Spring Data JPA, sección "Working with Spring Data Repositories".
+
+<SelfCheck
+  leccionId="etapa-15-bases-de-datos/leccion-02-entity-id-jparepository"
+  criterios={[
+    "Puedo convertir una clase en una entidad JPA con @Entity, @Id y @GeneratedValue.",
+    "Puedo explicar por qué una entidad JPA necesita un constructor sin argumentos.",
+    "Puedo crear una interfaz que extienda JpaRepository y usar save/findById/count sin escribir SQL.",
+    "Puedo explicar la diferencia de esfuerzo entre persistir con JdbcTemplate y persistir con JPA/Hibernate.",
+  ]}
+/>

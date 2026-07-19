@@ -335,6 +335,13 @@
       "leccion": 1,
       "titulo": "JDBC y JdbcTemplate: SQL crudo antes del ORM",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-15-bases-de-datos/leccion-02-entity-id-jparepository",
+      "etapa": 15,
+      "leccion": 2,
+      "titulo": "@Entity, @Id y JpaRepository: el ORM en acción",
+      "estado": "publicada"
     }
   ]
 }

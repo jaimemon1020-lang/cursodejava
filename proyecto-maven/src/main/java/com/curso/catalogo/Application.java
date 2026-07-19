@@ -1,6 +1,7 @@
 package com.curso.catalogo;
 
 import java.util.List;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
@@ -48,6 +49,20 @@ public class Application {
                     (rs, rowNum) -> rs.getString("nombre"));
 
             System.out.println("Nombres desde JdbcTemplate: " + nombres);
+        };
+    }
+
+    @Bean
+    public CommandLineRunner jpaDemo(ClienteRepository clienteRepository) {
+        return args -> {
+            Cliente guardado = clienteRepository.save(
+                    new Cliente("Juan Perez", "juan@ejemplo.com", "Av. Siempre Viva 123"));
+            System.out.println("Cliente guardado con id: " + guardado.getId());
+
+            Optional<Cliente> encontrado = clienteRepository.findById(guardado.getId());
+            encontrado.ifPresent(c -> System.out.println("Cliente encontrado: " + c.getNombre()));
+
+            System.out.println("Total de clientes: " + clienteRepository.count());
         };
     }
 }
