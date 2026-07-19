@@ -265,6 +265,13 @@
       "leccion": 2,
       "titulo": "@Bean methods y scopes: singleton vs. prototype",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-10-spring-framework/leccion-03-qualifier-y-primary",
+      "etapa": 10,
+      "leccion": 3,
+      "titulo": "@Qualifier y @Primary: resolviendo múltiples implementaciones",
+      "estado": "publicada"
     }
   ]
 }
