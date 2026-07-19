@@ -1,0 +1,295 @@
+---
+etapa: 4
+etapaTitulo: "Collections, Generics, Enums, Records y Exceptions"
+leccion: 7
+titulo: "Optional y Date/Time API: evitar null y trabajar con fechas correctamente"
+objetivo: "Usar Optional para representar la ausencia de un valor sin recurrir a null, y usar LocalDate/Period/DateTimeFormatter para manejar fechas de forma segura y legible."
+prerrequisitos: ["etapa-04-collections/leccion-06-exceptions"]
+version_proyecto: "v5 — RepositorioEnMemoria.buscar() + Product.fechaIngreso"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de escribir una búsqueda que puede no encontrar nada SIN devolver `null`, usando `Optional`; y de guardar, comparar y formatear fechas con la API moderna de `java.time` en vez de la vieja `Date`.
+
+## Por qué necesitas aprenderlo
+
+`RepositorioEnMemoria` de la Etapa 4 Lección 3 solo sabe `agregar` y `listarTodos` — no tiene forma de buscar UN elemento específico. La forma obvia (devolver `null` si no se encuentra) es la fuente número uno de `NullPointerException` en Java real. Y cuando `Product` necesite guardar una fecha de ingreso al inventario, usar strings o cálculos manuales de fechas es frágil y propenso a errores.
+
+## Qué debes saber antes
+
+Generics (Etapa 4 Lección 3), para entender `RepositorioEnMemoria<T>` y `Optional<T>`.
+
+## Recupera lo aprendido
+
+¿Qué hace `try-with-resources` que un `finally` manual no hace automáticamente?
+
+<Reveal titulo="Respuesta">
+Cierra el recurso automáticamente al salir del bloque (con éxito o excepción) sin que vos escribas el cierre a mano — el recurso solo necesita implementar `AutoCloseable`.
+</Reveal>
+
+## Problema
+
+Necesitás un método `buscar` en `RepositorioEnMemoria<T>` que devuelva un producto por algún criterio. Si no lo encuentra, ¿qué devuelve? Si devolvés `null`, cada lugar que llame a `buscar` puede olvidarse de chequear y explotar con `NullPointerException`. Además, `Product` necesita una fecha de ingreso al inventario, y calcular "cuánto tiempo pasó" a mano con `long` de milisegundos es propenso a errores de zona horaria y de conteo.
+
+## Modelo mental
+
+```
+Optional<T>: una caja que puede contener un valor T, o estar vacía.
+             El compilador te OBLIGA a abrir la caja explícitamente
+             antes de usar lo que hay adentro — nunca asumís que hay algo.
+
+LocalDate:   una fecha (sin hora) inmutable, con métodos para
+             comparar, sumar/restar días, y formatear.
+```
+
+## Explicación sencilla
+
+`Optional<T>` es un contenedor que puede tener un valor adentro o estar vacío — como una caja cerrada que tenés que abrir para saber si hay algo, en vez de asumir que sí lo hay (que es lo que pasa cuando devolvés `null` y alguien lo usa sin chequear).
+
+`LocalDate` representa una fecha (día, mes, año) sin hora ni zona horaria. Es inmutable: cada operación (`plusDays`, `minusMonths`) devuelve una fecha NUEVA, nunca modifica la original.
+
+## Explicación técnica
+
+`Optional.of(valor)` crea un Optional con un valor presente (nunca le pases `null` a `Optional.of`, usa `Optional.ofNullable` para eso). `Optional.empty()` crea uno vacío. Los métodos más usados:
+
+- `isPresent()` / `isEmpty()`: chequean si hay valor, sin extraerlo.
+- `get()`: extrae el valor, pero lanza `NoSuchElementException` si está vacío — úsalo solo después de chequear `isPresent()`, o mejor, evitalo.
+- `orElse(valorPorDefecto)`: devuelve el valor si está presente, o el default si no.
+- `orElseThrow()`: devuelve el valor, o lanza una excepción si está vacío (más explícito que `get()`).
+- `ifPresent(consumer)`: ejecuta una acción SOLO si hay valor — sin necesidad de chequear antes.
+- `map(funcion)`: transforma el valor de adentro SI está presente, devolviendo otro Optional; si está vacío, no hace nada y sigue vacío.
+
+Para fechas, `java.time` (desde Java 8) reemplazó a la vieja `java.util.Date`, que era mutable y confusa. `LocalDate.now()` da la fecha actual del sistema. `Period.between(fecha1, fecha2)` calcula la diferencia entre dos fechas en años, meses y días. `DateTimeFormatter` controla cómo se muestra una fecha como texto (`dd/MM/yyyy`, por ejemplo).
+
+## Cómo funciona
+
+1. `RepositorioEnMemoria<T>.buscar(Predicate<T> criterio)` recorre los elementos y devuelve `Optional.of(elemento)` en cuanto el criterio da `true`, o `Optional.empty()` si termina el bucle sin encontrar nada.
+2. `Predicate<T>` es una interfaz funcional del propio `java.util.function` — recibe un `T` y devuelve `boolean`. Se le pasa como lambda: `p -> p.getNombre().equals("Teclado")`.
+3. `Product` ahora guarda `fechaIngreso` (un `LocalDate`), asignada automáticamente a `LocalDate.now()` en el constructor.
+4. `Period.between(fechaInicio, fechaFin)` calcula la diferencia como años/meses/días, no como un número plano de milisegundos.
+
+## Ejemplo mínimo
+
+**Fragmento actualizado de `proyecto/etapa-04/RepositorioEnMemoria.java`:**
+
+```java
+import java.util.Optional;
+import java.util.function.Predicate;
+
+public Optional<T> buscar(Predicate<T> criterio) {
+    for (T elemento : this.elementos) {
+        if (criterio.test(elemento)) {
+            return Optional.of(elemento);
+        }
+    }
+    return Optional.empty();
+}
+```
+
+**Fragmento actualizado de `proyecto/etapa-02/Product.java`:**
+
+```java
+import java.time.LocalDate;
+
+private LocalDate fechaIngreso;
+
+Product(String nombre, double precio, int stock) {
+    // ... validación existente ...
+    this.fechaIngreso = LocalDate.now();
+}
+
+public LocalDate getFechaIngreso() {
+    return this.fechaIngreso;
+}
+```
+
+**Archivo:** `proyecto/etapa-04/OptionalFechasDemo.java`
+
+```java
+import java.time.LocalDate;
+import java.time.Period;
+import java.time.format.DateTimeFormatter;
+import java.util.Optional;
+
+public class OptionalFechasDemo {
+    public static void main(String[] args) {
+        RepositorioEnMemoria<Product> repositorio = new RepositorioEnMemoria<>();
+        repositorio.agregar(new Product("Teclado mecanico", 25000.0, 15));
+        repositorio.agregar(new Product("Mouse inalambrico", 8000.0, 40));
+
+        Optional<Product> encontrado = repositorio.buscar(p -> p.getNombre().equals("Teclado mecanico"));
+        if (encontrado.isPresent()) {
+            System.out.println("Encontrado: " + encontrado.get().getNombre());
+        }
+
+        Optional<Product> noEncontrado = repositorio.buscar(p -> p.getNombre().equals("Monitor 4K"));
+        String nombreOMensaje = noEncontrado.map(Product::getNombre).orElse("Producto no disponible");
+        System.out.println(nombreOMensaje);
+
+        noEncontrado.ifPresent(p -> System.out.println("Esto nunca se imprime"));
+
+        Product teclado = encontrado.orElseThrow();
+        DateTimeFormatter formato = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        System.out.println("Fecha de ingreso: " + teclado.getFechaIngreso().format(formato));
+
+        LocalDate fechaCompra = LocalDate.of(2025, 1, 15);
+        LocalDate hoy = LocalDate.now();
+        Period antiguedad = Period.between(fechaCompra, hoy);
+        System.out.println("Antiguedad desde " + fechaCompra.format(formato) + ": "
+                + antiguedad.getYears() + " anios, " + antiguedad.getMonths() + " meses, " + antiguedad.getDays() + " dias");
+    }
+}
+```
+
+## Predice
+
+`noEncontrado` es un `Optional` vacío. `noEncontrado.ifPresent(p -> System.out.println("Esto nunca se imprime"))` — ¿esa línea imprime algo?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Encontrado: Teclado mecanico
+Producto no disponible
+Fecha de ingreso: 18/07/2026
+Antiguedad desde 15/01/2025: 1 anios, 6 meses, 3 dias
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `ifPresent` NO imprime nada para `noEncontrado`: el `Optional` está vacío, así que el lambda que le pasaste ni siquiera se ejecuta — por eso "Esto nunca se imprime" no aparece en la salida.
+- `noEncontrado.map(Product::getNombre)` tampoco ejecuta nada (sigue vacío), así que `.orElse("Producto no disponible")` es lo que finalmente se imprime.
+- `encontrado.orElseThrow()` extrae el `Product` de forma segura porque ya confirmaste que está presente — si `encontrado` hubiera estado vacío, esta línea habría lanzado `NoSuchElementException`.
+- La fecha de ingreso muestra HOY porque `Product` la asigna con `LocalDate.now()` en el constructor — vas a ver una fecha distinta cada día que ejecutes el programa.
+- `Period.between` calcula la diferencia real en años/meses/días, no un número plano de días — mucho más legible que hacer la cuenta a mano.
+
+## Ejemplo aplicado al proyecto
+
+Con `buscar` devolviendo `Optional<T>`, cualquier código futuro que busque un producto por nombre, código, o cualquier criterio queda obligado por el compilador a manejar el caso "no encontrado" — no hay forma de olvidarse, como sí pasaba (y pasa constantemente en proyectos reales) con `null`.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El programa compila pero explota en tiempo de ejecución con NoSuchElementException: No value present."
+  diagnostico="java.util.NoSuchElementException: No value present, en la línea de un .get() o .orElseThrow()"
+  causa="Se llamó a get() u orElseThrow() sobre un Optional vacío, sin chequear antes con isPresent() o sin manejar el caso vacío con orElse/orElseThrow con mensaje."
+  solucion="Usar isPresent() antes de get(), o directamente reemplazar el patrón por orElse(valorPorDefecto) o ifPresent(accion), que manejan el caso vacío sin lanzar excepción."
+  prevencion="Nunca llames a get() sin haber chequeado isPresent() justo antes — si te encontrás escribiendo ese patrón, es casi siempre mejor usar orElse, orElseThrow, o ifPresent directamente."
+>
+```java
+Optional<Product> resultado = repositorio.buscar(p -> p.getNombre().equals("Monitor 4K"));
+System.out.println(resultado.get().getNombre());
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Encadenar `map` para transformar el valor solo si está presente:
+
+```java
+Optional<Product> encontrado = repositorio.buscar(p -> p.getNombre().equals("Teclado mecanico"));
+double precioConDescuento = encontrado.map(p -> p.getPrecio() * 0.9).orElse(0.0);
+System.out.println("Precio con descuento: " + precioConDescuento);
+```
+
+## Ejercicio guiado
+
+Agregá un método `buscarPorNombreExacto(String nombre)` a `RepositorioEnMemoria<T>` que NO reciba un `Predicate` — que sea específico para buscar por nombre, delegando internamente en `buscar`. (Pista: esto solo tiene sentido si `T` tiene un método `getNombre()`, así que en la práctica se usaría solo con repositorios de `Product` o `Cliente` — pensá por qué el `buscar` genérico con `Predicate` es más flexible que este atajo.)
+
+<Reveal titulo="Pista 1">
+No podés llamar a `elemento.getNombre()` dentro de `RepositorioEnMemoria<T>` porque `T` es genérico — no todo `T` tiene `getNombre()`. Este método NO puede vivir dentro de la clase genérica tal como está.
+</Reveal>
+
+<Reveal titulo="Solución">
+La forma correcta es NO agregarlo a `RepositorioEnMemoria<T>` (rompería el genérico), sino usar `buscar` con un predicado específico desde donde lo necesites:
+
+```java
+Optional<Product> porNombre = repositorio.buscar(p -> p.getNombre().equals("Teclado mecanico"));
+```
+
+Esto confirma por qué `buscar(Predicate<T>)` es la decisión de diseño correcta: es genérico y reutilizable para cualquier criterio, sin atarse a un método específico de `T`.
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-04/`, escribí un método que reciba una `LocalDate` límite y devuelva (usando `Optional`) el primer producto cuya `fechaIngreso` sea anterior a esa fecha límite — o vacío si ninguno califica.
+
+## Transferencia
+
+Si tuvieras un método `buscarClientePorEmail(String email)` que hoy devuelve `null` cuando no encuentra nada, ¿qué cambiarías en su firma y en cada lugar que lo llama para adoptar `Optional`? ¿Por qué el compilador te ayuda más con `Optional<Cliente>` que con `Cliente` que puede ser `null`?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué diferencia real hay entre devolver null y devolver Optional.empty() cuando no se encuentra un valor?"
+  opciones={[
+    { texto: "Ninguna, son formas distintas de escribir lo mismo", correcta: false, feedback: "Hay una diferencia real: con Optional, el compilador y la API fuerzan a pensar en el caso vacío (isPresent, orElse, map); con null, nada te obliga a chequear, y el error aparece recién en tiempo de ejecución." },
+    { texto: "Optional.empty() es más rápido en tiempo de ejecución", correcta: false, feedback: "La diferencia no es de performance — es de diseño: Optional hace explícito en el tipo que el valor puede faltar, algo que Cliente o Product (sin Optional) no comunican." },
+    { texto: "Optional obliga a manejar explícitamente el caso 'no hay valor', reduciendo el riesgo de NullPointerException", correcta: true, feedback: "Correcto: Optional<T> hace que 'puede no haber valor' sea parte del tipo, no un detalle que el programador puede olvidar chequear como pasa con null." },
+    { texto: "null solo puede usarse con tipos primitivos", correcta: false, feedback: "Es al revés: null NUNCA puede asignarse a un tipo primitivo (int, double, boolean) — solo a tipos de referencia. Eso no tiene que ver con la diferencia entre null y Optional." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Optional<Product> resultado = repositorio.buscar(p -> p.getNombre().equals("Teclado mecanico"));
+Product producto = resultado.get();
+```
+
+¿Por qué este código, aunque compila, es una mala práctica incluso si en este caso puntual no falla?
+
+<Reveal titulo="Diagnóstico">
+Llamar a `.get()` sin chequear `isPresent()` antes anula todo el propósito de usar `Optional`: si en el futuro cambia el dato y `buscar` no encuentra nada, el programa va a explotar con `NoSuchElementException` — el mismo problema que `Optional` existe para prevenir, solo que ahora está escondido detrás de un tipo que PARECE seguro.
+</Reveal>
+
+## Mini reto de diseño
+
+`Predicate<T>` viene de `java.util.function`, no lo escribiste vos. ¿Por qué tiene más sentido que `RepositorioEnMemoria.buscar` reciba un `Predicate<T>` genérico, en vez de que la clase tenga un método `buscarPorNombre` y otro `buscarPorPrecio` hardcodeados?
+
+<Comparativa
+  columnas={["Enfoque", "Flexibilidad", "Cuánto código nuevo por criterio"]}
+  filas={[
+    ["buscarPorNombre, buscarPorPrecio, ... (métodos fijos)", "Baja: un método nuevo por cada criterio futuro", "Un método completo cada vez"]
+    ,["buscar(Predicate<T> criterio)", "Alta: cualquier condición sobre T, sin tocar la clase", "Una lambda de una línea"]
+  ]}
+/>
+
+## Resumen
+
+- `Optional<T>` representa un valor que puede faltar, obligando a manejar ese caso explícitamente.
+- `orElse`, `orElseThrow`, `ifPresent` y `map` cubren los casos de uso más comunes sin necesitar `get()` directo.
+- `LocalDate`, `Period` y `DateTimeFormatter` reemplazan a la vieja `Date`: son inmutables, más seguros y más legibles.
+- `Predicate<T>` permite escribir un `buscar` genérico y reutilizable, en vez de un método fijo por cada criterio de búsqueda.
+
+## Modelo mental final
+
+Pensá en `Optional` como una caja cerrada con o sin premio adentro: no podés usar el premio sin abrir la caja primero (chequear o usar `map`/`orElse`) — y eso es exactamente lo que evita que agarres "nada" pensando que es "algo".
+
+## Conexión
+
+`RepositorioEnMemoria<T>` (Etapa 4 Lección 3) pasa de solo guardar y listar, a poder BUSCAR de forma segura. `Product` (Etapa 2) ahora registra cuándo entró al inventario, preparando el terreno para reportes y reglas de negocio basadas en tiempo.
+
+## Próximo paso
+
+Etapa 5: Java funcional — lambdas, interfaces funcionales y Streams, la base para procesar colecciones de forma declarativa.
+
+## Fuentes
+
+dev.java — Optional y la API de fecha/hora. openjdk.org — paquetes `java.util.Optional` y `java.time` en la documentación oficial de la API de Java SE.
+
+<SelfCheck
+  leccionId="etapa-04-collections/leccion-07-optional-datetime"
+  criterios={[
+    "Puedo explicar por qué Optional reduce el riesgo de NullPointerException frente a devolver null.",
+    "Puedo usar orElse, orElseThrow, ifPresent y map sobre un Optional sin llamar a get() directo.",
+    "Puedo crear y formatear una LocalDate, y calcular la diferencia entre dos fechas con Period.",
+    "Puedo explicar por qué un método buscar(Predicate<T>) genérico es más flexible que métodos fijos por criterio.",
+  ]}
+/>

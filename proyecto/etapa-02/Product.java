@@ -1,8 +1,11 @@
+import java.time.LocalDate;
+
 public class Product {
 
     private String nombre;
     private double precio;
     private int stock;
+    private LocalDate fechaIngreso;
 
     Product(String nombre, double precio, int stock) {
         if (precio < 0) {
@@ -11,6 +14,7 @@ public class Product {
         this.nombre = nombre;
         this.precio = precio;
         this.stock = stock;
+        this.fechaIngreso = LocalDate.now();
     }
 
     public String getNombre() {
@@ -30,6 +34,10 @@ public class Product {
 
     public int getStock() {
         return this.stock;
+    }
+
+    public LocalDate getFechaIngreso() {
+        return this.fechaIngreso;
     }
 
     public void venderUnidades(int cantidad) {

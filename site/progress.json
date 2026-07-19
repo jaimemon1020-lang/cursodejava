@@ -125,6 +125,13 @@
       "leccion": 6,
       "titulo": "Exceptions: try/catch/finally, checked vs unchecked, y excepciones propias",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-04-collections/leccion-07-optional-datetime",
+      "etapa": 4,
+      "leccion": 7,
+      "titulo": "Optional y Date/Time API: evitar null y trabajar con fechas correctamente",
+      "estado": "publicada"
     }
   ]
 }
