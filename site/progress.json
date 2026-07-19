@@ -139,6 +139,13 @@
       "leccion": 1,
       "titulo": "Lambdas e interfaces funcionales: Predicate, Function, Consumer, Supplier",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-05-funcional/leccion-02-streams-filter-map-collect",
+      "etapa": 5,
+      "leccion": 2,
+      "titulo": "Streams: filter, map, collect y forEach",
+      "estado": "publicada"
     }
   ]
 }
