@@ -1,0 +1,300 @@
+---
+etapa: 6
+etapaTitulo: "Java moderno y avanzado"
+leccion: 4
+titulo: "Annotations propias y reflection básica"
+objetivo: "Crear una anotación propia con retención en tiempo de ejecución, y usar reflection para inspeccionar clases, leer anotaciones y ejecutar métodos dinámicamente."
+prerrequisitos: ["etapa-06-avanzado/leccion-03-comparable"]
+version_proyecto: "v4 — Revisado, CatalogoService, ReflectionDemo"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de explicar qué son realmente `@Override` y `@FunctionalInterface` (algo que usaste desde la Etapa 2 sin cuestionarlo), crear tu propia anotación con información recuperable en tiempo de ejecución, y usar reflection para inspeccionar una clase, leer sus anotaciones, y ejecutar un método sin conocerlo en tiempo de compilación.
+
+## Por qué necesitas aprenderlo
+
+Frameworks como Spring (que vas a usar más adelante en el curso) funcionan CASI ENTERAMENTE gracias a anotaciones y reflection: `@Autowired`, `@RequestMapping`, `@Entity` no son "magia" — son anotaciones que un framework LEE en tiempo de ejecución usando reflection, para decidir qué hacer con tus clases sin que vos escribas ese código de conexión a mano.
+
+## Qué debes saber antes
+
+Interfaces (Etapa 2 Lección 4), interfaces funcionales y `@FunctionalInterface` (Etapa 5 Lección 1) — esta lección explica qué son las anotaciones que ya usaste.
+
+## Recupera lo aprendido
+
+¿Por qué `TreeSet<Product>` puede terminar con menos elementos de los esperados si dos productos tienen el mismo precio pero nombres distintos?
+
+<Reveal titulo="Respuesta">
+TreeSet detecta 'duplicados' con compareTo() == 0, no con equals()/hashCode(). Si Product.compareTo solo compara precio, dos productos con el mismo precio se consideran 'el mismo' para el TreeSet, aunque equals() los distinguiría por nombre y stock.
+</Reveal>
+
+## Problema
+
+Ya usaste `@Override` en cada `equals`, `hashCode`, `toString` y `compareTo` de esta etapa, y `@FunctionalInterface` en la Etapa 5 — pero nunca preguntaste qué SON realmente. Y si quisieras marcar tus propias clases con información extra (por ejemplo, "quién revisó esta clase y cuándo"), ¿cómo harías para que esa información sea consultable por CÓDIGO, no solo un comentario que nadie lee?
+
+## Modelo mental
+
+```
+Anotación:  metadata sobre una clase/método, adjunta con @NombreAnotacion.
+            Puede ser solo informativa para el compilador (@Override),
+            o quedar disponible en tiempo de EJECUCIÓN para que
+            código la lea con reflection.
+
+Reflection: la capacidad de un programa de inspeccionar SU PROPIA
+            estructura (clases, métodos, anotaciones) mientras corre.
+```
+
+## Explicación sencilla
+
+Una anotación es una etiqueta que le pegás a una clase, método o campo — `@Override` le dice al COMPILADOR "este método debería estar sobrescribiendo uno de la superclase, avisame si no es así". Pero algunas anotaciones (como las tuyas propias, si las configurás para eso) siguen existiendo DESPUÉS de compilar, y un programa puede preguntarle a una clase en tiempo de ejecución "¿tenés esta anotación? ¿qué datos trae?" — eso es reflection: el código mirándose a sí mismo.
+
+## Explicación técnica
+
+Una anotación propia se declara con `@interface NombreAnotacion`. Dos meta-anotaciones controlan su comportamiento:
+
+- **`@Retention(RetentionPolicy.RUNTIME)`**: hace que la anotación siga existiendo en el `.class` compilado y sea consultable en tiempo de ejecución (sin esto, por defecto solo existe en el código fuente o se descarta al compilar — inútil para reflection).
+- **`@Target(ElementType.TYPE)`**: restringe dónde puede aplicarse la anotación — `TYPE` significa "solo sobre clases/interfaces"; otras opciones son `METHOD`, `FIELD`, etc.
+
+`Class<?> clase = CatalogoService.class` obtiene el objeto `Class` que representa el TIPO `CatalogoService` — la puerta de entrada a toda la reflection sobre esa clase. `clase.isAnnotationPresent(Revisado.class)` chequea si la anotación está presente; `clase.getAnnotation(Revisado.class)` la devuelve con sus valores ya accesibles como métodos (`anotacion.por()`, `anotacion.fecha()`).
+
+`clase.getDeclaredMethods()` devuelve un arreglo de objetos `Method`, uno por cada método declarado en la clase — sin que el código que hace esto haya visto `CatalogoService` en tiempo de COMPILACIÓN. `metodo.invoke(instancia)` ejecuta ese método dinámicamente, incluso sin conocer su nombre de antemano en el código que lo invoca.
+
+## Cómo funciona
+
+1. `@interface Revisado { String por(); String fecha(); }` declara una anotación con dos "atributos" (`por`, `fecha`), que en realidad son métodos abstractos sin cuerpo.
+2. `@Revisado(por = "Equipo QA", fecha = "2026-07-18")` sobre `CatalogoService` adjunta esa metadata a la clase.
+3. `CatalogoService.class` obtiene el objeto `Class` representando el tipo.
+4. `clase.getAnnotation(Revisado.class).por()` recupera el valor `"Equipo QA"` que se puso al anotar la clase.
+5. `clase.getDeclaredConstructor().newInstance()` crea una instancia de `CatalogoService` usando reflection (equivalente a `new CatalogoService()`, pero sin que el código lo escriba directamente).
+6. `clase.getMethod("listar").invoke(instancia)` busca el método por NOMBRE (como texto) y lo ejecuta sobre esa instancia.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-06/Revisado.java`
+
+```java
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface Revisado {
+    String por();
+    String fecha();
+}
+```
+
+**Archivo:** `proyecto/etapa-06/CatalogoService.java`
+
+```java
+@Revisado(por = "Equipo QA", fecha = "2026-07-18")
+public class CatalogoService {
+    public void listar() {
+        System.out.println("Listando catalogo");
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-06/ReflectionDemo.java`
+
+```java
+import java.lang.reflect.Method;
+
+public class ReflectionDemo {
+    public static void main(String[] args) throws Exception {
+        Class<?> clase = CatalogoService.class;
+
+        System.out.println("Nombre de la clase: " + clase.getSimpleName());
+
+        if (clase.isAnnotationPresent(Revisado.class)) {
+            Revisado anotacion = clase.getAnnotation(Revisado.class);
+            System.out.println("Revisado por: " + anotacion.por() + " el " + anotacion.fecha());
+        }
+
+        for (Method metodo : clase.getDeclaredMethods()) {
+            System.out.println("Metodo encontrado: " + metodo.getName());
+        }
+
+        Object instancia = clase.getDeclaredConstructor().newInstance();
+        Method metodoListar = clase.getMethod("listar");
+        metodoListar.invoke(instancia);
+    }
+}
+```
+
+## Predice
+
+`CatalogoService` tiene un solo método declarado (`listar`) y está anotada con `@Revisado`. ¿Qué información vas a ver impresa ANTES de "Listando catalogo"?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Nombre de la clase: CatalogoService
+Revisado por: Equipo QA el 2026-07-18
+Metodo encontrado: listar
+Listando catalogo
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "Nombre de la clase: CatalogoService" viene de `clase.getSimpleName()` — información que la JVM ya conoce sobre cualquier clase, sin nada especial de tu parte.
+- "Revisado por: Equipo QA el 2026-07-18" prueba que la anotación con `@Retention(RUNTIME)` sobrevivió a la compilación y es LEÍBLE por código, no solo un comentario decorativo.
+- "Metodo encontrado: listar" viene de recorrer `getDeclaredMethods()` — si `CatalogoService` tuviera más métodos, todos aparecerían acá, incluso sin que `ReflectionDemo` los conozca de antemano.
+- "Listando catalogo" es la prueba final: el método se ejecutó DINÁMICAMENTE via `invoke()`, no con una llamada directa `instancia.listar()` escrita en el código.
+
+## Ejemplo aplicado al proyecto
+
+Este es exactamente el mecanismo que Spring usa (lo vas a ver en la Etapa 10-11): anotás una clase con `@Service` o `@RestController`, y el framework usa reflection para descubrir esas clases, leer sus anotaciones, y decidir cómo instanciarlas y conectarlas — sin que vos escribas ese código de conexión manualmente.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="clase.getAnnotation(Revisado.class) devuelve null aunque la clase esté anotada con @Revisado."
+  diagnostico="No hay excepción — simplemente getAnnotation() devuelve null, y llamar a un método sobre ese null lanza NullPointerException después."
+  causa="La anotación NO tiene @Retention(RetentionPolicy.RUNTIME) (o tiene RetentionPolicy.SOURCE o CLASS, los valores por defecto) — sin RUNTIME, la anotación se descarta antes de que el programa pueda leerla con reflection."
+  solucion="Agregar @Retention(RetentionPolicy.RUNTIME) a la declaración de la anotación propia — es obligatorio para cualquier anotación que necesites leer en tiempo de ejecución."
+  prevencion="Si vas a crear una anotación pensada para reflection (no solo para el compilador, como @Override), siempre agregale @Retention(RetentionPolicy.RUNTIME) explícitamente — es fácil de olvidar porque el código compila perfecto sin ella."
+>
+```java
+@Target(ElementType.TYPE)
+public @interface Revisado {
+    String por();
+}
+
+@Revisado(por = "Equipo QA")
+public class CatalogoService { }
+
+Revisado anotacion = CatalogoService.class.getAnnotation(Revisado.class);
+System.out.println(anotacion.por());
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Listar TODAS las anotaciones presentes en una clase, sin saber de antemano cuáles son:
+
+```java
+for (Annotation anotacion : CatalogoService.class.getAnnotations()) {
+    System.out.println("Anotacion encontrada: " + anotacion.annotationType().getSimpleName());
+}
+```
+
+## Ejercicio guiado
+
+Agregá un segundo atributo `version()` (tipo `int`) a `Revisado`, usalo en `CatalogoService` con `version = 2`, y leelo con reflection en `ReflectionDemo`.
+
+<Reveal titulo="Pista 1">
+Los atributos de una anotación son simplemente métodos abstractos adicionales dentro de `@interface Revisado { ... }` — agregá `int version();` igual que `por()` y `fecha()`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+public @interface Revisado {
+    String por();
+    String fecha();
+    int version();
+}
+```
+
+```java
+@Revisado(por = "Equipo QA", fecha = "2026-07-18", version = 2)
+public class CatalogoService {
+    public void listar() {
+        System.out.println("Listando catalogo");
+    }
+}
+```
+
+```java
+Revisado anotacion = CatalogoService.class.getAnnotation(Revisado.class);
+System.out.println("Version: " + anotacion.version());
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-06/`, creá una anotación `@Deprecated_Propia` (o un nombre similar) con `@Target(ElementType.METHOD)`, aplicala a un método de alguna clase existente, y escribí un método de reflection que recorra todos los métodos de esa clase e imprima cuáles están marcados con tu anotación.
+
+## Transferencia
+
+Si tuvieras que diseñar un mini-framework que descubra automáticamente todas las clases anotadas con `@Comando` en un paquete, y ejecute su método `ejecutar()` — ¿qué combinación de reflection (`Class`, `getAnnotation`, `getMethod`, `invoke`) usarías? ¿Por qué esto sería imposible de lograr SIN reflection, escribiendo el código a mano?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué hace que una anotación propia sea consultable en tiempo de ejecución con reflection?"
+  opciones={[
+    { texto: "Que el nombre de la anotación empiece con mayúscula", correcta: false, feedback: "La convención de mayúscula es solo estilo — lo que determina si la anotación sobrevive hasta tiempo de ejecución es la meta-anotación @Retention, no el nombre." },
+    { texto: "Que tenga @Retention(RetentionPolicy.RUNTIME)", correcta: true, feedback: "Correcto: sin esa retención, la anotación se descarta en tiempo de compilación o queda solo en el .class sin ser accesible via reflection — RUNTIME es lo que la hace consultable con getAnnotation()." },
+    { texto: "Que se aplique sobre una clase, nunca sobre un método", correcta: false, feedback: "@Target controla DÓNDE puede aplicarse (TYPE, METHOD, FIELD, etc.), pero eso no determina si es consultable en runtime — esa es responsabilidad exclusiva de @Retention." },
+    { texto: "Que tenga al menos un atributo obligatorio", correcta: false, feedback: "Una anotación puede ser un simple 'marcador' sin ningún atributo (como @interface Marcador {}) y seguir siendo perfectamente consultable en runtime, siempre que tenga @Retention(RUNTIME)." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Class<?> clase = CatalogoService.class;
+Method metodo = clase.getMethod("listarTodo");
+```
+
+`CatalogoService` solo tiene un método llamado `listar` (no `listarTodo`). ¿Qué pasa al ejecutar esta línea?
+
+<Reveal titulo="Diagnóstico">
+Lanza `NoSuchMethodException`. `getMethod` busca por NOMBRE EXACTO en tiempo de ejecución — a diferencia de una llamada normal (`instancia.listar()`), donde el compilador verificaría el nombre ANTES de ejecutar, acá el error solo aparece cuando el programa realmente corre esa línea.
+</Reveal>
+
+## Mini reto de diseño
+
+Reflection permite hacer cosas que el compilador normalmente "protegería" (llamar métodos por nombre en texto, sin chequeo en tiempo de compilación). ¿Qué riesgo trae esto comparado con una llamada directa `instancia.listar()`? ¿Por qué frameworks como Spring aceptan ese riesgo a cambio de la flexibilidad que da reflection?
+
+<Comparativa
+  columnas={["Enfoque", "Chequeo en compilación", "Flexibilidad"]}
+  filas={[
+    ["instancia.listar() (llamada directa)", "Sí — el compilador verifica que el método existe", "Baja: el código debe conocer la clase exacta"],
+    ["metodo.invoke(instancia) (reflection)", "No — el error aparece recién en runtime", "Alta: funciona con clases desconocidas en tiempo de compilación"],
+  ]}
+/>
+
+## Resumen
+
+- Una anotación con `@Retention(RetentionPolicy.RUNTIME)` sobrevive a la compilación y es consultable con reflection.
+- `Class<?>` es la puerta de entrada a la reflection sobre un tipo: `getAnnotation`, `getDeclaredMethods`, `getMethod`.
+- `invoke()` ejecuta un método dinámicamente, sin que el código que lo llama conozca ese método en tiempo de compilación.
+- Frameworks como Spring usan exactamente este mecanismo para descubrir y conectar tus clases automáticamente.
+
+## Modelo mental final
+
+Pensá en una anotación con `@Retention(RUNTIME)` como una etiqueta pegada a una caja que SIGUE siendo legible después de guardarla en el depósito — y en reflection como la capacidad de abrir cualquier caja del depósito, leer su etiqueta, y usar lo que hay adentro, aunque nunca hayas visto esa caja específica antes de que el programa empezara a correr.
+
+## Conexión
+
+`@Override` (usado desde la Etapa 2) y `@FunctionalInterface` (Etapa 5) ahora tienen una explicación completa: son anotaciones, la primera con retención de solo COMPILACIÓN (ayuda al compilador, se descarta después), la segunda también de compilación. `Revisado`, en cambio, con `RUNTIME`, demuestra el mecanismo completo que vas a ver reaparecer constantemente en Spring.
+
+## Próximo paso
+
+Etapa 6 / Lección 5: NIO — Path y Files, para leer y escribir archivos del sistema, cerrando la introducción a I/O antes de bases de datos.
+
+## Fuentes
+
+dev.java — anotaciones y reflection. openjdk.org — paquetes `java.lang.annotation` y `java.lang.reflect` en la documentación oficial de la API de Java SE.
+
+<SelfCheck
+  leccionId="etapa-06-avanzado/leccion-04-annotations-reflection"
+  criterios={[
+    "Puedo crear una anotación propia con atributos y controlar su retención con @Retention.",
+    "Puedo explicar la diferencia entre una anotación de retención SOURCE/CLASS y una RUNTIME.",
+    "Puedo usar reflection para inspeccionar una clase: su nombre, sus anotaciones, sus métodos.",
+    "Puedo invocar un método dinámicamente con reflection y explicar el riesgo frente a una llamada directa.",
+  ]}
+/>

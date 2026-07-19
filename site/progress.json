@@ -181,6 +181,13 @@
       "leccion": 3,
       "titulo": "Comparable: definir el orden natural de tus propias clases",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-06-avanzado/leccion-04-annotations-reflection",
+      "etapa": 6,
+      "leccion": 4,
+      "titulo": "Annotations propias y reflection básica",
+      "estado": "publicada"
     }
   ]
 }
