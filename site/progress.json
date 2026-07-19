@@ -209,6 +209,13 @@
       "leccion": 1,
       "titulo": "Clean Code: nombres, funciones pequeñas y sin números mágicos",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-07-clean-code-solid/leccion-02-solid",
+      "etapa": 7,
+      "leccion": 2,
+      "titulo": "SOLID: los cinco principios de diseño orientado a objetos",
+      "estado": "publicada"
     }
   ]
 }
