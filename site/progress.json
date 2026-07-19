@@ -293,6 +293,13 @@
       "leccion": 1,
       "titulo": "@RestController y @GetMapping: la app deja de ser solo consola",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-12-http-rest/leccion-02-postmapping-requestbody-requestparam",
+      "etapa": 12,
+      "leccion": 2,
+      "titulo": "@PostMapping, @RequestBody y @RequestParam: crear y modificar vía HTTP",
+      "estado": "publicada"
     }
   ]
 }
