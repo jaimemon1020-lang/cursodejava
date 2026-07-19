@@ -272,6 +272,13 @@
       "leccion": 3,
       "titulo": "@Qualifier y @Primary: resolviendo múltiples implementaciones",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-11-spring-boot/leccion-01-springbootapplication-autoconfiguracion",
+      "etapa": 11,
+      "leccion": 1,
+      "titulo": "@SpringBootApplication y auto-configuración: arrancar una app real",
+      "estado": "publicada"
     }
   ]
 }
