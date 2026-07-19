@@ -1,0 +1,289 @@
+---
+etapa: 8
+etapaTitulo: "Patrones de diseño necesarios"
+leccion: 1
+titulo: "Dependency Injection y Repository: dos patrones que ya usabas"
+objetivo: "Nombrar y aplicar deliberadamente Dependency Injection (inyectar dependencias por constructor) y Repository (abstraer el acceso a datos), reconociendo que RepositorioEnMemoria ya era un Repository desde la Etapa 4."
+prerrequisitos: ["etapa-07-clean-code-solid/leccion-02-solid"]
+version_proyecto: "v1 — ServicioVentas, DiDemo"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de aplicar Dependency Injection (DI) pasando dependencias por constructor en vez de crearlas internamente, y de reconocer que `RepositorioEnMemoria` (Etapa 4) ya implementaba el patrón Repository sin que se nombrara en ese momento.
+
+## Por qué necesitas aprenderlo
+
+Spring (que vas a ver desde la Etapa 10) está construido ENTERAMENTE alrededor de Dependency Injection — el framework crea tus objetos y les inyecta sus dependencias automáticamente. Antes de que un framework lo haga por vos, necesitás entender qué es DI haciéndolo A MANO, para no tratarlo como magia cuando Spring lo automatice.
+
+## Qué debes saber antes
+
+DIP (Dependency Inversion Principle, Etapa 7 Lección 2) — DI es la técnica CONCRETA para lograr lo que DIP pide como principio.
+
+## Recupera lo aprendido
+
+¿Qué principio SOLID viola una clase con métodos como `agregarProducto`, `enviarEmailBienvenida` y `generarFacturaPDF` todos juntos?
+
+<Reveal titulo="Respuesta">
+SRP (Single Responsibility Principle): esa clase tiene tres razones distintas para cambiar (catálogo, notificaciones, facturación), cuando debería tener una sola.
+</Reveal>
+
+## Problema
+
+`ServicioVentas` necesita acceder a un catálogo de productos para vender. Si `ServicioVentas` CREA su propio `RepositorioEnMemoria` internamente (`new RepositorioEnMemoria<>()` dentro del constructor de `ServicioVentas`), queda atado para siempre a ESE repositorio específico — no podés probarlo con datos de prueba, ni cambiarlo por otra fuente de datos (una base de datos, más adelante) sin reescribir `ServicioVentas` por dentro.
+
+## Modelo mental
+
+```
+SIN DI:  ServicioVentas crea su propio RepositorioEnMemoria internamente.
+         -> atado para siempre a esa instancia específica.
+
+CON DI:  ServicioVentas RECIBE un RepositorioEnMemoria por constructor.
+         -> quien lo crea decide CUÁL repositorio usar.
+```
+
+## Explicación sencilla
+
+Dependency Injection significa: en vez de que una clase CREE las cosas que necesita (`new AlgoQueNecesito()` adentro de sí misma), esa clase las RECIBE desde afuera, generalmente por constructor. Quien construye el objeto decide qué dependencia concreta pasarle — la clase que recibe la dependencia ni siquiera necesita saber CUÁL implementación específica le llegó, solo que cumple el contrato esperado.
+
+## Explicación técnica
+
+`ServicioVentas` declara `private final RepositorioEnMemoria<Product> repositorio;` y lo recibe por CONSTRUCTOR — nunca lo instancia internamente con `new`. Esto es **inyección por constructor**, la forma más común y recomendada de DI (existen otras, como inyección por setter, menos usadas hoy en día porque permiten que el objeto quede en un estado incompleto temporalmente).
+
+El beneficio concreto: el MISMO código de `ServicioVentas` (sin ninguna modificación) puede operar sobre un repositorio con datos reales, o sobre uno con datos de prueba armados específicamente para un test — porque `ServicioVentas` nunca decidió POR SÍ MISMO cuál repositorio usar, solo declaró que necesita "un `RepositorioEnMemoria<Product>`", sin importarle cómo se construyó ni qué datos tiene adentro.
+
+El patrón **Repository** abstrae el acceso a datos detrás de una interfaz o clase con métodos como `agregar`, `buscar`, `listarTodos` — sin que el código que lo USA (`ServicioVentas`) sepa (ni le importe) si esos datos viven en memoria, en un archivo, o en una base de datos. `RepositorioEnMemoria<T>` (Etapa 4 Lección 3) ya cumplía exactamente ese rol desde el momento en que se escribió — la Etapa 4 lo construyó por necesidad práctica (Generics), y esta lección le pone el nombre del patrón que representa.
+
+## Cómo funciona
+
+1. `ServicioVentas(RepositorioEnMemoria<Product> repositorio)` recibe la dependencia por constructor, en vez de crearla internamente.
+2. `this.repositorio = repositorio;` guarda la referencia recibida — el campo es `final`, remarcando que no cambia después de construido (inmutabilidad de la dependencia).
+3. `venderProducto` y `calcularValorInventario` usan `this.repositorio` sin saber ni importarles CÓMO se construyó ese repositorio específico ni qué datos contiene.
+4. En `DiDemo`, se crean DOS instancias de `RepositorioEnMemoria` con datos completamente distintos, y se inyecta cada una en una instancia SEPARADA de `ServicioVentas` — el mismo código de `ServicioVentas` opera correctamente sobre ambos, sin ninguna modificación.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-08/ServicioVentas.java`
+
+```java
+public class ServicioVentas {
+
+    private final RepositorioEnMemoria<Product> repositorio;
+
+    public ServicioVentas(RepositorioEnMemoria<Product> repositorio) {
+        this.repositorio = repositorio;
+    }
+
+    public void venderProducto(String nombre, int cantidad) {
+        Product producto = repositorio.buscar(p -> p.getNombre().equals(nombre))
+                .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado: " + nombre));
+        producto.venderUnidades(cantidad);
+        System.out.println("Vendido: " + cantidad + " x " + producto.getNombre());
+    }
+
+    public double calcularValorInventario() {
+        return repositorio.listarTodos().stream()
+                .map(p -> p.getPrecio() * p.getStock())
+                .reduce(0.0, Double::sum);
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-08/DiDemo.java`
+
+```java
+public class DiDemo {
+    public static void main(String[] args) {
+        RepositorioEnMemoria<Product> repositorio = new RepositorioEnMemoria<>();
+        repositorio.agregar(new Product("Teclado mecanico", 25000.0, 15));
+        repositorio.agregar(new Product("Mouse inalambrico", 8000.0, 40));
+
+        ServicioVentas servicio = new ServicioVentas(repositorio);
+        servicio.venderProducto("Teclado mecanico", 5);
+        System.out.println("Valor inventario: " + servicio.calcularValorInventario());
+
+        RepositorioEnMemoria<Product> repositorioDePrueba = new RepositorioEnMemoria<>();
+        repositorioDePrueba.agregar(new Product("Producto de prueba", 1000.0, 1));
+        ServicioVentas servicioDePrueba = new ServicioVentas(repositorioDePrueba);
+        servicioDePrueba.venderProducto("Producto de prueba", 1);
+        System.out.println("Valor inventario de prueba: " + servicioDePrueba.calcularValorInventario());
+    }
+}
+```
+
+## Predice
+
+`repositorio` tiene Teclado (25000, stock 15→10 después de vender 5) y Mouse (8000, stock 40). `repositorioDePrueba` tiene un solo producto (1000, stock 1→0 después de venderlo). ¿Qué valor de inventario esperás para cada uno?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Vendido: 5 x Teclado mecanico
+Valor inventario: 570000.0
+Vendido: 1 x Producto de prueba
+Valor inventario de prueba: 0.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- Después de vender 5 teclados, el stock queda en 10: `10 * 25000 = 250000`, más Mouse sin vender: `40 * 8000 = 320000` → total `570000.0`.
+- El "Producto de prueba" queda con stock `0` después de vender su única unidad: `0 * 1000 = 0.0` → el inventario de prueba queda en `0.0`.
+- Los DOS resultados vienen del MISMO código de `ServicioVentas.calcularValorInventario()` — la clase nunca supo que estaba operando sobre datos completamente distintos, porque esa decisión se tomó AFUERA, al momento de inyectar cada repositorio.
+- Esto es exactamente lo que hace posible testear `ServicioVentas` con datos controlados, sin tocar el repositorio "real" del sistema.
+
+## Ejemplo aplicado al proyecto
+
+Con DI, `ServicioVentas` queda completamente desacoplado de CÓMO se construye o qué contiene su repositorio — el mismo patrón que Spring va a automatizar más adelante (Etapa 10), reemplazando el `new ServicioVentas(repositorio)` manual por una inyección automática basada en anotaciones.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="ServicioVentas siempre opera sobre los mismos datos de prueba, sin importar qué repositorio se le pase por fuera."
+  diagnostico="No hay excepción — el programa simplemente ignora el repositorio recibido y usa datos fijos."
+  causa="El constructor de ServicioVentas crea su propio RepositorioEnMemoria internamente (new RepositorioEnMemoria<>() dentro de la clase), ignorando el parámetro recibido — o directamente no recibe ningún parámetro."
+  solucion="Recibir la dependencia por constructor y guardarla en un campo, sin crear ninguna instancia propia internamente — la responsabilidad de construir el repositorio le corresponde a quien construye ServicioVentas, no a ServicioVentas mismo."
+  prevencion="Si una clase necesita colaborar con otro objeto (un repositorio, un servicio), esa dependencia debería llegar por constructor. Ver un new DentroDeUnaClaseQueDependeDeOtra() para una dependencia de negocio es una señal de que falta DI."
+>
+```java
+public class ServicioVentas {
+    private RepositorioEnMemoria<Product> repositorio = new RepositorioEnMemoria<>();
+
+    public ServicioVentas(RepositorioEnMemoria<Product> repositorioRecibido) {
+        // repositorioRecibido se ignora — bug de diseño
+    }
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que dos instancias de `ServicioVentas` con repositorios distintos no se afectan entre sí:
+
+```java
+servicio.venderProducto("Teclado mecanico", 3);
+System.out.println("Repositorio original: " + servicio.calcularValorInventario());
+System.out.println("Repositorio de prueba (sin cambios): " + servicioDePrueba.calcularValorInventario());
+```
+
+## Ejercicio guiado
+
+Escribí una clase `ServicioReportes` que reciba un `RepositorioEnMemoria<Product>` por constructor (DI), con un método `productosConStockBajo(int umbral)` que devuelva cuántos productos tienen `stock < umbral`, reutilizando Streams (Etapa 5).
+
+<Reveal titulo="Pista 1">
+El patrón es idéntico a `ServicioVentas`: campo `final`, constructor que recibe el repositorio, ningún `new RepositorioEnMemoria<>()` dentro de la clase.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+public class ServicioReportes {
+    private final RepositorioEnMemoria<Product> repositorio;
+
+    public ServicioReportes(RepositorioEnMemoria<Product> repositorio) {
+        this.repositorio = repositorio;
+    }
+
+    public long productosConStockBajo(int umbral) {
+        return repositorio.listarTodos().stream()
+                .filter(p -> p.getStock() < umbral)
+                .count();
+    }
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-08/`, escribí un método `main` que cree DOS repositorios distintos e inyecte cada uno en una instancia separada de `ServicioReportes` (del ejercicio guiado), confirmando que el conteo de "stock bajo" es independiente entre ambos.
+
+## Transferencia
+
+Si `ServicioVentas` necesitara ADEMÁS un `Notificador` (de la lección de SOLID) para avisar cuando una venta se completa, ¿cómo cambiaría el constructor? ¿Por qué agregar una dependencia nueva por constructor es más fácil de rastrear que agregar un `new Notificador()` en el medio de `venderProducto`?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál es el beneficio principal de recibir una dependencia por constructor en vez de crearla internamente con new?"
+  opciones={[
+    { texto: "El código compila más rápido", correcta: false, feedback: "DI no tiene ningún efecto sobre el tiempo de compilación — el beneficio es de diseño: flexibilidad y testabilidad, no performance de build." },
+    { texto: "Quien construye la clase decide qué implementación/datos concretos usar, permitiendo cambiar o testear sin modificar la clase que depende de ellos", correcta: true, feedback: "Correcto: como en DiDemo, el mismo ServicioVentas operó sobre datos reales y datos de prueba sin ninguna modificación interna — esa flexibilidad es el punto central de DI." },
+    { texto: "Las clases con DI no pueden lanzar excepciones", correcta: false, feedback: "DI no tiene relación con el manejo de excepciones — ServicioVentas.venderProducto sigue lanzando IllegalArgumentException normalmente, con o sin DI." },
+    { texto: "DI hace que el código use menos memoria en tiempo de ejecución", correcta: false, feedback: "No hay ninguna ventaja de memoria inherente a DI — de hecho, crear el repositorio afuera y pasarlo no usa menos memoria que crearlo adentro; el beneficio es puramente de diseño y flexibilidad." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+public class ServicioVentas {
+    private RepositorioEnMemoria<Product> repositorio;
+
+    public void inyectarRepositorio(RepositorioEnMemoria<Product> repositorio) {
+        this.repositorio = repositorio;
+    }
+
+    public void venderProducto(String nombre, int cantidad) {
+        repositorio.buscar(p -> p.getNombre().equals(nombre)).orElseThrow().venderUnidades(cantidad);
+    }
+}
+
+ServicioVentas servicio = new ServicioVentas();
+servicio.venderProducto("Teclado mecanico", 5);
+```
+
+¿Qué pasa al ejecutar `venderProducto` en este código?
+
+<Reveal titulo="Diagnóstico">
+`NullPointerException`. Esta versión usa inyección por SETTER (`inyectarRepositorio`) en vez de por constructor — y el código de ejemplo NUNCA llamó a ese setter antes de usar `venderProducto`, dejando `repositorio` en `null`. Esta es exactamente la razón por la que la inyección por CONSTRUCTOR es preferida: un objeto construido con `new ServicioVentas(repositorio)` NUNCA puede quedar en un estado incompleto, porque el compilador exige el argumento al construirlo.
+</Reveal>
+
+## Mini reto de diseño
+
+`RepositorioEnMemoria<T>` (Etapa 4) no es una INTERFAZ, es una clase concreta. ¿Qué ganarías si existiera una interfaz `Repositorio<T>` con los mismos métodos, y `RepositorioEnMemoria<T>` la implementara? ¿Cómo se conecta esto con DIP (Etapa 7 Lección 2) y con lo que vas a necesitar cuando reemplaces el almacenamiento en memoria por una base de datos real (Etapa 15)?
+
+<Comparativa
+  columnas={["Sin DI", "Con DI"]}
+  filas={[
+    ["La clase crea sus propias dependencias (new adentro)", "La clase recibe sus dependencias por constructor"],
+    ["Atada para siempre a una implementación específica", "Intercambiable: producción, pruebas, u otra fuente de datos"],
+    ["Difícil de testear con datos controlados", "Fácil de testear: inyectás un repositorio de prueba"],
+  ]}
+/>
+
+## Resumen
+
+- Dependency Injection: recibir dependencias por constructor en vez de crearlas internamente con `new`.
+- El beneficio concreto es flexibilidad: la misma clase opera sobre distintas implementaciones/datos sin modificarse.
+- `RepositorioEnMemoria<T>` (Etapa 4) ya era un Repository: abstrae el acceso a datos detrás de métodos como `agregar`, `buscar`, `listarTodos`.
+- La inyección por constructor previene estados incompletos, a diferencia de la inyección por setter.
+
+## Modelo mental final
+
+Pensá en DI como pedir un ingrediente en vez de tener que cultivarlo vos mismo: `ServicioVentas` "pide" un repositorio en su constructor, y no le importa si ese repositorio vino de una huerta real o de una maqueta de prueba — solo le importa que cumpla el contrato de dar productos cuando se los pidan.
+
+## Conexión
+
+DIP (Etapa 7 Lección 2) es el PRINCIPIO ("depender de abstracciones"); Dependency Injection (esta lección) es la TÉCNICA concreta para aplicarlo. `RepositorioEnMemoria` (Etapa 4 Lección 3) resultó ser, sin que se dijera en ese momento, una implementación temprana del patrón Repository.
+
+## Próximo paso
+
+Etapa 8 / Lección 2: Factory y Strategy — Strategy ya estaba prefigurado con `Descuento`/`MetodoEnvio` desde la Etapa 2; Factory centraliza la creación de objetos complejos.
+
+## Fuentes
+
+dev.java — inyección de dependencias en Java. Refactoring.Guru — catálogo de patrones de diseño, referencia para Repository y los patrones de la próxima lección.
+
+<SelfCheck
+  leccionId="etapa-08-patrones/leccion-01-dependency-injection-repository"
+  criterios={[
+    "Puedo escribir una clase que reciba sus dependencias por constructor en vez de crearlas internamente.",
+    "Puedo explicar el beneficio concreto de DI: la misma clase funcionando con distintas implementaciones/datos.",
+    "Puedo explicar por qué la inyección por constructor es preferible a la inyección por setter.",
+    "Puedo reconocer que RepositorioEnMemoria ya implementaba el patrón Repository desde la Etapa 4.",
+  ]}
+/>

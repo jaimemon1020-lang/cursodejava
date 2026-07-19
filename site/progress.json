@@ -216,6 +216,13 @@
       "leccion": 2,
       "titulo": "SOLID: los cinco principios de diseño orientado a objetos",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-08-patrones/leccion-01-dependency-injection-repository",
+      "etapa": 8,
+      "leccion": 1,
+      "titulo": "Dependency Injection y Repository: dos patrones que ya usabas",
+      "estado": "publicada"
     }
   ]
 }
