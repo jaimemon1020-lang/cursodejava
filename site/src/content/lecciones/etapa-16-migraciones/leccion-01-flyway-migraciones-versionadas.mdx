@@ -1,0 +1,258 @@
+---
+etapa: 16
+etapaTitulo: "Migraciones"
+leccion: 1
+titulo: "Flyway: migraciones versionadas del esquema de base de datos"
+objetivo: "Reemplazar la generación automática de esquema de Hibernate (ddl-auto) por migraciones SQL versionadas con Flyway, apropiadas para un entorno de producción real."
+prerrequisitos: ["etapa-15-bases-de-datos/leccion-03-derived-queries-query"]
+version_proyecto: "v15 — flyway-core, V1__crear_clientes.sql, ddl-auto=validate"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de versionar el esquema de tu base de datos con Flyway, reemplazando `spring.jpa.hibernate.ddl-auto=update` (cómodo para desarrollo, riesgoso en producción) por migraciones SQL explícitas y ordenadas.
+
+## Por qué necesitas aprenderlo
+
+`spring.jpa.hibernate.ddl-auto=update` (Etapa 15) dejó que Hibernate GENERARA automáticamente la tabla `clientes` a partir de las anotaciones de `Cliente`. Cómodo para desarrollo — pero en un equipo real, con una base de datos de PRODUCCIÓN con datos reales, dejar que un framework decida automáticamente cómo modificar el esquema es peligroso: no hay control de versiones, no hay forma de saber QUÉ cambió entre un deploy y el siguiente, ni de revertir un cambio problemático.
+
+## Qué debes saber antes
+
+`@Entity`, `JpaRepository`, `spring.jpa.hibernate.ddl-auto` (Etapa 15 Lección 2) — Flyway reemplaza esa auto-generación.
+
+## Recupera lo aprendido
+
+¿Cuándo conviene usar `@Query` en vez de un método de consulta derivado (`findByXxx`) en un `JpaRepository`?
+
+<Reveal titulo="Respuesta">
+Cuando la consulta no se puede expresar claramente con la convención de nombres — campos que no existen literalmente en la entidad, lógica compleja, o JOINs — como buscarPorCiudad, que necesitaba buscar dentro del campo direccionEnvio.
+</Reveal>
+
+## Problema
+
+`ddl-auto=update` funciona bien mientras estás APRENDIENDO o prototipando — pero en un equipo real, necesitás que el esquema de la base de datos esté BAJO CONTROL DE VERSIONES, igual que el código: cada cambio debe quedar registrado, aplicado en orden, y de forma REPRODUCIBLE en cualquier ambiente (tu máquina, la de un compañero, el servidor de producción). Sin eso, "¿qué versión del esquema tiene esta base de datos?" es una pregunta sin respuesta confiable.
+
+## Modelo mental
+
+```
+ddl-auto=update:  Hibernate DECIDE automáticamente cómo modificar
+                   el esquema, comparando las entidades con la
+                   base actual — cómodo, pero sin historial ni control.
+
+Flyway:            VOS escribís migraciones SQL numeradas
+                   (V1__algo.sql, V2__otra_cosa.sql), y Flyway
+                   las aplica EN ORDEN, una sola vez cada una,
+                   dejando un registro de qué se aplicó y cuándo.
+```
+
+## Explicación sencilla
+
+Flyway es una herramienta de migración de base de datos: en vez de dejar que el ORM adivine cómo debería verse el esquema, VOS escribís archivos SQL numerados (`V1__crear_clientes.sql`, `V2__agregar_columna.sql`, etc.) que describen CADA cambio, en el orden en que deben aplicarse. Flyway lleva un registro (una tabla especial, `flyway_schema_history`) de qué migraciones ya se ejecutaron, así que cada vez que la aplicación arranca, solo aplica las migraciones NUEVAS que todavía no corrieron.
+
+## Explicación técnica
+
+Los archivos de migración viven en `src/main/resources/db/migration/`, con un nombre que sigue la convención `V<versión>__<descripción>.sql` (doble guión bajo entre versión y descripción). Flyway los ordena por número de versión y los ejecuta EN ORDEN, UNA SOLA VEZ cada uno — una vez aplicada, una migración nunca se vuelve a ejecutar (y modificarla después de aplicada en cualquier ambiente es un error grave: Flyway detecta el cambio de contenido con un checksum y falla).
+
+Con Flyway gestionando el esquema, `spring.jpa.hibernate.ddl-auto` cambia de `update` a `validate`: Hibernate ya NO crea ni modifica tablas — solo VERIFICA que las entidades (`@Entity`) coincidan con lo que Flyway ya creó, fallando temprano si hay una discrepancia (por ejemplo, si agregaste un campo a `Cliente` pero te olvidaste de escribir la migración correspondiente).
+
+Al arrancar, Spring Boot detecta `flyway-core` en el classpath y ejecuta Flyway AUTOMÁTICAMENTE, ANTES de que Hibernate/JPA se inicialice — así el esquema ya existe cuando JPA hace su verificación de `validate`.
+
+## Cómo funciona
+
+1. `V1__crear_clientes.sql` en `src/main/resources/db/migration/` define el `CREATE TABLE clientes` explícitamente, en SQL puro (compatible con H2).
+2. Al arrancar, Flyway crea automáticamente una tabla `flyway_schema_history` (si no existe), revisa qué migraciones ya se aplicaron, y ejecuta las que faltan — en este caso, `V1` completa.
+3. `spring.jpa.hibernate.ddl-auto=validate` hace que Hibernate compare `Cliente` (la entidad) con la tabla `clientes` YA CREADA por Flyway — si coinciden, la aplicación arranca normalmente; si no, falla con un error claro.
+4. Todo el resto de la aplicación (`ClienteRepository`, sus métodos derivados, `@Query`) sigue funcionando EXACTAMENTE igual que en la Etapa 15 — Flyway solo cambió QUIÉN crea el esquema, no cómo se usa después.
+
+## Ejemplo mínimo
+
+**Fragmento agregado a `proyecto-maven/pom.xml`:**
+
+```xml
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-core</artifactId>
+</dependency>
+```
+
+**Archivo:** `proyecto-maven/src/main/resources/db/migration/V1__crear_clientes.sql`
+
+```sql
+CREATE TABLE clientes (
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+    nombre VARCHAR(255),
+    email VARCHAR(255),
+    direccion_envio VARCHAR(255)
+);
+```
+
+**Fragmento actualizado de `proyecto-maven/src/main/resources/application.properties`:**
+
+```properties
+spring.jpa.hibernate.ddl-auto=validate
+spring.flyway.enabled=true
+```
+
+## Predice
+
+`ddl-auto` cambió de `update` a `validate` — Hibernate ya NO crea tablas. ¿La aplicación va a arrancar correctamente, sabiendo que `V1__crear_clientes.sql` crea EXACTAMENTE las mismas columnas que `Cliente` espera?
+
+<Reveal titulo="Resultado real (ejecutado con Spring Boot)">
+```
+$ ./mvnw -q spring-boot:run
+...
+o.f.c.i.s.JdbcTableSchemaHistory : Schema history table "PUBLIC"."flyway_schema_history" does not exist yet
+o.f.core.internal.command.DbValidate : Successfully validated 1 migration (execution time 00:00.008s)
+o.f.c.i.s.JdbcTableSchemaHistory : Creating Schema History table "PUBLIC"."flyway_schema_history" ...
+o.f.core.internal.command.DbMigrate : Current version of schema "PUBLIC": << Empty Schema >>
+o.f.core.internal.command.DbMigrate : Migrating schema "PUBLIC" to version "1 - crear clientes"
+o.f.core.internal.command.DbMigrate : Successfully applied 1 migration to schema "PUBLIC", now at version v1
+...
+Started Application in 2.778 seconds
+Cliente guardado con id: 1
+Cliente encontrado: Juan Perez
+Total de clientes: 1
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "Migrating schema PUBLIC to version 1 - crear clientes" confirma que Flyway leyó `V1__crear_clientes.sql`, extrajo el número de versión (1) y la descripción ("crear clientes", con guiones bajos convertidos a espacios), y ejecutó el SQL.
+- "Successfully applied 1 migration" — la tabla `clientes` ahora existe, creada por Flyway, NO por Hibernate.
+- La aplicación arrancó SIN errores de `validate` — porque las columnas que `V1` creó (`id`, `nombre`, `email`, `direccion_envio`) coinciden EXACTAMENTE con lo que `Cliente` (Etapa 15 Lección 2) espera.
+- "Cliente guardado con id: 1", "Total de clientes: 1" — TODO el comportamiento de `ClienteRepository` sigue idéntico a la Etapa 15, confirmando que Flyway solo cambió la CREACIÓN del esquema, no su uso posterior.
+
+## Ejemplo aplicado al proyecto
+
+Con Flyway, el esquema de `clientes` queda registrado como un ARCHIVO versionado en el repositorio (`V1__crear_clientes.sql`) — cualquier persona que clone el proyecto, o cualquier ambiente donde se despliegue, va a terminar con EXACTAMENTE la misma estructura de base de datos, de forma reproducible y auditable.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Al agregar Flyway, el build falla con 'Could not find artifact org.flywaydb:flyway-database-h2'."
+  diagnostico="[ERROR] Could not find artifact org.flywaydb:flyway-database-h2:jar:11.7.2 in central"
+  causa="Se asumio (por analogia con flyway-database-postgresql, flyway-database-oracle, etc.) que H2 tambien necesitaba un modulo de soporte de base de datos separado -- pero ese artifact especifico NUNCA existio: el soporte de H2 sigue incluido directamente dentro de flyway-core."
+  solucion="Declarar SOLO org.flywaydb:flyway-core como dependencia (sin version explicita, gestionada por el BOM de spring-boot-starter-parent) -- ningun modulo adicional es necesario para H2."
+  prevencion="Antes de asumir que una convencion de nombres de artefactos (como flyway-database-*) aplica UNIFORMEMENTE a todas las bases de datos soportadas, verificar en Maven Central que el artefacto especifico realmente existe -- un supuesto incorrecto se ve igual a un problema de version hasta que investigas mas."
+>
+```xml
+<dependency>
+    <groupId>org.flywaydb</groupId>
+    <artifactId>flyway-database-h2</artifactId>
+    <version>11.7.2</version>
+</dependency>
+<!-- Este artifact no existe en Maven Central -->
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que Flyway NO vuelve a ejecutar una migración ya aplicada, reiniciando la aplicación:
+
+```bash
+./mvnw -q spring-boot:run
+# En los logs: "Current version of schema PUBLIC: 1" (ya no dice "Empty Schema")
+# Y NO aparece de nuevo "Migrating schema... to version 1"
+```
+
+## Ejercicio guiado
+
+Agregá `V2__agregar_telefono_clientes.sql` que agregue una columna `telefono VARCHAR(20)` a la tabla `clientes`, sin modificar `V1` (las migraciones aplicadas nunca se editan).
+
+<Reveal titulo="Pista 1">
+El nombre del archivo debe seguir la convención `V2__descripcion.sql` — el número debe ser MAYOR al de la última migración aplicada.
+</Reveal>
+
+<Reveal titulo="Solución">
+```sql
+ALTER TABLE clientes ADD COLUMN telefono VARCHAR(20);
+```
+
+Guardado como `V2__agregar_telefono_clientes.sql`. Al reiniciar la aplicación, Flyway detecta que `V1` ya se aplicó y ejecuta SOLO `V2` — sin que hayas tocado `Cliente.java` todavía (agregar el campo `telefono` a la entidad sería un paso adicional, separado de la migración).
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, después de aplicar el ejercicio guiado, agregá el campo `telefono` a la clase `Cliente` (con su getter y el parámetro correspondiente en el constructor), y confirmá que `ddl-auto=validate` sigue arrancando sin errores porque la migración `V2` ya preparó la columna correspondiente.
+
+## Transferencia
+
+Si accidentalmente editaras `V1__crear_clientes.sql` DESPUÉS de que ya se aplicó en tu base de datos local, ¿qué esperás que pase la próxima vez que arranques la aplicación? (Pista: Flyway calcula un checksum de cada migración aplicada). ¿Por qué esa protección es importante en un equipo con múltiples desarrolladores?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué es más seguro usar Flyway con ddl-auto=validate en vez de ddl-auto=update en un proyecto real?"
+  opciones={[
+    { texto: "Porque validate es más rápido que update en tiempo de ejecución", correcta: false, feedback: "La diferencia no es de performance — es de CONTROL: quién decide los cambios de esquema, y si esos cambios quedan versionados y auditables." },
+    { texto: "Porque con Flyway + validate, cada cambio de esquema queda como un archivo SQL explícito y versionado, revisable en el control de versiones, en vez de que Hibernate lo infiera automáticamente sin registro histórico", correcta: true, feedback: "Correcto: update es cómodo para prototipar, pero no dejar rastro de QUÉ cambió ni CUÁNDO es un riesgo real en producción — Flyway + validate hace que cada cambio sea un commit revisable." },
+    { texto: "Porque validate permite que Hibernate cree tablas más rápido que update", correcta: false, feedback: "validate NO crea tablas — solo verifica que las entidades coincidan con lo que YA existe. Esa es justamente la diferencia clave con update, que sí modifica el esquema automáticamente." },
+    { texto: "Porque Flyway solo funciona con validate, nunca con update", correcta: false, feedback: "Técnicamente Flyway puede coexistir con cualquier valor de ddl-auto, pero usar update junto con Flyway sería contradictorio: dos mecanismos distintos compitiendo por controlar el mismo esquema. validate es la combinación coherente." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```
+V1__crear_clientes.sql   (ya aplicada en la base local)
+V1__agregar_indice.sql   (nueva, agregada por error con el mismo numero)
+```
+
+¿Qué esperás que pase al arrancar la aplicación con estos dos archivos?
+
+<Reveal titulo="Diagnóstico">
+Flyway falla con un error de migración DUPLICADA — no puede haber dos migraciones con el MISMO número de versión (`V1`). Cada migración necesita un número ÚNICO Y CRECIENTE. El archivo nuevo debería renombrarse a `V2__agregar_indice.sql`.
+</Reveal>
+
+## Mini reto de diseño
+
+`V1__crear_clientes.sql` está escrito en SQL genérico (compatible con H2). Si más adelante el proyecto migrara a PostgreSQL en producción, ¿ese mismo archivo SQL seguiría funcionando sin cambios? ¿Qué estrategias existen para manejar diferencias de sintaxis SQL entre bases de datos distintas en un proyecto que usa Flyway?
+
+<Comparativa
+  columnas={["Aspecto", "ddl-auto=update", "Flyway + ddl-auto=validate"]}
+  filas={[
+    ["Quién decide el esquema", "Hibernate, automáticamente", "Vos, explícitamente en archivos SQL"],
+    ["Historial de cambios", "Ninguno", "Un archivo versionado por cambio"],
+    ["Reproducible entre ambientes", "No garantizado", "Garantizado (mismas migraciones, mismo orden)"],
+    ["Apropiado para producción", "No recomendado", "Sí, es el estándar de la industria"],
+  ]}
+/>
+
+## Resumen
+
+- Flyway versiona el esquema de base de datos con archivos SQL numerados (`V1__descripcion.sql`).
+- Las migraciones se aplican en orden, una sola vez, y quedan registradas en `flyway_schema_history`.
+- `ddl-auto=validate` (en vez de `update`) hace que Hibernate solo VERIFIQUE el esquema, sin modificarlo — Flyway es quien lo crea.
+- Una migración ya aplicada NUNCA debe editarse — los cambios nuevos van en un archivo con número de versión mayor.
+
+## Modelo mental final
+
+Pensá en Flyway como el historial de commits de tu esquema de base de datos: cada migración es un "commit" que describe UN cambio específico, aplicado en orden, con un registro permanente de qué se hizo y cuándo — exactamente el mismo principio que ya usás con Git para el código, aplicado a la estructura de la base de datos.
+
+## Conexión
+
+`Cliente` (Etapa 15) y su tabla `clientes` ahora tienen un origen EXPLÍCITO y versionado (`V1__crear_clientes.sql`), en vez de haber sido generada implícitamente por `ddl-auto=update`. `ClienteRepository` y sus métodos de consulta (Etapa 15 Lección 3) siguen funcionando sin ningún cambio.
+
+## Próximo paso
+
+Etapa 17: Testing — profundizando en JUnit, agregando Mockito para simular dependencias, y Testcontainers para probar contra una base de datos real en tests de integración.
+
+## Fuentes
+
+dev.java — migraciones de base de datos con Flyway. flywaydb.org — documentación oficial de Flyway, sección "Migrations".
+
+<SelfCheck
+  leccionId="etapa-16-migraciones/leccion-01-flyway-migraciones-versionadas"
+  criterios={[
+    "Puedo escribir una migración Flyway siguiendo la convención de nombres V<version>__<descripcion>.sql.",
+    "Puedo explicar por qué ddl-auto cambia de update a validate cuando se usa Flyway.",
+    "Puedo explicar por qué una migración ya aplicada nunca debe editarse.",
+    "Puedo explicar la ventaja de versionar el esquema de base de datos frente a dejar que el ORM lo genere automáticamente.",
+  ]}
+/>

@@ -349,6 +349,13 @@
       "leccion": 3,
       "titulo": "Métodos de consulta derivados y @Query",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-16-migraciones/leccion-01-flyway-migraciones-versionadas",
+      "etapa": 16,
+      "leccion": 1,
+      "titulo": "Flyway: migraciones versionadas del esquema de base de datos",
+      "estado": "publicada"
     }
   ]
 }
