@@ -230,6 +230,13 @@
       "leccion": 2,
       "titulo": "Factory y Strategy: centralizar la creación, intercambiar el algoritmo",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-08-patrones/leccion-03-adapter",
+      "etapa": 8,
+      "leccion": 3,
+      "titulo": "Adapter: conectar una interfaz incompatible con la que tu código espera",
+      "estado": "publicada"
     }
   ]
 }
