@@ -1,0 +1,312 @@
+---
+etapa: 7
+etapaTitulo: "Clean Code y SOLID"
+leccion: 1
+titulo: "Clean Code: nombres, funciones pequeñas y sin números mágicos"
+objetivo: "Refactorizar código funcional pero difícil de leer en código igual de funcional pero fácil de entender, aplicando nombres claros, funciones pequeñas con una sola responsabilidad, y constantes en vez de números mágicos."
+prerrequisitos: ["etapa-06-avanzado/leccion-06-concurrencia-basica"]
+version_proyecto: "v1 — CleanCodeAntes vs CleanCodeDespues"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de identificar código que "funciona pero es difícil de leer", y refactorizarlo aplicando tres herramientas concretas: nombres que explican intención, funciones pequeñas con una sola responsabilidad, y constantes con nombre en vez de números sueltos en el código.
+
+## Por qué necesitas aprenderlo
+
+Hasta ahora, el foco del curso fue "que el código FUNCIONE" — compilar, ejecutar, dar el resultado correcto. A partir de acá, el foco se amplía a "que el código funcione Y que cualquier otra persona (incluido vos, en seis meses) pueda entenderlo rápido". Código correcto pero ilegible es una deuda que se paga con intereses cada vez que alguien tiene que modificarlo.
+
+## Qué debes saber antes
+
+Todo lo visto en las Etapas 1-6 — esta lección no agrega sintaxis nueva, cambia el criterio con el que evaluás el código que ya sabés escribir.
+
+## Recupera lo aprendido
+
+¿Por qué `contador++` sobre una variable compartida entre hilos puede perder incrementos?
+
+<Reveal titulo="Respuesta">
+Porque no es una operación atómica: son tres pasos (leer, sumar, guardar) que pueden entrelazarse entre hilos, haciendo que dos hilos lean el mismo valor antes de que ninguno haya guardado su resultado — una condición de carrera.
+</Reveal>
+
+## Problema
+
+Tenés un método que calcula el total de una compra con descuento, valida la cantidad, y funciona perfectamente — pero usa nombres de una sola letra (`p`, `c`, `t`), un número `50000` y un `0.9` sin ninguna explicación de qué representan, y mezcla validación con cálculo en un solo bloque. Alguien que lea ese código por primera vez tiene que DESCIFRARLO, en vez de simplemente leerlo.
+
+## Modelo mental
+
+```
+Código difícil de leer: FUNCIONA, pero cada lector tiene que
+                         reconstruir mentalmente la intención.
+
+Código limpio:          FUNCIONA IGUAL, pero la intención
+                         está escrita explícitamente en nombres
+                         y estructura — no hace falta descifrar nada.
+```
+
+## Explicación sencilla
+
+"Clean Code" no es un conjunto de reglas de estilo arbitrarias — es la idea de que el código se LEE muchas más veces de las que se ESCRIBE, así que optimizar para lectura (no solo para que compile) ahorra tiempo real a largo plazo. Tres herramientas concretas: (1) nombres que dicen QUÉ representa una variable o QUÉ hace una función, sin necesitar un comentario aparte; (2) funciones pequeñas, cada una haciendo UNA sola cosa, con un nombre que resume esa cosa; (3) constantes con nombre en vez de números sueltos ("números mágicos") cuyo significado hay que adivinar.
+
+## Explicación técnica
+
+Un **número mágico** es un valor numérico literal en medio del código sin ninguna explicación de qué representa — `if (t > 50000)` no te dice POR QUÉ 50000 es el umbral, ni qué pasaría si ese número cambiara en dos lugares distintos del código de forma inconsistente. Extraerlo a una constante (`private static final double UMBRAL_DESCUENTO = 50000.0;`) le da nombre a esa intención, y centraliza el valor en un solo lugar.
+
+Una función debería tener una **única responsabilidad**: validar, O calcular, O imprimir — no las tres mezcladas en un bloque con `if`/`else` anidados. Separar esas responsabilidades en funciones pequeñas (`esCantidadValida`, `calcularTotalConDescuento`, `aplicaDescuento`) hace que cada una se pueda leer, entender y probar de forma AISLADA, sin tener que rastrear todo el flujo completo para entender una sola parte.
+
+Los **nombres** deberían responder la pregunta "¿qué es esto?" sin necesitar contexto adicional: `cantidadAComprar` en vez de `c`, `precioUnitario` en vez de un parámetro sin nombre claro. Esto no es estética — es reducir la carga cognitiva de quien lee el código, incluyéndote a vos mismo en el futuro.
+
+## Cómo funciona
+
+1. `esCantidadValida(cantidad, stockDisponible)` aísla la validación en una función con un nombre que YA responde qué hace, sin necesitar leer su cuerpo.
+2. El `main` refactorizado usa un **guard clause** (`if (!esCantidadValida(...)) { ...; return; }`) — sale temprano del caso inválido, en vez de anidar todo el caso válido dentro de un `else`.
+3. `calcularTotalConDescuento` delega la decisión de "¿aplica descuento?" a `aplicaDescuento(subtotal)`, otra función pequeña con nombre autoexplicativo.
+4. `UMBRAL_DESCUENTO` y `PORCENTAJE_DESCUENTO` reemplazan los números `50000` y `0.9` — ahora el código dice EXPLÍCITAMENTE qué representa cada valor.
+5. El comportamiento final es IDÉNTICO entre la versión "antes" y "después" — refactorizar significa cambiar la ESTRUCTURA sin cambiar el RESULTADO.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-07/CleanCodeAntes.java` (funciona, pero es difícil de leer)
+
+```java
+public class CleanCodeAntes {
+    public static void main(String[] args) {
+        Product p = new Product("Teclado mecanico", 25000.0, 15);
+        int c = 3;
+        double t;
+        if (c > 0 && c <= p.getStock()) {
+            t = p.getPrecio() * c;
+            if (t > 50000) {
+                t = t * 0.9;
+            }
+            System.out.println("Total: " + t);
+        } else {
+            System.out.println("Cantidad invalida");
+        }
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-07/CleanCodeDespues.java` (mismo comportamiento, refactorizado)
+
+```java
+public class CleanCodeDespues {
+    private static final double UMBRAL_DESCUENTO = 50000.0;
+    private static final double PORCENTAJE_DESCUENTO = 0.9;
+
+    public static void main(String[] args) {
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+        int cantidadAComprar = 3;
+
+        if (!esCantidadValida(cantidadAComprar, teclado.getStock())) {
+            System.out.println("Cantidad invalida");
+            return;
+        }
+
+        double total = calcularTotalConDescuento(teclado.getPrecio(), cantidadAComprar);
+        System.out.println("Total: " + total);
+    }
+
+    private static boolean esCantidadValida(int cantidad, int stockDisponible) {
+        return cantidad > 0 && cantidad <= stockDisponible;
+    }
+
+    private static double calcularTotalConDescuento(double precioUnitario, int cantidad) {
+        double subtotal = precioUnitario * cantidad;
+        return aplicaDescuento(subtotal) ? subtotal * PORCENTAJE_DESCUENTO : subtotal;
+    }
+
+    private static boolean aplicaDescuento(double subtotal) {
+        return subtotal > UMBRAL_DESCUENTO;
+    }
+}
+```
+
+## Predice
+
+`CleanCodeAntes` y `CleanCodeDespues` calculan lo mismo (3 unidades a $25.000 = $75.000, que supera el umbral de $50.000, así que aplica 10% de descuento). ¿Van a dar el MISMO resultado exacto?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+--- Antes ---
+Total: 67500.0
+--- Despues ---
+Total: 67500.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- Ambas versiones imprimen EXACTAMENTE `Total: 67500.0` — el refactor no cambió NADA del comportamiento, solo la estructura del código.
+- `75000.0` (25000 x 3) supera `UMBRAL_DESCUENTO` (50000.0), así que `aplicaDescuento` devuelve `true`, y se aplica `PORCENTAJE_DESCUENTO` (0.9): `75000 * 0.9 = 67500`.
+- Esto confirma la regla de oro del refactor: **el comportamiento observable no cambia**. Si `CleanCodeDespues` hubiera dado un resultado distinto, no sería un refactor válido — sería un bug introducido durante la "limpieza".
+- La versión "después" es más larga en líneas totales, pero cada función individual es más corta y más fácil de entender por separado — el costo de leer se reparte, en vez de concentrarse en un solo bloque denso.
+
+## Ejemplo aplicado al proyecto
+
+Este mismo criterio aplica retroactivamente a métodos como `Product.venderUnidades()` o `Order.confirmar()` de etapas anteriores: código que ya funciona, pero que se beneficiaría de nombres más específicos o de separar validación de lógica de negocio, sin cambiar UN SOLO resultado de las lecciones ya publicadas.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Al refactorizar 'para que se vea mejor', el resultado del programa cambia y ya no coincide con el comportamiento original."
+  diagnostico="El test manual (comparar el output antes y después) muestra una diferencia — por ejemplo, el descuento se aplica cuando no debería, o viceversa."
+  causa="Se cambió una condición al extraerla a una función (por ejemplo, usar >= en vez de > al mover 't > 50000' a aplicaDescuento), alterando el comportamiento sin darse cuenta durante la 'limpieza'."
+  solucion="Cualquier refactor debe preservar el comportamiento EXACTO. Antes de dar el refactor por terminado, comparar el output de la versión vieja y la nueva con los MISMOS datos de entrada — si difieren, no es un refactor válido, es un cambio de comportamiento disfrazado."
+  prevencion="Refactorizá en pasos pequeños, verificando el output después de cada cambio — extraer una función a la vez, no reescribir todo de una vez y esperar que 'seguro quedó igual'."
+>
+```java
+// Antes: if (t > 50000)
+// Despues, con un error sutil al refactorizar:
+private static boolean aplicaDescuento(double subtotal) {
+    return subtotal >= 50000;
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Extraer un número mágico adicional a una constante con nombre:
+
+```java
+private static final int STOCK_MINIMO_ALERTA = 5;
+
+private static boolean necesitaReposicion(int stockActual) {
+    return stockActual < STOCK_MINIMO_ALERTA;
+}
+```
+
+## Ejercicio guiado
+
+Refactorizá este método (que funciona, pero mezcla validación, cálculo e impresión) en funciones pequeñas con nombres claros:
+
+```java
+static void procesar(Product p, int c) {
+    if (c <= 0) {
+        System.out.println("Error");
+        return;
+    }
+    double r = p.getPrecio() * c;
+    if (r > 100000) {
+        System.out.println("Compra grande: " + r);
+    } else {
+        System.out.println("Compra normal: " + r);
+    }
+}
+```
+
+<Reveal titulo="Pista 1">
+Identificá las TRES responsabilidades mezcladas: validar cantidad, calcular el total, y decidir qué mensaje mostrar según un umbral — cada una merece su propia función.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+private static final double UMBRAL_COMPRA_GRANDE = 100000.0;
+
+static void procesarCompra(Product producto, int cantidad) {
+    if (!esCantidadValida(cantidad)) {
+        System.out.println("Error");
+        return;
+    }
+    double total = producto.getPrecio() * cantidad;
+    System.out.println(describirCompra(total));
+}
+
+private static boolean esCantidadValida(int cantidad) {
+    return cantidad > 0;
+}
+
+private static String describirCompra(double total) {
+    return (total > UMBRAL_COMPRA_GRANDE ? "Compra grande: " : "Compra normal: ") + total;
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-07/`, tomá cualquier método de una etapa anterior que tenga más de 15 líneas o algún número mágico sin explicar, y refactorizalo en funciones más pequeñas con nombres claros — confirmando con `System.out.println` que el resultado no cambió antes y después.
+
+## Transferencia
+
+Si vieras `if (edad >= 18)` en un sistema de registro de usuarios, ¿es ese un número mágico que debería extraerse a una constante? ¿Qué diferencia hay entre un número "mágico" (que necesita explicación) y un número que es tan universalmente entendido en contexto que extraerlo a una constante sería sobre-ingeniería?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál es el criterio principal para saber si un refactor de Clean Code fue exitoso?"
+  opciones={[
+    { texto: "Que el código tenga menos líneas totales que antes", correcta: false, feedback: "Un refactor de Clean Code a veces AUMENTA la cantidad de líneas (como en CleanCodeDespues) porque reparte responsabilidades en funciones separadas — la métrica no es 'menos líneas', es 'más fácil de leer'." },
+    { texto: "Que el comportamiento observable (el resultado, el output) sea EXACTAMENTE el mismo que antes del refactor", correcta: true, feedback: "Correcto: refactorizar significa cambiar la estructura interna SIN cambiar lo que el programa hace — si el resultado cambia, no es un refactor, es una modificación de comportamiento." },
+    { texto: "Que todas las variables tengan nombres de más de 10 caracteres", correcta: false, feedback: "La longitud del nombre no es el criterio — un nombre debe ser CLARO, no necesariamente largo. cantidad es tan válido como cantidadAComprar según el contexto, mientras ambos sean más claros que c." },
+    { texto: "Que no queden funciones privadas en la clase", correcta: false, feedback: "Es al revés: extraer funciones privadas pequeñas (como esCantidadValida, aplicaDescuento) es exactamente una de las técnicas de Clean Code usadas en este refactor." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+private static final double DESCUENTO = 0.9;
+
+private static double aplicarDescuento(double precio) {
+    return precio * DESCUENTO;
+}
+```
+
+El nombre de la constante es `DESCUENTO`, pero el valor es `0.9` (el MULTIPLICADOR después de descontar, no el porcentaje descontado). ¿Por qué este nombre puede confundir a quien lea el código?
+
+<Reveal titulo="Diagnóstico">
+`DESCUENTO = 0.9` sugiere "un descuento del 90%", pero en realidad representa "te queda pagando el 90%" (un descuento del 10%). Un nombre más preciso sería `PORCENTAJE_A_PAGAR` o `MULTIPLICADOR_CON_DESCUENTO` — el nombre de una constante debe reflejar EXACTAMENTE lo que el valor representa, no una aproximación que obligue a adivinar.
+</Reveal>
+
+## Mini reto de diseño
+
+`CleanCodeDespues` tiene MÁS líneas de código que `CleanCodeAntes`, pero se considera "mejor". ¿Por qué "menos líneas" no es sinónimo de "mejor código"? ¿En qué situaciones SÍ tendría sentido priorizar código más corto por sobre más funciones pequeñas?
+
+<Comparativa
+  columnas={["Aspecto", "CleanCodeAntes", "CleanCodeDespues"]}
+  filas={[
+    ["Líneas totales", "Menos", "Más"],
+    ["Nombres", "c, p, t (una letra)", "cantidadAComprar, precioUnitario, total"],
+    ["Números mágicos", "50000, 0.9 sin explicar", "UMBRAL_DESCUENTO, PORCENTAJE_DESCUENTO con nombre"],
+    ["Funciones", "Todo en un bloque", "Responsabilidades separadas y nombradas"],
+    ["Comportamiento", "Total: 67500.0", "Total: 67500.0 (idéntico)"],
+  ]}
+/>
+
+## Resumen
+
+- Clean Code optimiza para LECTURA, no solo para que el código compile y funcione.
+- Los números mágicos (valores sin explicación) deberían extraerse a constantes con nombre.
+- Funciones pequeñas con una sola responsabilidad y nombre claro son más fáciles de leer, probar y modificar que un bloque denso.
+- Un refactor válido preserva el comportamiento EXACTO — si el resultado cambia, no es limpieza, es un bug.
+
+## Modelo mental final
+
+Pensá en código sucio como un cuarto desordenado donde igual encontrás lo que buscás, pero tardás — y en Clean Code como ordenar ese mismo cuarto sin tirar nada: todo sigue estando ahí, pero ahora tiene un lugar con etiqueta, y encontrarlo es inmediato.
+
+## Conexión
+
+Esta lección prepara el terreno para SOLID (próxima lección): Clean Code te da las herramientas de bajo nivel (nombres, funciones pequeñas); SOLID te da los principios de diseño de más alto nivel para organizar CLASES completas.
+
+## Próximo paso
+
+Etapa 7 / Lección 2: SOLID — los cinco principios de diseño orientado a objetos, aplicados sobre clases ya existentes del proyecto.
+
+## Fuentes
+
+dev.java — buenas prácticas de código limpio en Java. "Clean Code" de Robert C. Martin — referencia clásica de la industria para los conceptos de esta lección (nombres, funciones, números mágicos).
+
+<SelfCheck
+  leccionId="etapa-07-clean-code-solid/leccion-01-clean-code"
+  criterios={[
+    "Puedo identificar números mágicos en código existente y extraerlos a constantes con nombre.",
+    "Puedo dividir una función que mezcla varias responsabilidades en funciones pequeñas con nombres claros.",
+    "Puedo verificar que un refactor preserva el comportamiento exacto comparando el output antes y después.",
+    "Puedo explicar por qué 'menos líneas' no es sinónimo de 'mejor código'.",
+  ]}
+/>

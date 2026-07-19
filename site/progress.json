@@ -202,6 +202,13 @@
       "leccion": 6,
       "titulo": "Concurrencia básica: Thread, Runnable y AtomicInteger",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-07-clean-code-solid/leccion-01-clean-code",
+      "etapa": 7,
+      "leccion": 1,
+      "titulo": "Clean Code: nombres, funciones pequeñas y sin números mágicos",
+      "estado": "publicada"
     }
   ]
 }
