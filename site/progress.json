@@ -132,6 +132,13 @@
       "leccion": 7,
       "titulo": "Optional y Date/Time API: evitar null y trabajar con fechas correctamente",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-05-funcional/leccion-01-lambdas-interfaces-funcionales",
+      "etapa": 5,
+      "leccion": 1,
+      "titulo": "Lambdas e interfaces funcionales: Predicate, Function, Consumer, Supplier",
+      "estado": "publicada"
     }
   ]
 }

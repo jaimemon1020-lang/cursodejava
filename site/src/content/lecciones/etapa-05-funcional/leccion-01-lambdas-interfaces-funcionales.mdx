@@ -1,0 +1,274 @@
+---
+etapa: 5
+etapaTitulo: "Java funcional: lambdas, interfaces funcionales y Streams"
+leccion: 1
+titulo: "Lambdas e interfaces funcionales: Predicate, Function, Consumer, Supplier"
+objetivo: "Escribir e interpretar expresiones lambda, reconocer las interfaces funcionales estándar de java.util.function, y crear una interfaz funcional propia."
+prerrequisitos: ["etapa-04-collections/leccion-07-optional-datetime"]
+version_proyecto: "v1 — CalculadoraDescuento, LambdasDemo"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de leer y escribir expresiones lambda con confianza, reconocer las cuatro interfaces funcionales más usadas de Java (`Predicate`, `Function`, `Consumer`, `Supplier`), y crear tu propia interfaz funcional cuando ninguna de las estándar encaje.
+
+## Por qué necesitas aprenderlo
+
+Ya usaste una lambda sin nombrarla como tal: `repositorio.buscar(p -> p.getNombre().equals("Teclado mecanico"))` en la Etapa 4. Esa lambda encaja en `Predicate<T>`, una interfaz funcional del propio Java. Antes de usar Streams (la próxima lección, que se apoya EN estas interfaces), necesitás entender qué es realmente una lambda y por qué el compilador acepta esa sintaxis tan compacta.
+
+## Qué debes saber antes
+
+Generics (Etapa 4 Lección 3) y el uso de `Predicate<T>` en `RepositorioEnMemoria.buscar` (Etapa 4 Lección 7).
+
+## Recupera lo aprendido
+
+¿Qué hace `Optional.map()` cuando el `Optional` está vacío?
+
+<Reveal titulo="Respuesta">
+No ejecuta nada — si el Optional está vacío, map() simplemente devuelve otro Optional vacío, sin invocar la función que le pasaste.
+</Reveal>
+
+## Problema
+
+Ya usaste `p -> p.getNombre().equals("Teclado mecanico")` como argumento de `buscar`. ¿Qué ES exactamente esa lambda? ¿Cómo sabe Java qué tipo tiene, si no escribiste ningún tipo explícito? Y si mañana necesitás una operación que no encaja en `Predicate`, `Function`, `Consumer` ni `Supplier` — como calcular un descuento sobre un `Product` — ¿cómo la representás?
+
+## Modelo mental
+
+```
+interfaz funcional: una interfaz con EXACTAMENTE UN método abstracto.
+lambda:             una implementación de ese único método, escrita
+                     de forma compacta, sin nombre de clase ni new.
+
+(parametros) -> cuerpo
+```
+
+## Explicación sencilla
+
+Una interfaz funcional es una interfaz que tiene un solo método sin implementar. Una lambda es una forma corta de escribir "una instancia de esa interfaz, implementando ese único método" — sin tener que escribir una clase entera con `new NombreClase() { ... }`.
+
+`p -> p.getNombre().equals("Teclado mecanico")` es equivalente a escribir una clase que implementa `Predicate<Product>` con un método `test(Product p) { return p.getNombre().equals("Teclado mecanico"); }` — pero en una sola línea.
+
+## Explicación técnica
+
+`@FunctionalInterface` es una anotación opcional (pero recomendada) que le pide al compilador que verifique que la interfaz tenga exactamente un método abstracto — si agregás un segundo, el compilador rechaza la interfaz con ese anotación.
+
+Java trae interfaces funcionales listas para usar en `java.util.function`, cada una con un propósito distinto según su firma:
+
+- **`Predicate<T>`**: `boolean test(T t)` — evalúa una condición sobre `T`. Ya la usaste en `buscar`.
+- **`Function<T, R>`**: `R apply(T t)` — transforma un `T` en un `R` de otro tipo.
+- **`Consumer<T>`**: `void accept(T t)` — hace algo con `T`, sin devolver nada.
+- **`Supplier<T>`**: `T get()` — no recibe nada, produce un `T`.
+
+Cuando ninguna de estas encaja (por ejemplo, necesitás una operación con una firma específica de tu dominio), podés declarar tu propia interfaz funcional con `@FunctionalInterface` y un único método abstracto, con el nombre y la firma que tenga sentido para tu problema.
+
+## Cómo funciona
+
+1. El compilador infiere el tipo de la lambda por el CONTEXTO donde se usa — si la asignás a una variable `Predicate<Product>`, el compilador sabe que la lambda debe implementar `test(Product) -> boolean`.
+2. `CalculadoraDescuento` es una interfaz funcional propia con un único método `calcular(Product) -> double`, porque ninguna interfaz estándar representa "aplicar un descuento a un producto" con ese nombre específico.
+3. `diezPorCiento.calcular(teclado)` invoca la lambda como si fuera una llamada de método normal.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-05/CalculadoraDescuento.java`
+
+```java
+@FunctionalInterface
+public interface CalculadoraDescuento {
+    double calcular(Product producto);
+}
+```
+
+**Archivo:** `proyecto/etapa-05/LambdasDemo.java`
+
+```java
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+
+public class LambdasDemo {
+    public static void main(String[] args) {
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+
+        Predicate<Product> tieneStockBajo = p -> p.getStock() < 20;
+        System.out.println("Stock bajo: " + tieneStockBajo.test(teclado));
+
+        Function<Product, String> resumen = p -> p.getNombre() + " ($" + p.getPrecio() + ")";
+        System.out.println(resumen.apply(teclado));
+
+        Consumer<Product> imprimir = p -> System.out.println("Producto: " + p.getNombre());
+        imprimir.accept(teclado);
+
+        Supplier<Product> productoPorDefecto = () -> new Product("Producto generico", 0.0, 0);
+        Product generico = productoPorDefecto.get();
+        System.out.println("Generico: " + generico.getNombre());
+
+        CalculadoraDescuento diezPorCiento = p -> p.getPrecio() * 0.9;
+        System.out.println("Precio con descuento: " + diezPorCiento.calcular(teclado));
+    }
+}
+```
+
+## Predice
+
+`tieneStockBajo` chequea `stock < 20`, y `teclado` tiene stock 15. ¿Qué imprime la primera línea?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Stock bajo: true
+Teclado mecanico ($25000.0)
+Producto: Teclado mecanico
+Generico: Producto generico
+Precio con descuento: 22500.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `tieneStockBajo.test(teclado)` da `true` porque 15 < 20 — la lambda se ejecutó como el método `test` de `Predicate<Product>`.
+- `resumen.apply(teclado)` devuelve un `String`, no un `boolean` ni `void` — porque `Function<T, R>` transforma, no evalúa ni consume.
+- `imprimir.accept(teclado)` no devuelve nada — solo IMPRIME, que es justamente lo que `Consumer<T>` representa.
+- `productoPorDefecto.get()` no recibió NINGÚN argumento — `Supplier<T>` es la única interfaz funcional de las cuatro cuyo método no toma parámetros.
+- `diezPorCiento.calcular(teclado)` usa una interfaz que vos mismo escribiste, no una de `java.util.function` — y el compilador la trata exactamente igual que a las estándar.
+
+## Ejemplo aplicado al proyecto
+
+`RepositorioEnMemoria.buscar(Predicate<T> criterio)` (Etapa 4) ahora tiene sentido completo: recibe una interfaz funcional estándar, y cualquier lambda que "sepa evaluar un T y devolver boolean" encaja ahí sin que tengas que crear una clase nueva por cada criterio de búsqueda.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El compilador rechaza la lambda diciendo que el target-type no es una interfaz funcional, o que tiene múltiples métodos abstractos."
+  diagnostico="javac reporta algo como: incompatible types: X is not a functional interface, multiple non-overriding abstract methods found"
+  causa="Se intentó asignar una lambda a una interfaz que tiene más de un método abstracto — las lambdas solo pueden implementar interfaces con EXACTAMENTE un método sin cuerpo."
+  solucion="Verificar que la interfaz de destino tenga un solo método abstracto; si necesitás más de un comportamiento, no podés usar una lambda, necesitás una clase (o interfaz con métodos default adicionales, que no cuentan como abstractos)."
+  prevencion="Marcá tus interfaces funcionales con @FunctionalInterface — el compilador te avisa en el momento en que agregás por error un segundo método abstracto, antes de que intentes usarla con una lambda."
+>
+```java
+interface OperacionDoble {
+    double operar(Product p);
+    double operarOtraVez(Product p);
+}
+
+OperacionDoble op = p -> p.getPrecio() * 0.9;
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Combinar dos `Predicate` con `and()`, un método default que Java ya trae en la interfaz:
+
+```java
+Predicate<Product> tieneStockBajo = p -> p.getStock() < 20;
+Predicate<Product> esCaro = p -> p.getPrecio() > 20000.0;
+Predicate<Product> stockBajoYCaro = tieneStockBajo.and(esCaro);
+System.out.println(stockBajoYCaro.test(teclado));
+```
+
+## Ejercicio guiado
+
+Escribí una interfaz funcional propia `ValidadorPrecio` con un método `esValido(double precio) -> boolean`, y usala para validar si un precio nuevo es aceptable (por ejemplo, mayor a cero y menor a 1.000.000).
+
+<Reveal titulo="Pista 1">
+La interfaz necesita `@FunctionalInterface` y un único método abstracto que reciba un `double` y devuelva `boolean`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+@FunctionalInterface
+public interface ValidadorPrecio {
+    boolean esValido(double precio);
+}
+```
+
+```java
+ValidadorPrecio precioRazonable = precio -> precio > 0 && precio < 1_000_000;
+System.out.println(precioRazonable.esValido(25000.0));
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-05/`, escribí un método `aplicarATodos(RepositorioEnMemoria<Product> repo, Consumer<Product> accion)` que recorra `repo.listarTodos()` y ejecute `accion` sobre cada producto — y usalo para imprimir todos los productos de un repositorio con una sola lambda.
+
+## Transferencia
+
+Si necesitaras representar "una operación que recibe DOS productos y devuelve cuál es más caro", ¿qué interfaz de `java.util.function` usarías (pista: buscá `BiFunction`), y por qué ninguna de las cuatro vistas en esta lección (`Predicate`, `Function`, `Consumer`, `Supplier`) alcanza para ese caso?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué hace que una interfaz pueda implementarse con una lambda?"
+  opciones={[
+    { texto: "Que esté marcada con @FunctionalInterface", correcta: false, feedback: "@FunctionalInterface es opcional — solo le pide al compilador que VERIFIQUE la regla. Lo que realmente habilita la lambda es tener exactamente un método abstracto, con o sin la anotación." },
+    { texto: "Que tenga exactamente un método abstracto (sin implementar)", correcta: true, feedback: "Correcto: eso es lo que define a una interfaz funcional. La lambda es, literalmente, la implementación de ese único método." },
+    { texto: "Que todos sus métodos devuelvan void", correcta: false, feedback: "El tipo de retorno no importa — Predicate devuelve boolean, Function devuelve un tipo genérico R, y ambas son perfectamente válidas para lambdas." },
+    { texto: "Que esté declarada dentro de java.util.function", correcta: false, feedback: "CalculadoraDescuento no está en java.util.function y funciona igual que Predicate o Function — cualquier interfaz con un solo método abstracto sirve, sea tuya o de Java." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Function<Product, String> resumen = p -> p.getNombre() + " ($" + p.getPrecio() + ")";
+boolean resultado = resumen.apply(teclado);
+```
+
+¿Por qué esta línea no compila?
+
+<Reveal titulo="Diagnóstico">
+`resumen.apply(teclado)` devuelve un `String` (porque `Function<Product, String>` así lo define), y se está intentando asignar ese `String` a una variable `boolean` — un error de tipos, no de lambdas. El tipo de retorno de una `Function<T, R>` es `R`, en este caso `String`, no `boolean`.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué `Predicate<T>`, `Function<T, R>`, `Consumer<T>` y `Supplier<T>` son cuatro interfaces DISTINTAS, en vez de una sola interfaz genérica con un método `Object metodo(Object o)` que sirviera para todo?
+
+<Comparativa
+  columnas={["Interfaz", "Firma del método", "Qué expresa"]}
+  filas={[
+    ["Predicate<T>", "boolean test(T t)", "una condición sobre T"],
+    ["Function<T, R>", "R apply(T t)", "una transformación de T a R"],
+    ["Consumer<T>", "void accept(T t)", "una acción sobre T, sin resultado"],
+    ["Supplier<T>", "T get()", "la producción de un T, sin entrada"],
+  ]}
+/>
+
+## Resumen
+
+- Una interfaz funcional tiene exactamente un método abstracto; una lambda es una implementación compacta de ese método.
+- `Predicate<T>` evalúa, `Function<T, R>` transforma, `Consumer<T>` actúa sin devolver nada, `Supplier<T>` produce sin recibir nada.
+- Cuando ninguna interfaz estándar encaja, se puede declarar una interfaz funcional propia con `@FunctionalInterface`.
+- El compilador infiere el tipo de una lambda por el contexto (la variable o parámetro al que se asigna), no por la lambda en sí misma.
+
+## Modelo mental final
+
+Pensá en una interfaz funcional como un molde con un solo hueco de la forma exacta que necesitás llenar — la lambda es lo que rellena ese hueco, sin que tengas que fabricar un molde nuevo (una clase) cada vez.
+
+## Conexión
+
+`Predicate<T>` ya trabajaba silenciosamente en `RepositorioEnMemoria.buscar` desde la Etapa 4 — esta lección le puso nombre y contexto a algo que ya usabas. La próxima lección construye directamente sobre estas cuatro interfaces.
+
+## Próximo paso
+
+Etapa 5 / Lección 2: Streams — filter, map y collect para procesar colecciones de forma declarativa, usando exactamente estas interfaces funcionales.
+
+## Fuentes
+
+dev.java — expresiones lambda e interfaces funcionales. openjdk.org — paquete `java.util.function` en la documentación oficial de la API de Java SE.
+
+<SelfCheck
+  leccionId="etapa-05-funcional/leccion-01-lambdas-interfaces-funcionales"
+  criterios={[
+    "Puedo explicar qué hace que una interfaz sea 'funcional' y pueda implementarse con una lambda.",
+    "Puedo distinguir cuándo usar Predicate, Function, Consumer o Supplier según lo que necesito representar.",
+    "Puedo crear una interfaz funcional propia cuando ninguna estándar encaja.",
+    "Puedo explicar cómo el compilador infiere el tipo de una lambda a partir del contexto.",
+  ]}
+/>
