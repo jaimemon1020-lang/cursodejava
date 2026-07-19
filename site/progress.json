@@ -328,6 +328,13 @@
       "leccion": 2,
       "titulo": "@ExceptionHandler y @ControllerAdvice: respuestas de error correctas",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-15-bases-de-datos/leccion-01-jdbc-jdbctemplate",
+      "etapa": 15,
+      "leccion": 1,
+      "titulo": "JDBC y JdbcTemplate: SQL crudo antes del ORM",
+      "estado": "publicada"
     }
   ]
 }

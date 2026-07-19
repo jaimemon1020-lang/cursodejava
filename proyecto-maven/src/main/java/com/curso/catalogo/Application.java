@@ -1,11 +1,14 @@
 package com.curso.catalogo;
 
+import java.util.List;
+
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.context.annotation.Bean;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @SpringBootApplication
 @ConfigurationPropertiesScan
@@ -30,6 +33,21 @@ public class Application {
             System.out.println("Nombre de la app (ConfigurationProperties): " + propiedades.nombreApp());
             System.out.println("Umbral de descuento (ConfigurationProperties): " + propiedades.umbralDescuento());
             System.out.println("Nombre de la app (Value): " + nombreAppPorValue);
+        };
+    }
+
+    @Bean
+    public CommandLineRunner jdbcDemo(JdbcTemplate jdbcTemplate) {
+        return args -> {
+            jdbcTemplate.execute("CREATE TABLE personas_demo (id INT PRIMARY KEY, nombre VARCHAR(100))");
+            jdbcTemplate.update("INSERT INTO personas_demo (id, nombre) VALUES (?, ?)", 1, "Ana");
+            jdbcTemplate.update("INSERT INTO personas_demo (id, nombre) VALUES (?, ?)", 2, "Beto");
+
+            List<String> nombres = jdbcTemplate.query(
+                    "SELECT nombre FROM personas_demo ORDER BY id",
+                    (rs, rowNum) -> rs.getString("nombre"));
+
+            System.out.println("Nombres desde JdbcTemplate: " + nombres);
         };
     }
 }
