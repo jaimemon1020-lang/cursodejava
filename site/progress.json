@@ -307,6 +307,13 @@
       "leccion": 1,
       "titulo": "DTOs: separar el dominio de lo que viaja por la red",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-13-dtos-mapping/leccion-02-mapper-dedicado-como-bean",
+      "etapa": 13,
+      "leccion": 2,
+      "titulo": "Un Mapper dedicado como bean de Spring",
+      "estado": "publicada"
     }
   ]
 }

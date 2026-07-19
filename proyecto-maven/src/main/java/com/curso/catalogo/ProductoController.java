@@ -17,36 +17,37 @@ public class ProductoController {
 
     private final RepositorioProductos repositorio;
     private final ServicioVentas servicioVentas;
+    private final ProductoMapper mapper;
 
-    public ProductoController(RepositorioProductos repositorio, ServicioVentas servicioVentas) {
+    public ProductoController(RepositorioProductos repositorio, ServicioVentas servicioVentas, ProductoMapper mapper) {
         this.repositorio = repositorio;
         this.servicioVentas = servicioVentas;
+        this.mapper = mapper;
     }
 
     @GetMapping
     public List<ProductoResponse> listar() {
         return repositorio.listarTodos().stream()
-                .map(ProductoResponse::desde)
+                .map(mapper::toResponse)
                 .collect(Collectors.toList());
     }
 
     @GetMapping("/{nombre}")
     public ProductoResponse buscarPorNombre(@PathVariable String nombre) {
-        Product producto = buscarOFallar(nombre);
-        return ProductoResponse.desde(producto);
+        return mapper.toResponse(buscarOFallar(nombre));
     }
 
     @PostMapping
     public ProductoResponse crear(@RequestBody NuevoProductoRequest request) {
-        Product producto = new Product(request.nombre(), request.precio(), request.stock());
+        Product producto = mapper.toEntity(request);
         repositorio.agregar(producto);
-        return ProductoResponse.desde(producto);
+        return mapper.toResponse(producto);
     }
 
     @PostMapping("/{nombre}/vender")
     public ProductoResponse vender(@PathVariable String nombre, @RequestParam int cantidad) {
         servicioVentas.venderProducto(nombre, cantidad);
-        return ProductoResponse.desde(buscarOFallar(nombre));
+        return mapper.toResponse(buscarOFallar(nombre));
     }
 
     private Product buscarOFallar(String nombre) {
