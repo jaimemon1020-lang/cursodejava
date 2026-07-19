@@ -146,6 +146,13 @@
       "leccion": 2,
       "titulo": "Streams: filter, map, collect y forEach",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-05-funcional/leccion-03-reduce-sorted-comparator",
+      "etapa": 5,
+      "leccion": 3,
+      "titulo": "Streams: reduce, sorted y Comparator",
+      "estado": "publicada"
     }
   ]
 }
