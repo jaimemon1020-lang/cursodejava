@@ -258,6 +258,13 @@
       "leccion": 1,
       "titulo": "IoC Container: @Component, @Autowired y ApplicationContext",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-10-spring-framework/leccion-02-bean-scopes-y-bean-methods",
+      "etapa": 10,
+      "leccion": 2,
+      "titulo": "@Bean methods y scopes: singleton vs. prototype",
+      "estado": "publicada"
     }
   ]
 }
