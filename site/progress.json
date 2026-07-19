@@ -195,6 +195,13 @@
       "leccion": 5,
       "titulo": "NIO: Path y Files para leer y escribir archivos",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-06-avanzado/leccion-06-concurrencia-basica",
+      "etapa": 6,
+      "leccion": 6,
+      "titulo": "Concurrencia básica: Thread, Runnable y AtomicInteger",
+      "estado": "publicada"
     }
   ]
 }
