@@ -223,6 +223,13 @@
       "leccion": 1,
       "titulo": "Dependency Injection y Repository: dos patrones que ya usabas",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-08-patrones/leccion-02-factory-strategy",
+      "etapa": 8,
+      "leccion": 2,
+      "titulo": "Factory y Strategy: centralizar la creación, intercambiar el algoritmo",
+      "estado": "publicada"
     }
   ]
 }
