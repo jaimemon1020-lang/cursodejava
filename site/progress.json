@@ -160,6 +160,13 @@
       "leccion": 4,
       "titulo": "Collectors.groupingBy y partitioningBy: agrupar y particionar colecciones",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-06-avanzado/leccion-01-stack-heap-garbage-collector",
+      "etapa": 6,
+      "leccion": 1,
+      "titulo": "JVM, memoria: Stack, Heap y Garbage Collector (conceptual)",
+      "estado": "publicada"
     }
   ]
 }
