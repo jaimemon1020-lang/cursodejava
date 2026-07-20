@@ -57,6 +57,18 @@ Nada impedía que un código externo hiciera `producto.precio = -100.0;` o `prod
 
 Encapsular significa esconder los atributos (`private`) y ofrecer únicamente métodos públicos controlados para leerlos (`getX`) o modificarlos (`setX`). El setter es el lugar exacto donde podés rechazar un valor inválido, antes de que llegue a guardarse.
 
+## Analogía — El cajero automático
+
+Pensá en un cajero automático:
+
+- Vos interactuás con la PANTALLA y los BOTONES (la interfaz pública: los getters, setters, y métodos como `venderUnidades`)
+- El mecanismo INTERNO — la caja fuerte, los billetes, el contador — está SELLADO (los atributos `private`)
+- No podés meter la mano y sacar plata directamente (no podés hacer `cajero.billetes = -500`)
+- El cajero valida CADA operación: "¿tenés saldo suficiente?" antes de entregar plata, igual que `venderUnidades` verifica `stock >= cantidad`
+- Si el cajero falla, no perdés plata — simplemente la operación se rechaza
+
+Eso es encapsulamiento: exponer QUÉ se puede hacer (métodos públicos), pero esconder CÓMO se hace por dentro (atributos privados + validaciones).
+
 ## Explicación técnica
 
 `private` restringe el acceso a un atributo o método: solo el código dentro de la misma clase puede tocarlo directamente. Desde afuera, hace falta pasar por un método `public`.
@@ -261,6 +273,67 @@ Le falta la validación. `private` protege el ACCESO al atributo, pero no valida
 - Getters exponen lectura; setters exponen escritura, idealmente validando.
 - Validar en el constructor y en el setter protege la regla de negocio en un solo lugar.
 - Un objeto sin setters para sus atributos (asignados una sola vez) es efectivamente inmutable.
+
+## Los 4 niveles de visibilidad
+
+Java tiene 4 modificadores de acceso, formando una pirámide de menos a más restrictivo:
+
+```
+              🌍  PUBLIC       —  todos pueden verlo
+             ┌──────────┐
+            │  PROTECTED   │    —  solo la clase, sus hijas, y el mismo paquete
+           ┌┴────────────┴┐
+          │  (default)     │    —  solo el mismo paquete (sin palabra clave)
+         ┌┴──────────────┴┐
+        │    PRIVATE       │    —  solo esta clase, nadie más
+       └──────────────────┘
+```
+
+| Modificador | Clase misma | Mismo paquete | Subclase (hija) | Cualquiera |
+|-------------|:-----------:|:-------------:|:---------------:|:----------:|
+| `private`   | ✅ | ❌ | ❌ | ❌ |
+| (default)   | ✅ | ✅ | ❌ | ❌ |
+| `protected` | ✅ | ✅ | ✅ | ❌ |
+| `public`    | ✅ | ✅ | ✅ | ✅ |
+
+Por ahora usá `private` para atributos (protección máxima) y `public` para métodos que querés exponer. `protected` lo vas a necesitar cuando veas herencia (próxima lección).
+
+## Invariantes de clase — el contrato invisible
+
+Un **invariante** es una regla que DEBE cumplirse SIEMPRE para que un objeto esté en un estado válido. En `Product`, el invariante es: **"el precio nunca puede ser negativo"**.
+
+```
+         new Product(..., -100, ...)  ❌  constructor lo rechaza
+         setPrecio(-50)               ❌  setter lo rechaza
+         setPrecio(200)               ✅  pasa la validación
+```
+
+El invariante se protege en DOS lugares:
+1. **Constructor**: para que el objeto NAZCA válido
+2. **Setters**: para que SIGA siendo válido después de cada modificación
+
+Si protegés ambos, tu objeto NUNCA va a estar en un estado inválido, sin importar desde dónde lo llamen. Esto es lo que separa un diseño robusto de uno frágil.
+
+## Ley de Demeter — no hables con extraños
+
+También conocido como "principio de menor conocimiento": un método solo debería hablar con:
+- Sus propios atributos (`this`)
+- Sus parámetros
+- Objetos que él mismo creó
+
+**No hagas esto:**
+```java
+// mal: encadenamiento de llamadas — "train wreck"
+orden.getCliente().getDireccion().getCiudad();
+```
+
+**Hacé esto:**
+```java
+// bien: pedile al objeto que haga su trabajo, no le saquees sus tripas
+orden.obtenerCiudadDeEnvio();
+```
+
+Cada clase debería conocer lo mínimo indispensable sobre las demás. Vas a profundizar esto con la D de SOLID (Dependency Inversion) en la Etapa 7.
 
 ## Modelo mental final
 

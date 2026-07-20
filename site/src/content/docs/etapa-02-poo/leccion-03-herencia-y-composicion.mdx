@@ -56,6 +56,23 @@ Cliente ES UNA Persona           Order TIENE UN Cliente
 
 Herencia es cuando una clase ES un caso particular de otra: un `Cliente` es una `Persona` con algo extra. Composición es cuando una clase TIENE otra como parte de sus datos: un `Order` tiene un `Cliente` y un `Product`, pero no es ninguno de los dos.
 
+## Analogía — El árbol genealógico vs la mochila
+
+**Herencia** funciona como un árbol genealógico:
+- Vos HEREDAS características de tus padres (color de ojos, grupo sanguíneo)
+- Pero también tenés cosas PROPIAS que tus padres no tienen (tu número de DNI, tu dirección)
+- `Cliente extends Persona` significa: "Cliente hereda nombre y email de Persona, y agrega dirección de envío"
+
+**Composición** funciona como una mochila:
+- Vos TENÉS objetos adentro (libros, laptop, lapicera)
+- Pero vos NO SOS una laptop, ni un libro
+- `Order` tiene un `Cliente` y un `Product` — los USA, pero no LOS ES
+
+**Regla de oro para decidir:**
+- Si podés decir "X **ES UN** Y" → herencia (`Cliente` ES UNA `Persona`)
+- Si podés decir "X **TIENE UN** Y" → composición (`Order` TIENE UN `Cliente`)
+- Si no estás seguro → composición. Siempre es más segura.
+
 ## Explicación técnica
 
 **Herencia (`extends`):** una clase hija reutiliza los atributos y métodos de una clase padre. `protected` (en vez de `private`) permite que la clase hija acceda directamente a esos atributos heredados. `super(...)` en el constructor de la hija invoca el constructor del padre — es obligatoriamente la primera línea si se usa. `super.metodo()` invoca la versión del padre de un método que la hija sobrescribió (**override**, marcado con `@Override`).
@@ -293,6 +310,49 @@ Falta `super.describir();` antes de la línea propia. Sin esa llamada, el overri
 ## Modelo mental final
 
 Cuando pienses en herencia vs. composición, preguntate: "¿esto ES un caso particular de aquello, o simplemente LO TIENE como parte de sus datos?" La respuesta correcta casi siempre es evidente si la formulás así de literal.
+
+## ¿Por qué "preferir composición sobre herencia"?
+
+Este es uno de los principios más citados de diseño OO (del libro Design Patterns, Gang of Four, 1994). La herencia parece mágica al principio, pero tiene problemas que aparecen con jerarquías profundas:
+
+```
+Persona
+  └── Empleado
+        └── Gerente
+              └── GerenteRegional
+                    └── Director
+```
+
+Cada nivel hereda TODO del nivel anterior. Si modificás `Persona`, TODA la cadena puede romperse. Y si un `Director` necesita un comportamiento que `GerenteRegional` no debería tener... mala suerte, lo hereda igual.
+
+### El problema del diamante (múltiples padres)
+
+Imaginá esto:
+
+```
+         Animal
+        /      \
+   Volador    Nadador
+        \      /
+         Pato
+```
+
+Un `Pato` vuela Y nada. ¿Debería heredar de `Volador` o de `Nadador`? Java NO permite heredar de dos clases — por eso existen las interfaces (próxima lección). `Pato implements Volador, Nadador` es perfectamente válido.
+
+### Cuándo SÍ usar herencia
+
+Usala cuando haya una relación "es un" GENUINA y JERÁRQUICA:
+- `Perro extends Animal` ✅ ("todo perro es un animal")
+- `Cuadrado extends Figura` ✅ ("todo cuadrado es una figura")
+- `ArrayList extends AbstractList` ✅ (así está diseñada la biblioteca estándar)
+
+### Cuándo NO usar herencia
+
+No la uses SOLO para "reutilizar código":
+- `Order extends ArrayList` ❌ (un pedido no ES una lista, TIENE una lista de items)
+- `Cliente extends BaseDeDatos` ❌ (un cliente no ES una base de datos)
+
+REUTILIZAR CÓDIGO NO ES RAZÓN SUFICIENTE PARA HEREDAR. Esa es la trampa más común. Si solo querés reutilizar, usá composición: guardá una referencia al objeto cuyos métodos necesitás, como `Order` guarda un `Cliente`.
 
 ## Conexión
 

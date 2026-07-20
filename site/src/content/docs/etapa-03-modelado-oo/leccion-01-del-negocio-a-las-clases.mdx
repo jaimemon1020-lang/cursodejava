@@ -57,6 +57,40 @@ Order ── tiene un ──────> Cliente
 
 Cuando modelás, preguntate primero: "¿qué información pertenece a cada objeto, y qué comportamiento pertenece a cada uno?" No todo tiene que vivir en la misma clase — a veces hace falta un objeto intermedio (`OrderItem`) que agrupe "este producto, en esta cantidad, dentro de este pedido".
 
+## Analogía — El arquitecto vs el albañil
+
+Cuando construís una casa, hay dos roles:
+
+- El **ALBAÑIL** sabe poner ladrillos, mezclar cemento, nivelar paredes. Sabe CÓMO construir.
+- El **ARQUITECTO** decide CUÁNTAS habitaciones, dónde va la cocina, si la escalera va a la izquierda o derecha. Sabe QUÉ construir.
+
+Hasta ahora fuiste albañil: escribiste clases sintácticamente correctas (`new`, `extends`, `implements`) — sabés CÓMO.
+
+Esta lección te convierte en arquitecto: vas a decidir QUÉ clases existen, qué responsabilidad tiene cada una, y cómo se relacionan — sin escribir una línea de código primero.
+
+## Técnica: Extracción de sustantivos y verbos
+
+Agarrá el enunciado del problema y subrayá:
+
+```
+"Un PEDIDO pertenece a un CLIENTE y contiene VARIOS PRODUCTOS con su CANTIDAD.
+ El sistema debe CALCULAR el TOTAL del pedido y MOSTRAR el DETALLE de cada ITEM."
+       ────────          ──────            ────────          ───────────
+       VERBO              VERBO             VERBO              VERBO
+  ─────                  ────               ────────
+  SUSTANTIVO            SUSTANTIVO          SUSTANTIVO
+```
+
+| Sustantivos (→ clases) | Verbos (→ métodos) |
+|------------------------|---------------------|
+| Pedido → `Order` | calcular → `calcularTotal()` |
+| Cliente → `Cliente` | mostrar → `describir()` |
+| Producto → `Product` | | 
+| Cantidad → atributo en `OrderItem` | |
+| Ítem → `OrderItem` (no estaba en el enunciado, ¡es inferido!) | |
+
+`OrderItem` no aparecía en el enunciado como sustantivo — lo INFERISTE porque "un pedido con varios productos" requiere algo que agrupe "este producto + esta cantidad". Eso es modelar: no solo transcribir el enunciado, sino detectar lo que falta.
+
 ## Explicación técnica
 
 Modelar bien implica responder, para cada dato del problema:
@@ -171,6 +205,33 @@ Total: 41000.0
 
 Esta es la corrección real del diseño de `Order` que arrastrabas desde la Etapa 2 — ahora sí representa fielmente "un pedido tiene varios productos", y el proyecto queda listo para crecer hacia Collections (Etapa 4), donde `OrderItem[]` se va a convertir en un `List<OrderItem>` de tamaño dinámico.
 
+## Responsabilidades mal asignadas — Antes y después
+
+El error de diseño de `Order` (Etapa 2) era un caso clásico de **responsabilidad mal asignada**:
+
+```
+ANTES (Etapa 2) — Order hacía demasiado:
+┌─────────────────────────┐
+│ Order                   │
+│ - cliente               │
+│ - producto   ← ❌ solo 1│
+│ - cantidad              │
+│ - calcularTotal()       │  ← ¿por qué Order calcula subtotales?
+│ - describir()           │      no tiene precio + cantidad juntos
+└─────────────────────────┘
+
+AHORA (Etapa 3) — cada clase su responsabilidad:
+┌─────────────────────────┐   ┌─────────────────────────┐
+│ Order                   │   │ OrderItem               │
+│ - cliente               │   │ - producto              │
+│ - items[]               │   │ - cantidad              │
+│ - calcularTotal()       │──→│ - calcularSubtotal() ✓  │
+│ - describir()           │   └─────────────────────────┘
+└─────────────────────────┘
+```
+
+La señal de alerta: cuando una clase necesita datos que no tiene (precio + cantidad) para hacer un cálculo, probablemente esos datos deberían vivir JUNTOS en otro objeto. `OrderItem` nació exactamente de esa necesidad.
+
 ## Error común
 
 <ErrorChallenge
@@ -283,6 +344,54 @@ El `Cliente` de `Order` tiene una `direccionEnvio` fija, asignada al crearlo. ¿
 ## Modelo mental final
 
 Cuando modeles un problema nuevo, hacete las cuatro preguntas en orden: ¿qué es una entidad? ¿qué dato le pertenece? ¿qué comportamiento le pertenece? ¿qué regla hay que proteger? En ese orden, casi siempre el diseño correcto aparece solo.
+
+## CRC Cards — La técnica de las fichas
+
+CRC significa **Class, Responsibilities, Collaborators**. Es una técnica para modelar con papel y lápiz antes de tocar el teclado:
+
+```
+┌─────────────────────────────┐
+│  CLASE: Order               │
+├─────────────────────────────┤
+│  RESPONSABILIDADES:         │
+│  - Calcular total           │
+│  - Mostrar detalle          │
+├─────────────────────────────┤
+│  COLABORADORES:             │
+│  - Cliente                  │
+│  - OrderItem[]              │
+└─────────────────────────────┘
+
+┌─────────────────────────────┐
+│  CLASE: OrderItem           │
+├─────────────────────────────┤
+│  RESPONSABILIDADES:         │
+│  - Calcular subtotal        │
+│  - Conocer producto y cant. │
+├─────────────────────────────┤
+│  COLABORADORES:             │
+│  - Product                  │
+└─────────────────────────────┘
+```
+
+Cada ficha responde tres preguntas:
+1. **Clase**: ¿cómo se llama?
+2. **Responsabilidades**: ¿qué SABE hacer? (métodos)
+3. **Colaboradores**: ¿a quién necesita para hacerlo? (dependencias)
+
+Hacé una ficha por cada clase candidata. Si una ficha tiene demasiadas responsabilidades, partila en dos. Si dos fichas hacen casi lo mismo, fusioná.
+
+## Cohesión y Acoplamiento — Las dos métricas que importan
+
+**Cohesión** (alta = bueno): qué tan enfocada está una clase en UNA sola responsabilidad.
+- `Product`: sabe de productos (nombre, precio, stock) → ALTA cohesión ✅
+- `Product`: sabe de productos, envía emails, y calcula impuestos → BAJA cohesión ❌
+
+**Acoplamiento** (bajo = bueno): qué tanto depende una clase de detalles internos de otra.
+- `Order` solo llama a `item.calcularSubtotal()` → BAJO acoplamiento ✅
+- `Order` accede a `item.producto.precio` directamente → ALTO acoplamiento ❌
+
+**Buscá siempre:** alta cohesión + bajo acoplamiento. Clases con UNA responsabilidad clara, que colaboran a través de métodos públicos sin meterse en los detalles internos de las demás.
 
 ## Conexión
 

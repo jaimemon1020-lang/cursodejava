@@ -55,6 +55,18 @@ CLASE Product                    OBJETO (instancia)
                                   (dos objetos independientes)
 ```
 
+## Analogía — La fábrica de galletitas
+
+Imaginá una fábrica de galletitas con un molde de estrella:
+
+- El **MOLDE** (la clase `Product`) define la FORMA: "toda galletita va a tener nombre, precio y stock"
+- El molde mismo NO es una galletita — no te lo podés comer
+- Cada vez que usás `new`, la máquina APLASTA el molde sobre la masa y sale UNA galletita concreta
+- Cada **GALLETITA** (el objeto) es independiente: le podés poner chips a una sin que la otra tenga chips
+- Si rompés una galletita, las demás siguen intactas
+
+El molde (`Product`) define LA FORMA. Las galletitas (`teclado`, `mouse`) son las instancias concretas e independientes.
+
 ## Explicación sencilla
 
 Una **clase** es un molde: define qué datos tiene un producto (nombre, precio, stock) y qué puede hacer (describirse, calcular su valor). Un **objeto** es cada producto concreto que creás a partir de ese molde — cada uno con sus propios valores, independientes de los demás.
@@ -256,9 +268,68 @@ public class Product {
 - `this` distingue el atributo del objeto quiando un parámetro tiene el mismo nombre.
 - Modificar el estado de un objeto no afecta a otros objetos de la misma clase.
 
+## ¿Dónde viven los objetos? — Stack vs Heap
+
+Cuando creás un objeto, Java lo pone en dos zonas distintas de memoria:
+
+```
+STACK (pila)                          HEAP (montón)
+─────────────                         ─────────────
+teclado ─────────────┐                ┌──────────────────┐
+  (referencia, 8B)   │    ───────→   │ Product {         │
+                      │               │   nombre="Teclado" │
+mouse ────────────────┼──────→       │   precio=25000.0   │
+  (referencia, 8B)   │               │   stock=15         │
+                      │               └──────────────────┘
+                      │               ┌──────────────────┐
+                      └──────────────→│ Product {         │
+                                      │   nombre="Mouse"   │
+                                      │   precio=8000.0    │
+                                      │   stock=40         │
+                                      └──────────────────┘
+```
+
+- **Stack**: guarda las variables locales y las REFERENCIAS (flechas) a los objetos. Es rápido y automático — cuando un método termina, sus variables desaparecen del Stack.
+- **Heap**: guarda los OBJETOS mismos (los datos reales). El Garbage Collector limpia los objetos que ya nadie referencia.
+
+Esto explica por qué `Product teclado = new Product(...)` NO guarda el producto entero en la variable — `teclado` es solo una FLECHA que apunta al objeto real en el Heap. Cuando pasás `teclado` como argumento a un método, pasás la FLECHA, no una copia del objeto entero.
+
+Vas a profundizar esto en la Etapa 6 (JVM y memoria), pero es importante que desde el día 1 entiendas que los objetos SON referencias.
+
+## Bonus: el método `toString()`
+
+Todo objeto en Java tiene un método `toString()` que devuelve una representación en texto. Si no lo sobrescribís, devuelve algo como `Product@1a2b3c4d` (nombre de clase + hash). Sobrescribiéndolo, podés hacer que `System.out.println(teclado)` imprima algo útil automáticamente:
+
+```java
+@Override
+public String toString() {
+    return this.nombre + " | $" + this.precio + " | stock: " + this.stock;
+}
+```
+
+Esto va a ser la base del método `describir()` que ya escribiste — pero `toString()` es el método ESTÁNDAR que TODO el ecosistema Java (debuggers, logs, impresiones) usa para representar un objeto como texto. Acostumbrate a sobrescribirlo siempre.
+
 ## Modelo mental final
 
 Cuando pienses en clase vs. objeto, imaginá un plano de una casa (la clase) y las casas concretas construidas con ese plano (los objetos): todas comparten la misma estructura, pero cada una tiene sus propios muebles adentro.
+
+## Ciclo de vida de un objeto
+
+Todo objeto en Java pasa por tres etapas:
+
+```
+  new Product(...)      métodos, uso         sin referencias
+  ───────────────→     ─────────────→       ───────────────→
+   CREACIÓN             USO ACTIVO           GARBAGE COLLECTION
+   (constructor)        (llamadas a          (la JVM lo limpia
+    inicializa estado)   métodos, getters)    automáticamente)
+```
+
+1. **Creación**: `new` reserva memoria en el Heap y ejecuta el constructor.
+2. **Uso**: tu código interactúa con el objeto a través de sus métodos.
+3. **Recolección**: cuando ya NADIE tiene una referencia al objeto (la variable salió de scope, o la sobrescribiste con `null`), el Garbage Collector de la JVM lo detecta y libera esa memoria automáticamente — vos no tenés que hacer nada.
+
+Esto es radicalmente distinto a lenguajes como C, donde tenés que liberar la memoria manualmente (`free()`). En Java, el GC se encarga.
 
 ## Conexión
 

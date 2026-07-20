@@ -57,6 +57,26 @@ for (Descuento d : descuentos) {
 
 Una `interface` es un contrato: dice QUÉ métodos debe tener una clase, sin decir CÓMO los implementa. Una clase abstracta es parecida, pero puede tener código ya implementado (compartido) y dejar solo una parte como "pendiente" para las clases hijas. Polimorfismo es poder tratar objetos de distintas clases de forma uniforme, porque todos cumplen el mismo contrato.
 
+## Analogía — El control remoto universal
+
+Compraste un control remoto universal. El control define BOTONES (la interfaz `Descuento`):
+
+```
+CONTROL REMOTO (interface Descuento)
+┌─────────────────────────────┐
+│  [Aplicar descuento]        │  ← método aplicar(double total)
+└─────────────────────────────┘
+```
+
+Programás el control para que funcione con:
+- **TV Samsung** (`DescuentoPorcentual`): el botón "aplicar" calcula `total - 10%`
+- **TV LG** (`DescuentoFijo`): el mismo botón "aplicar" calcula `total - $5000`
+- **TV Sony** (`SinDescuento`): el botón "aplicar" devuelve el mismo total
+
+Vos apretás EL MISMO BOTÓN (`descuento.aplicar(total)`) y cada TV responde a SU manera. No necesitás saber qué marca de TV tenés — el control (la interfaz) garantiza que TODAS entienden el botón "aplicar".
+
+Eso es polimorfismo: MISMO mensaje (`aplicar`), DISTINTO comportamiento según quién lo recibe.
+
 ## Explicación técnica
 
 **`interface`:** declara métodos sin cuerpo (solo la firma). Una clase los implementa con `implements` y debe proveer el cuerpo de cada método. Una interfaz no tiene estado (atributos de instancia) ni constructor — es puro contrato. Una clase puede implementar **varias** interfaces a la vez.
@@ -284,6 +304,55 @@ descuento.porcentaje = 0.20;
 ## Modelo mental final
 
 Cuando pienses en polimorfismo, imaginá un enchufe universal: no te importa qué aparato conectás (descuento porcentual, fijo, sin descuento), mientras respete la forma del enchufe (el contrato `Descuento`).
+
+## ¿Cómo sabe Java qué método ejecutar? — Dynamic Dispatch
+
+Cuando escribís:
+
+```java
+Descuento d = new DescuentoPorcentual(0.10);
+d.aplicar(40000);  // ¿cómo sabe Java cuál versión correr?
+```
+
+Java NO decide en tiempo de compilación. En tiempo de EJECUCIÓN, cada objeto guarda una referencia a lo que se llama su **vtable** (tabla de métodos virtuales):
+
+```
+Variable d (tipo Descuento)       OBJETO REAL en memoria
+───────────────────────────       ────────────────────────
+                                  ┌──────────────────────┐
+                                  │ DescuentoPorcentual  │
+                                  │                      │
+d ──────────────────────────────→ │ vtable → aplicar()   │──→ total - (total * 0.10)
+                                  │                      │
+                                  └──────────────────────┘
+```
+
+1. El compilador verifica que `Descuento` TIENE el método `aplicar` (type check)
+2. En runtime, la JVM mira el objeto REAL (`DescuentoPorcentual`)
+3. Busca en su vtable la implementación CONCRETA de `aplicar`
+4. Ejecuta ESA versión, no una genérica
+
+Esto se llama **dynamic dispatch** (despacho dinámico) o **late binding** (enlace tardío). Es lo que hace posible que el mismo `for` funcione con cualquier implementación futura.
+
+## Principio Open/Closed — abierto a extensión, cerrado a modificación
+
+El polimorfismo habilita uno de los principios SOLID más importantes (Etapa 7): el código debe estar **abierto a extensión** pero **cerrado a modificación**.
+
+```
+SIN polimorfismo (cerrado):
+  if (tipo == "PORCENTUAL") { ... }
+  else if (tipo == "FIJO") { ... }
+  else if (tipo == "NUEVO") { ... }  ← hay que MODIFICAR este código cada vez
+
+CON polimorfismo (abierto):
+  Descuento[] descuentos = { ... };
+  for (Descuento d : descuentos) {
+      d.aplicar(total);  ← este código NUNCA se modifica
+  }
+  // Agregar nuevo descuento = crear nueva clase. CERO cambios acá.
+```
+
+Con polimorfismo, agregar un `DescuentoEnEscala` nuevo es crear UNA clase nueva. El bucle `for` que recorre el array sigue funcionando sin tocar ni una coma. Eso es estar "cerrado a modificación" (el bucle no cambia) pero "abierto a extensión" (nuevas clases son bienvenidas).
 
 ## Conexión
 
