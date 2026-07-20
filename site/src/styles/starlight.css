@@ -1,26 +1,297 @@
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
+/* ============================================
+   DESIGN TOKENS — Modern Dark + Indigo accent
+   ============================================ */
+
 :root {
   --sl-font: 'Inter', system-ui, -apple-system, sans-serif;
   --sl-font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --sl-color-accent-high: oklch(54.6% 0.245 262.88);
-  --sl-color-accent: oklch(54.6% 0.245 262.88);
-  --sl-color-accent-low: oklch(92% 0.06 260);
+
+  /* Accent — indigo */
+  --sl-color-accent-high: #818cf8;
+  --sl-color-accent: #6366f1;
+  --sl-color-accent-low: rgba(99 102 241 / 0.12);
   --sl-color-text-accent: var(--sl-color-accent);
+
+  /* Sidebar navy */
+  --sl-color-bg-sidebar: #07080f;
+  --sl-color-bg-nav: #07080f;
+  --sl-color-hairline-shade: #07080f;
+
+  /* Backgrounds */
+  --sl-color-bg: #0a0c14;
+  --sl-color-bg-inline-code: rgba(255 255 255 / 0.06);
+  --sl-color-bg-accent: var(--sl-color-accent);
+  --sl-color-text-inline-code: #e2e8f0;
 }
 
 :root[data-theme='dark'] {
-  --sl-color-accent-high: oklch(72% 0.18 250);
-  --sl-color-accent: oklch(70% 0.19 250);
-  --sl-color-accent-low: oklch(25% 0.06 260);
+  --sl-color-accent-high: #a5b4fc;
+  --sl-color-accent: #818cf8;
+  --sl-color-accent-low: rgba(129 140 248 / 0.12);
+  --sl-color-bg-sidebar: #07080f;
+  --sl-color-bg-nav: #07080f;
+  --sl-color-bg: #0a0c14;
 }
 
-/* Custom component styles */
+:root[data-theme='light'] {
+  --sl-color-bg-sidebar: #f8fafc;
+  --sl-color-bg-nav: #f8fafc;
+  --sl-color-bg: #ffffff;
+  --sl-color-accent-high: #4f46e5;
+  --sl-color-accent: #6366f1;
+  --sl-color-accent-low: rgba(99 102 241 / 0.08);
+}
+
+/* ============================================
+   SIDEBAR — Premium redesign
+   ============================================ */
+
+/* Sidebar container */
+.sidebar-pane {
+  border-right: 1px solid rgba(255 255 255 / 0.06) !important;
+}
+
+:root[data-theme='light'] .sidebar-pane {
+  border-right-color: rgba(0 0 0 / 0.06) !important;
+}
+
+/* Sidebar content area */
+.sidebar-content {
+  padding: 0 8px !important;
+  gap: 2px !important;
+}
+
+/* Top-level group (etapas) */
+.sidebar-content > .top-level {
+  margin-bottom: 2px;
+}
+
+/* Group toggle (summary/details) */
+.sidebar-content details {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.sidebar-content details > summary {
+  padding: 7px 10px !important;
+  border-radius: 8px;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  color: var(--sl-color-gray-2) !important;
+  letter-spacing: 0.01em;
+  transition: all 0.15s ease;
+}
+
+.sidebar-content details > summary:hover {
+  background: rgba(255 255 255 / 0.04) !important;
+  color: #e2e8f0 !important;
+}
+
+.sidebar-content details[open] > summary {
+  background: rgba(99 102 241 / 0.08) !important;
+  color: var(--sl-color-accent-high) !important;
+}
+
+/* Group items (lecciones dentro de cada etapa) */
+.sidebar-content details ul {
+  padding: 0 0 4px 0 !important;
+  margin: 0 !important;
+  border-left: 1px solid rgba(255 255 255 / 0.05) !important;
+  margin-left: 12px !important;
+}
+
+:root[data-theme='light'] .sidebar-content details ul {
+  border-left-color: rgba(0 0 0 / 0.06) !important;
+}
+
+.sidebar-content details ul li {
+  margin: 0 !important;
+}
+
+.sidebar-content details ul li a {
+  padding: 5px 8px 5px 14px !important;
+  font-size: 12.5px !important;
+  line-height: 1.4 !important;
+  color: var(--sl-color-gray-3) !important;
+  border-radius: 6px !important;
+  margin: 1px 0 !important;
+  transition: all 0.12s ease;
+  border-left: 2px solid transparent;
+}
+
+.sidebar-content details ul li a:hover {
+  background: rgba(255 255 255 / 0.03) !important;
+  color: #cbd5e1 !important;
+  border-left-color: rgba(99 102 241 / 0.3);
+}
+
+.sidebar-content details ul li a[aria-current="page"] {
+  background: rgba(99 102 241 / 0.1) !important;
+  color: #a5b4fc !important;
+  font-weight: 500 !important;
+  border-left-color: var(--sl-color-accent);
+}
+
+/* Sidebar logo/title area */
+.site-title {
+  font-size: 14px !important;
+  font-weight: 700 !important;
+  letter-spacing: -0.01em;
+  gap: 8px !important;
+}
+
+/* ============================================
+   HEADER / TOP BAR
+   ============================================ */
+
+.header {
+  background: rgba(7 8 15 / 0.8) !important;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid rgba(255 255 255 / 0.05) !important;
+}
+
+:root[data-theme='light'] .header {
+  background: rgba(255 255 255 / 0.8) !important;
+  border-bottom-color: rgba(0 0 0 / 0.06) !important;
+}
+
+/* Search button */
+starlight-search button,
+button[data-open-modal] {
+  border-radius: 10px !important;
+  border: 1px solid rgba(255 255 255 / 0.08) !important;
+  background: rgba(255 255 255 / 0.03) !important;
+  transition: all 0.2s ease !important;
+  font-size: 13px !important;
+}
+
+starlight-search button:hover,
+button[data-open-modal]:hover {
+  border-color: rgba(99 102 241 / 0.3) !important;
+  background: rgba(99 102 241 / 0.06) !important;
+}
+
+:root[data-theme='light'] starlight-search button,
+:root[data-theme='light'] button[data-open-modal] {
+  border-color: rgba(0 0 0 / 0.08) !important;
+  background: rgba(0 0 0 / 0.02) !important;
+}
+
+/* ============================================
+   RIGHT SIDEBAR — Table of Contents
+   ============================================ */
+
+.right-sidebar-panel {
+  border-left: 1px solid rgba(255 255 255 / 0.04) !important;
+}
+
+:root[data-theme='light'] .right-sidebar-panel {
+  border-left-color: rgba(0 0 0 / 0.04) !important;
+}
+
+.right-sidebar-panel nav ul li a {
+  font-size: 12.5px !important;
+  border-radius: 6px !important;
+  padding: 3px 8px !important;
+  transition: all 0.12s ease;
+  border-left: 2px solid transparent;
+}
+
+.right-sidebar-panel nav ul li a:hover {
+  color: #e2e8f0 !important;
+  border-left-color: rgba(99 102 241 / 0.3);
+}
+
+.right-sidebar-panel nav ul li a[aria-current="true"] {
+  color: var(--sl-color-accent-high) !important;
+  border-left-color: var(--sl-color-accent);
+}
+
+/* ============================================
+   CONTENT AREA
+   ============================================ */
+
+/* Main content container */
+.sl-container {
+  max-width: 48rem !important;
+}
+
+/* Prose enhancements */
+.sl-markdown-content {
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.sl-markdown-content h1 {
+  font-size: 2.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
+.sl-markdown-content h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  border-bottom: 1px solid rgba(255 255 255 / 0.06);
+  padding-bottom: 0.5rem;
+  margin-top: 3rem;
+}
+
+.sl-markdown-content h3 {
+  font-size: 1.2rem;
+  font-weight: 600;
+  margin-top: 2rem;
+}
+
+.sl-markdown-content pre {
+  border: 1px solid rgba(255 255 255 / 0.06);
+  border-radius: 10px;
+  box-shadow: none;
+}
+
+.sl-markdown-content code:not(pre code) {
+  background: rgba(255 255 255 / 0.06);
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 0.875em;
+  border: 1px solid rgba(255 255 255 / 0.04);
+}
+
+:root[data-theme='light'] .sl-markdown-content code:not(pre code) {
+  background: rgba(0 0 0 / 0.04);
+  border-color: rgba(0 0 0 / 0.06);
+}
+
+/* ============================================
+   PAGINATION (prev/next)
+   ============================================ */
+
+.pagination-links a {
+  border-radius: 10px !important;
+  border: 1px solid rgba(255 255 255 / 0.06) !important;
+  transition: all 0.2s ease !important;
+}
+
+.pagination-links a:hover {
+  border-color: rgba(99 102 241 / 0.25) !important;
+  background: rgba(99 102 241 / 0.04) !important;
+}
+
+/* ============================================
+   CUSTOM COMPONENTS (Quiz, Reveal, etc.)
+   ============================================ */
+
 .custom-quiz {
-  border: 1px solid var(--sl-color-gray-5);
-  border-radius: 0.5rem;
+  border: 1px solid rgba(255 255 255 / 0.06);
+  border-radius: 10px;
   padding: 1rem;
+}
+
+:root[data-theme='light'] .custom-quiz {
+  border-color: rgba(0 0 0 / 0.08);
 }
 
 .custom-quiz button {
@@ -28,8 +299,8 @@
 }
 
 .custom-reveal {
-  border: 1px solid var(--sl-color-gray-5);
-  border-radius: 0.5rem;
+  border: 1px solid rgba(255 255 255 / 0.06);
+  border-radius: 10px;
 }
 
 .custom-reveal summary {
@@ -39,27 +310,60 @@
 }
 
 .custom-reveal summary:hover {
-  background: var(--sl-color-gray-7);
+  background: rgba(255 255 255 / 0.03);
 }
 
 .custom-error {
-  border: 1px solid oklch(80% 0.12 20);
-  border-radius: 0.5rem;
+  border: 1px solid rgba(239 68 68 / 0.2);
+  border-radius: 10px;
   padding: 1rem;
-  background: oklch(97% 0.01 20);
+  background: rgba(239 68 68 / 0.05);
 }
 
-:root[data-theme='dark'] .custom-error {
-  background: oklch(20% 0.03 20);
-  border-color: oklch(40% 0.08 20);
+/* ============================================
+   SCROLLBAR
+   ============================================ */
+
+.sidebar-content::-webkit-scrollbar,
+.right-sidebar-panel::-webkit-scrollbar {
+  width: 3px;
 }
 
-/* Prose overrides for better readability */
-.sl-markdown-content h2 {
-  border-bottom: 1px solid var(--sl-color-gray-5);
-  padding-bottom: 0.375rem;
+.sidebar-content::-webkit-scrollbar-track,
+.right-sidebar-panel::-webkit-scrollbar-track {
+  background: transparent;
 }
 
-.sl-markdown-content pre {
-  border: 1px solid var(--sl-color-gray-5);
+.sidebar-content::-webkit-scrollbar-thumb,
+.right-sidebar-panel::-webkit-scrollbar-thumb {
+  background: rgba(255 255 255 / 0.08);
+  border-radius: 3px;
+}
+
+/* ============================================
+   MOBILE MENU
+   ============================================ */
+
+starlight-menu-button button {
+  border-radius: 10px !important;
+}
+
+/* ============================================
+   SEARCH MODAL
+   ============================================ */
+
+starlight-search-overlay dialog {
+  border: 1px solid rgba(255 255 255 / 0.06) !important;
+  border-radius: 14px !important;
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+
+@media (prefers-reduced-motion) {
+  *, *::before, *::after {
+    transition: none !important;
+    animation: none !important;
+  }
 }
