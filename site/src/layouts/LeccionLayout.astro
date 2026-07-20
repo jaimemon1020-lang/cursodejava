@@ -1,22 +1,71 @@
 ---
 import '../styles/global.css';
+import Sidebar from '../components/Sidebar.astro';
+import type { LeccionLink, EtapaGrupo } from '../lib/tipos';
 
 interface Props {
   titulo: string;
   etapaTitulo: string;
+  etapa: number;
+  leccion: number;
+  slug: string;
+  anterior?: { titulo: string; id: string } | null;
+  siguiente?: { titulo: string; id: string } | null;
+  etapas: EtapaGrupo[];
+  total: number;
 }
-const { titulo, etapaTitulo } = Astro.props;
+
+const { titulo, etapaTitulo, etapa, leccion, slug, anterior, siguiente, etapas, total } = Astro.props;
 ---
+
 <html lang="es">
   <head>
     <meta charset="utf-8" />
     <title>{titulo} — cursodejava</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
   </head>
-  <body class="mx-auto max-w-3xl px-4 py-8">
-    <p class="text-sm uppercase tracking-wide text-gray-500">{etapaTitulo}</p>
-    <h1 class="text-3xl font-bold mb-6">{titulo}</h1>
-    <article class="prose max-w-none">
-      <slot />
-    </article>
+  <body class="min-h-screen bg-surface text-text antialiased">
+    <Sidebar etapas={etapas} actual={slug} total={total} />
+
+    <main class="lg:ml-72">
+      <div class="mx-auto max-w-3xl px-6 py-8 lg:py-12">
+        <nav class="mb-6 flex items-center gap-2 text-sm text-text-muted">
+          <a href="/" class="hover:text-accent transition-colors">Temario</a>
+          <span class="text-border">/</span>
+          <span class="hidden sm:inline">Etapa {etapa}: {etapaTitulo}</span>
+          <span class="sm:hidden">E{etapa}</span>
+          <span class="text-border">/</span>
+          <span class="font-medium text-text truncate">L{leccion}</span>
+        </nav>
+
+        <article class="prose max-w-none">
+          <slot />
+        </article>
+
+        <hr class="my-10 border-border" />
+
+        <nav class="flex gap-4 text-sm">
+          {
+            anterior && (
+              <a href={`/lecciones/${anterior.id}`} class="group flex-1 rounded-lg border border-border p-3 hover:border-accent/40 hover:bg-accent/[0.03] transition-colors">
+                <span class="block text-xs text-text-muted">← Anterior</span>
+                <span class="font-medium text-text group-hover:text-accent">{anterior.titulo}</span>
+              </a>
+            )
+          }
+          <span class="flex-1"></span>
+          {
+            siguiente && (
+              <a href={`/lecciones/${siguiente.id}`} class="group flex-1 rounded-lg border border-border p-3 text-right hover:border-accent/40 hover:bg-accent/[0.03] transition-colors">
+                <span class="block text-xs text-text-muted">Siguiente →</span>
+                <span class="font-medium text-text group-hover:text-accent">{siguiente.titulo}</span>
+              </a>
+            )
+          }
+        </nav>
+      </div>
+    </main>
   </body>
 </html>
