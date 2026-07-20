@@ -8,17 +8,22 @@ interface Props {
 }
 const { sintoma, diagnostico, causa, solucion, prevencion } = Astro.props;
 ---
-<div class="my-4 rounded border border-red-300 p-4">
-  <p class="font-semibold mb-2">Código defectuoso</p>
-  <slot />
-  <p class="mt-3"><span class="font-semibold">Síntoma:</span> {sintoma}</p>
-  <details class="mt-3 rounded border border-gray-300 p-3">
-    <summary class="cursor-pointer font-semibold">Diagnóstico, causa y solución</summary>
-    <div class="mt-2 space-y-1">
-      <p><span class="font-semibold">Diagnóstico:</span> {diagnostico}</p>
-      <p><span class="font-semibold">Causa raíz:</span> {causa}</p>
-      <p><span class="font-semibold">Solución:</span> {solucion}</p>
-      <p><span class="font-semibold">Prevención:</span> {prevencion}</p>
+<div class="my-5 rounded-lg border border-red-300/60 dark:border-red-700/40 bg-red-50/40 dark:bg-red-950/20 p-4">
+  <div class="flex items-center gap-2 mb-3">
+    <span class="text-lg">🐛</span>
+    <p class="font-semibold text-red-800 dark:text-red-300">Código defectuoso</p>
+  </div>
+  <div class="rounded border border-red-200/60 dark:border-red-800/40 bg-surface p-3 text-sm">
+    <slot />
+  </div>
+  <p class="mt-3 text-sm text-text"><span class="font-semibold text-red-700 dark:text-red-400">Síntoma:</span> {sintoma}</p>
+  <details class="mt-3 group rounded-lg border border-border bg-surface">
+    <summary class="cursor-pointer px-3 py-2 font-medium text-sm text-text-muted hover:text-text select-none rounded-lg hover:bg-sidebar-hover transition-colors">Diagnóstico, causa y solución</summary>
+    <div class="px-3 pb-3 space-y-2 text-sm border-t border-border pt-2">
+      <p><span class="font-semibold text-text">Diagnóstico:</span> <code class="text-xs bg-code-bg px-1 py-0.5 rounded border border-border">{diagnostico}</code></p>
+      <p><span class="font-semibold text-text">Causa raíz:</span> {causa}</p>
+      <p><span class="font-semibold text-green-700 dark:text-green-400">Solución:</span> {solucion}</p>
+      <p><span class="font-semibold text-accent">Prevención:</span> {prevencion}</p>
     </div>
   </details>
 </div>

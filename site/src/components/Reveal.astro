@@ -4,9 +4,9 @@ interface Props {
 }
 const { titulo } = Astro.props;
 ---
-<details class="my-4 rounded border border-gray-300 p-3">
-  <summary class="cursor-pointer font-semibold">{titulo}</summary>
-  <div class="mt-2">
+<details class="my-5 group rounded-lg border border-border bg-surface">
+  <summary class="cursor-pointer px-4 py-3 font-semibold text-text select-none marker:text-text-muted/40 hover:bg-sidebar-hover rounded-lg transition-colors">{titulo}</summary>
+  <div class="px-4 pb-4 pt-1 border-t border-border">
     <slot />
   </div>
 </details>

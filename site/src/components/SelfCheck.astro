@@ -5,17 +5,17 @@ interface Props {
 }
 const { leccionId, criterios } = Astro.props;
 ---
-<div class="my-4 rounded border border-gray-300 p-4" data-selfcheck data-leccion-id={leccionId}>
-  <p class="font-semibold mb-2">¿Cómo quedó tu dominio de esta lección?</p>
-  <ul class="list-disc pl-5 mb-3 text-sm text-gray-700">
+<div class="my-5 rounded-lg border border-border bg-surface p-4" data-selfcheck data-leccion-id={leccionId}>
+  <p class="font-semibold text-text mb-2">¿Cómo quedó tu dominio de esta lección?</p>
+  <ul class="list-disc pl-5 mb-3 text-sm text-text-muted space-y-0.5">
     {criterios.map((c) => <li>{c}</li>)}
   </ul>
-  <div class="flex gap-2">
-    <button type="button" class="rounded border px-3 py-1 hover:bg-green-50" data-nivel="DOMINADO">Dominado</button>
-    <button type="button" class="rounded border px-3 py-1 hover:bg-yellow-50" data-nivel="PARCIAL">Parcial</button>
-    <button type="button" class="rounded border px-3 py-1 hover:bg-red-50" data-nivel="INSUFICIENTE">Insuficiente</button>
+  <div class="flex flex-wrap gap-2">
+    <button type="button" class="rounded-lg border border-border px-3 py-1.5 text-sm text-text-muted hover:border-green-400/40 hover:bg-green-50 dark:hover:bg-green-950/30 hover:text-green-700 dark:hover:text-green-400 transition-all" data-nivel="DOMINADO">Dominado</button>
+    <button type="button" class="rounded-lg border border-border px-3 py-1.5 text-sm text-text-muted hover:border-yellow-400/40 hover:bg-yellow-50 dark:hover:bg-yellow-950/30 hover:text-yellow-700 dark:hover:text-yellow-400 transition-all" data-nivel="PARCIAL">Parcial</button>
+    <button type="button" class="rounded-lg border border-border px-3 py-1.5 text-sm text-text-muted hover:border-red-400/40 hover:bg-red-50 dark:hover:bg-red-950/30 hover:text-red-700 dark:hover:text-red-400 transition-all" data-nivel="INSUFICIENTE">Insuficiente</button>
   </div>
-  <p class="mt-2 text-sm text-gray-600" data-selfcheck-status></p>
+  <p class="mt-2 text-sm font-medium text-text-muted" data-selfcheck-status></p>
 </div>
 
 <script>
@@ -30,7 +30,10 @@ const { leccionId, criterios } = Astro.props;
         const nivel = boton.dataset.nivel as NivelDominio;
         guardarSelfCheck(leccionId, nivel);
         marcarCompletada(leccionId);
-        if (statusEl) statusEl.textContent = `Guardado: ${nivel}`;
+        if (statusEl) {
+          statusEl.textContent = `✓ Guardado: ${nivel}`;
+          statusEl.className = 'mt-2 text-sm font-medium text-accent';
+        }
       });
     });
   });

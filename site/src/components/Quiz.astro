@@ -7,16 +7,16 @@ interface Props {
 }
 const { pregunta, opciones } = Astro.props;
 ---
-<div class="my-4 rounded border border-gray-300 p-4" data-quiz data-opciones={JSON.stringify(opciones)}>
-  <p class="font-semibold mb-2">{pregunta}</p>
+<div class="my-5 rounded-lg border border-border bg-surface p-4" data-quiz data-opciones={JSON.stringify(opciones)}>
+  <p class="font-semibold text-text mb-3">{pregunta}</p>
   <div class="flex flex-col gap-2">
     {opciones.map((opcion, i) => (
-      <button type="button" class="text-left rounded border px-3 py-2 hover:bg-gray-50" data-indice={i}>
+      <button type="button" class="text-left rounded-lg border border-border px-4 py-2.5 text-sm text-text-muted hover:border-accent/30 hover:bg-accent/[0.04] hover:text-text transition-all" data-indice={i}>
         {opcion.texto}
       </button>
     ))}
   </div>
-  <p class="mt-3 font-medium" data-feedback></p>
+  <p class="mt-3 text-sm font-medium" data-feedback></p>
 </div>
 
 <script>
@@ -25,16 +25,33 @@ const { pregunta, opciones } = Astro.props;
   document.querySelectorAll<HTMLElement>('[data-quiz]').forEach((quizEl) => {
     const opciones: QuizOpcion[] = JSON.parse(quizEl.dataset.opciones ?? '[]');
     const feedbackEl = quizEl.querySelector<HTMLElement>('[data-feedback]');
+    const botones = quizEl.querySelectorAll<HTMLButtonElement>('button[data-indice]');
+    let respondido = false;
 
-    quizEl.querySelectorAll<HTMLButtonElement>('button[data-indice]').forEach((boton) => {
+    botones.forEach((boton) => {
       boton.addEventListener('click', () => {
+        if (respondido) return;
+        respondido = true;
+
         const indice = Number(boton.dataset.indice);
         const resultado = evaluarRespuesta(opciones, indice);
+
+        botones.forEach((b, j) => {
+          b.disabled = true;
+          if (opciones[j]!.correcta) {
+            b.classList.add('border-green-500/50', 'bg-green-50', 'dark:bg-green-950/30', 'text-green-800', 'dark:text-green-300', 'font-medium');
+          } else if (j === indice && !resultado.correcta) {
+            b.classList.add('border-red-400/50', 'bg-red-50', 'dark:bg-red-950/30', 'text-red-700', 'dark:text-red-300');
+          } else {
+            b.classList.add('opacity-40');
+          }
+        });
+
         if (feedbackEl) {
           feedbackEl.textContent = resultado.feedback;
           feedbackEl.className = resultado.correcta
-            ? 'mt-3 font-medium text-green-700'
-            : 'mt-3 font-medium text-red-700';
+            ? 'mt-3 text-sm font-medium text-green-700 dark:text-green-400'
+            : 'mt-3 text-sm font-medium text-red-700 dark:text-red-400';
         }
       });
     });
