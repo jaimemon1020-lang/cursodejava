@@ -40,17 +40,37 @@ Una interface no tiene estado (atributos de instancia). Una clase abstracta sí 
 
 ## Modelo mental
 
-```
-Antes (Etapa 2):
-Order ── tiene un ──> Cliente
-      └─ tiene un ──> Product  +  cantidad
+```mermaid
+classDiagram
+    direction TB
 
-Ahora (correcto):
-Order ── tiene un ──────> Cliente
-      └─ tiene VARIOS ──> OrderItem
-                              │
-                              ├─ tiene un ──> Product
-                              └─ tiene una ──> cantidad
+    Order "1" --> "*" OrderItem : contiene
+    Order "1" --> "1" Cliente : pertenece a
+    OrderItem "1" --> "1" Product : referencia a
+
+    class Order {
+        -Cliente cliente
+        -OrderItem[] items
+        +calcularTotal()
+        +describir()
+    }
+    class OrderItem {
+        -Product producto
+        -int cantidad
+        +calcularSubtotal()
+    }
+    class Cliente {
+        +String nombre
+        +String email
+        +String direccionEnvio
+    }
+    class Product {
+        +String nombre
+        +double precio
+        +int stock
+    }
+
+    note for OrderItem "NUEVO: agrupa producto + cantidad&#010Antes Order tenía un solo Product"
 ```
 
 ## Explicación sencilla
@@ -207,30 +227,26 @@ Esta es la corrección real del diseño de `Order` que arrastrabas desde la Etap
 
 ## Responsabilidades mal asignadas — Antes y después
 
-El error de diseño de `Order` (Etapa 2) era un caso clásico de **responsabilidad mal asignada**:
+```mermaid
+flowchart LR
+    subgraph ANTES["❌ ANTES (Etapa 2)"]
+        O1["Order<br/>- cliente<br/>- producto (solo 1)<br/>- cantidad<br/>- calcularTotal()<br/>- describir()"]
+    end
 
+    subgraph AHORA["✅ AHORA (Etapa 3)"]
+        O2["Order<br/>- cliente<br/>- items[]<br/>- calcularTotal()<br/>- describir()"]
+        OI["OrderItem<br/>- producto<br/>- cantidad<br/>- calcularSubtotal()"]
+        O2 -->|"delega a"| OI
+    end
+
+    ANTES -->|"refactor"| AHORA
+
+    style ANTES fill:#7f1d1d,stroke:#dc2626,color:#fca5a5
+    style AHORA fill:#14532d,stroke:#22c55e,color:#bbf7d0
+    style O1 fill:#450a0a,stroke:#dc2626,color:#fca5a5
+    style O2 fill:#052e16,stroke:#22c55e,color:#bbf7d0
+    style OI fill:#052e16,stroke:#22c55e,color:#bbf7d0
 ```
-ANTES (Etapa 2) — Order hacía demasiado:
-┌─────────────────────────┐
-│ Order                   │
-│ - cliente               │
-│ - producto   ← ❌ solo 1│
-│ - cantidad              │
-│ - calcularTotal()       │  ← ¿por qué Order calcula subtotales?
-│ - describir()           │      no tiene precio + cantidad juntos
-└─────────────────────────┘
-
-AHORA (Etapa 3) — cada clase su responsabilidad:
-┌─────────────────────────┐   ┌─────────────────────────┐
-│ Order                   │   │ OrderItem               │
-│ - cliente               │   │ - producto              │
-│ - items[]               │   │ - cantidad              │
-│ - calcularTotal()       │──→│ - calcularSubtotal() ✓  │
-│ - describir()           │   └─────────────────────────┘
-└─────────────────────────┘
-```
-
-La señal de alerta: cuando una clase necesita datos que no tiene (precio + cantidad) para hacer un cálculo, probablemente esos datos deberían vivir JUNTOS en otro objeto. `OrderItem` nació exactamente de esa necesidad.
 
 ## Error común
 
@@ -347,31 +363,28 @@ Cuando modeles un problema nuevo, hacete las cuatro preguntas en orden: ¿qué e
 
 ## CRC Cards — La técnica de las fichas
 
-CRC significa **Class, Responsibilities, Collaborators**. Es una técnica para modelar con papel y lápiz antes de tocar el teclado:
-
-```
-┌─────────────────────────────┐
-│  CLASE: Order               │
-├─────────────────────────────┤
-│  RESPONSABILIDADES:         │
-│  - Calcular total           │
-│  - Mostrar detalle          │
-├─────────────────────────────┤
-│  COLABORADORES:             │
-│  - Cliente                  │
-│  - OrderItem[]              │
-└─────────────────────────────┘
-
-┌─────────────────────────────┐
-│  CLASE: OrderItem           │
-├─────────────────────────────┤
-│  RESPONSABILIDADES:         │
-│  - Calcular subtotal        │
-│  - Conocer producto y cant. │
-├─────────────────────────────┤
-│  COLABORADORES:             │
-│  - Product                  │
-└─────────────────────────────┘
+```mermaid
+classDiagram
+    class Order_CRC {
+        <<CRC Card>>
+        **Clase:** Order
+        **Responsabilidades:**
+        Calcular total
+        Mostrar detalle
+        **Colaboradores:**
+        Cliente
+        OrderItem[]
+    }
+    class OrderItem_CRC {
+        <<CRC Card>>
+        **Clase:** OrderItem
+        **Responsabilidades:**
+        Calcular subtotal
+        Conocer producto y cantidad
+        **Colaboradores:**
+        Product
+    }
+    Order_CRC --> OrderItem_CRC : colabora con
 ```
 
 Cada ficha responde tres preguntas:

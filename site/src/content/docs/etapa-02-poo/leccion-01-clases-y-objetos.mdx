@@ -40,19 +40,31 @@ Tenías `nombresProductos` y `stockPorProducto` como dos arrays separados, relac
 
 ## Modelo mental
 
-```
-CLASE Product                    OBJETO (instancia)
-┌─────────────────┐              ┌─────────────────┐
-│ nombre           │   new  →    │ nombre = "Teclado"│
-│ precio           │             │ precio = 25000.0  │
-│ stock            │             │ stock = 15         │
-│ describir()      │             └─────────────────┘
-│ calcularValor()  │             ┌─────────────────┐
-└─────────────────┘             │ nombre = "Mouse"    │
-   (el molde)                    │ precio = 8000.0     │
-                                  │ stock = 40           │
-                                  └─────────────────┘
-                                  (dos objetos independientes)
+```mermaid
+classDiagram
+    class Product {
+        +String nombre
+        +double precio
+        +int stock
+        +describir()
+        +calcularValorInventario()
+    }
+    note for Product "EL MOLDE (clase)&#010Define atributos y métodos&#010pero no es un objeto real"
+
+    class Teclado {
+        nombre = "Teclado"
+        precio = 25000.0
+        stock = 15
+    }
+    class Mouse {
+        nombre = "Mouse"
+        precio = 8000.0
+        stock = 40
+    }
+    note for Teclado "OBJETO (instancia)&#010Creado con new Product()&#010Estado propio independiente"
+
+    Product <|.. Teclado : instancia de
+    Product <|.. Mouse : instancia de
 ```
 
 ## Analogía — La fábrica de galletitas
@@ -270,31 +282,24 @@ public class Product {
 
 ## ¿Dónde viven los objetos? — Stack vs Heap
 
-Cuando creás un objeto, Java lo pone en dos zonas distintas de memoria:
+```mermaid
+graph LR
+    subgraph STACK["🧠 STACK (pila)"]
+        teclado["teclado<br/>(referencia)"]
+        mouse["mouse<br/>(referencia)"]
+    end
 
+    subgraph HEAP["💾 HEAP (montón)"]
+        obj1["Product {<br/>nombre='Teclado'<br/>precio=25000.0<br/>stock=15<br/>}"]
+        obj2["Product {<br/>nombre='Mouse'<br/>precio=8000.0<br/>stock=40<br/>}"]
+    end
+
+    teclado -->|"apunta a"| obj1
+    mouse -->|"apunta a"| obj2
+
+    style STACK fill:#1e293b,stroke:#475569,color:#e2e8f0
+    style HEAP fill:#1e293b,stroke:#475569,color:#e2e8f0
 ```
-STACK (pila)                          HEAP (montón)
-─────────────                         ─────────────
-teclado ─────────────┐                ┌──────────────────┐
-  (referencia, 8B)   │    ───────→   │ Product {         │
-                      │               │   nombre="Teclado" │
-mouse ────────────────┼──────→       │   precio=25000.0   │
-  (referencia, 8B)   │               │   stock=15         │
-                      │               └──────────────────┘
-                      │               ┌──────────────────┐
-                      └──────────────→│ Product {         │
-                                      │   nombre="Mouse"   │
-                                      │   precio=8000.0    │
-                                      │   stock=40         │
-                                      └──────────────────┘
-```
-
-- **Stack**: guarda las variables locales y las REFERENCIAS (flechas) a los objetos. Es rápido y automático — cuando un método termina, sus variables desaparecen del Stack.
-- **Heap**: guarda los OBJETOS mismos (los datos reales). El Garbage Collector limpia los objetos que ya nadie referencia.
-
-Esto explica por qué `Product teclado = new Product(...)` NO guarda el producto entero en la variable — `teclado` es solo una FLECHA que apunta al objeto real en el Heap. Cuando pasás `teclado` como argumento a un método, pasás la FLECHA, no una copia del objeto entero.
-
-Vas a profundizar esto en la Etapa 6 (JVM y memoria), pero es importante que desde el día 1 entiendas que los objetos SON referencias.
 
 ## Bonus: el método `toString()`
 
@@ -315,21 +320,17 @@ Cuando pienses en clase vs. objeto, imaginá un plano de una casa (la clase) y l
 
 ## Ciclo de vida de un objeto
 
-Todo objeto en Java pasa por tres etapas:
+```mermaid
+stateDiagram-v2
+    [*] --> Creación : new Product()
+    Creación --> Uso_Activo : constructor finaliza
+    Uso_Activo --> Uso_Activo : métodos, getters, setters
+    Uso_Activo --> Recolección : sin referencias
+    Recolección --> [*] : Garbage Collector libera memoria
 
+    note right of Creación : Se reserva memoria en el Heap
+    note right of Recolección : La JVM detecta objetos huérfanos
 ```
-  new Product(...)      métodos, uso         sin referencias
-  ───────────────→     ─────────────→       ───────────────→
-   CREACIÓN             USO ACTIVO           GARBAGE COLLECTION
-   (constructor)        (llamadas a          (la JVM lo limpia
-    inicializa estado)   métodos, getters)    automáticamente)
-```
-
-1. **Creación**: `new` reserva memoria en el Heap y ejecuta el constructor.
-2. **Uso**: tu código interactúa con el objeto a través de sus métodos.
-3. **Recolección**: cuando ya NADIE tiene una referencia al objeto (la variable salió de scope, o la sobrescribiste con `null`), el Garbage Collector de la JVM lo detecta y libera esa memoria automáticamente — vos no tenés que hacer nada.
-
-Esto es radicalmente distinto a lenguajes como C, donde tenés que liberar la memoria manualmente (`free()`). En Java, el GC se encarga.
 
 ## Conexión
 

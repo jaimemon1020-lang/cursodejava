@@ -40,16 +40,34 @@ Necesitás modelar un `Cliente`: tiene nombre y email, como cualquier persona re
 
 ## Modelo mental
 
-```
-HERENCIA ("es un")              COMPOSICIÓN ("tiene un")
-                                
-   Persona                        Order
-      ▲                             │
-      │ extends                     │ tiene una referencia a
-   Cliente                        Cliente,  Product
-                                
-Cliente ES UNA Persona           Order TIENE UN Cliente
-(hereda sus atributos/métodos)   (los usa, no los "es")
+```mermaid
+classDiagram
+    direction TB
+
+    Persona <|-- Cliente : extends (ES UN)
+    class Persona {
+        +String nombre
+        +String email
+        +describir()
+    }
+    class Cliente {
+        +String direccionEnvio
+        +describir()
+    }
+
+    Order o-- Cliente : tiene un
+    Order o-- Product : tiene un
+    class Order {
+        -Cliente cliente
+        -Product producto
+        -int cantidad
+        +calcularTotal()
+    }
+    class Product {
+        +String nombre
+        +double precio
+    }
+    note for Order "COMPOSICIÓN: Order TIENE un Cliente&#010NO es un Cliente, solo lo usa"
 ```
 
 ## Explicación sencilla
@@ -327,17 +345,28 @@ Cada nivel hereda TODO del nivel anterior. Si modificás `Persona`, TODA la cade
 
 ### El problema del diamante (múltiples padres)
 
-Imaginá esto:
+```mermaid
+classDiagram
+    Animal <|-- Volador : ¿extends?
+    Animal <|-- Nadador : ¿extends?
+    Volador <|-- Pato : ¿extends?
+    Nadador <|-- Pato : ¿extends? ❌
 
+    class Animal {
+        +comer()
+    }
+    class Volador {
+        +volar()
+    }
+    class Nadador {
+        +nadar()
+    }
+    class Pato {
+        +volar()
+        +nadar()
+    }
+    note for Pato "Java NO permite&#010heredar de dos clases&#010Solución: implements Volador, Nadador"
 ```
-         Animal
-        /      \
-   Volador    Nadador
-        \      /
-         Pato
-```
-
-Un `Pato` vuela Y nada. ¿Debería heredar de `Volador` o de `Nadador`? Java NO permite heredar de dos clases — por eso existen las interfaces (próxima lección). `Pato implements Volador, Nadador` es perfectamente válido.
 
 ### Cuándo SÍ usar herencia
 

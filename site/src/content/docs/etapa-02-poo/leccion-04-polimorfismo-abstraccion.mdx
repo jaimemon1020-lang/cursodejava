@@ -40,17 +40,31 @@ Necesitás aplicar distintos tipos de descuento (10% de descuento, o $5000 fijos
 
 ## Modelo mental
 
-```
-interface Descuento
-      │
-      │ implements
-      ├──── DescuentoPorcentual
-      └──── DescuentoFijo
+```mermaid
+classDiagram
+    direction TB
+    class Descuento {
+        <<interface>>
+        +aplicar(double total) double
+    }
+    class DescuentoPorcentual {
+        -double porcentaje
+        +aplicar(double total) double
+    }
+    class DescuentoFijo {
+        -double monto
+        +aplicar(double total) double
+    }
+    class SinDescuento {
+        +aplicar(double total) double
+    }
+    Descuento <|.. DescuentoPorcentual : implements
+    Descuento <|.. DescuentoFijo : implements
+    Descuento <|.. SinDescuento : implements
 
-Descuento[] descuentos = { new DescuentoPorcentual(...), new DescuentoFijo(...) };
-for (Descuento d : descuentos) {
-    d.aplicar(total);   ← cada uno ejecuta SU PROPIA versión, sin preguntar de qué tipo es
-}
+    note for Descuento "CONTRATO: define QUÉ&#010sin decir CÓMO"
+    note for DescuentoPorcentual "total - total * 0.10"
+    note for DescuentoFijo "total - 5000.0"
 ```
 
 ## Explicación sencilla
@@ -307,30 +321,22 @@ Cuando pienses en polimorfismo, imaginá un enchufe universal: no te importa qu�
 
 ## ¿Cómo sabe Java qué método ejecutar? — Dynamic Dispatch
 
-Cuando escribís:
+```mermaid
+sequenceDiagram
+    participant Código as 📝 Tu código
+    participant Variable as 📦 d (tipo Descuento)
+    participant JVM as ⚙️ JVM (runtime)
+    participant VTable as 📋 vtable del objeto real
+    participant Implementación as 🎯 DescuentoPorcentual.aplicar()
 
-```java
-Descuento d = new DescuentoPorcentual(0.10);
-d.aplicar(40000);  // ¿cómo sabe Java cuál versión correr?
+    Código->>Variable: d.aplicar(40000)
+    Variable->>JVM: ¿qué objeto real hay acá?
+    JVM->>VTable: buscar "aplicar" en la vtable
+    VTable->>Implementación: total - (total * 0.10)
+    Implementación-->>Código: 36000.0
+
+    Note over JVM,VTable: El compilador solo verificó que Descuento<br/>TIENE el método aplicar().<br/>La decisión de CUÁL versión ejecutar<br/>es en TIEMPO DE EJECUCIÓN.
 ```
-
-Java NO decide en tiempo de compilación. En tiempo de EJECUCIÓN, cada objeto guarda una referencia a lo que se llama su **vtable** (tabla de métodos virtuales):
-
-```
-Variable d (tipo Descuento)       OBJETO REAL en memoria
-───────────────────────────       ────────────────────────
-                                  ┌──────────────────────┐
-                                  │ DescuentoPorcentual  │
-                                  │                      │
-d ──────────────────────────────→ │ vtable → aplicar()   │──→ total - (total * 0.10)
-                                  │                      │
-                                  └──────────────────────┘
-```
-
-1. El compilador verifica que `Descuento` TIENE el método `aplicar` (type check)
-2. En runtime, la JVM mira el objeto REAL (`DescuentoPorcentual`)
-3. Busca en su vtable la implementación CONCRETA de `aplicar`
-4. Ejecuta ESA versión, no una genérica
 
 Esto se llama **dynamic dispatch** (despacho dinámico) o **late binding** (enlace tardío). Es lo que hace posible que el mismo `for` funcione con cualquier implementación futura.
 

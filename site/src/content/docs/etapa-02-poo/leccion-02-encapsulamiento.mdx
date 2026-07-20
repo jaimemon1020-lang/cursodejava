@@ -40,17 +40,22 @@ Nada impedía que un código externo hiciera `producto.precio = -100.0;` o `prod
 
 ## Modelo mental
 
-```
-   código externo
-        │
-        │  producto.precio = -100  ← ¿debería poder hacer esto directo?
-        ▼
-┌───────────────────┐
-│  private precio   │  ← protegido, nadie accede directo
-│                    │
-│  getPrecio()       │  ← lectura controlada
-│  setPrecio(valor)  │  ← escritura CON validación
-└───────────────────┘
+```mermaid
+graph TB
+    externo["🌍 Código externo"]
+    intento["❌ producto.precio = -100<br/>BLOQUEADO por private"]
+    setter["✅ setPrecio(valor)<br/>VALIDACIÓN primero"]
+    atributo["🔒 private precio<br/>protegido, acceso directo denegado"]
+
+    externo -->|"intenta acceso directo"| intento
+    externo -->|"usa el método controlado"| setter
+    setter -->|"si valor válido"| atributo
+    intento -.-|"compilador rechaza"| atributo
+
+    style externo fill:#0f172a,stroke:#475569,color:#e2e8f0
+    style intento fill:#7f1d1d,stroke:#dc2626,color:#fca5a5
+    style setter fill:#14532d,stroke:#22c55e,color:#bbf7d0
+    style atributo fill:#1e293b,stroke:#6366f1,color:#a5b4fc
 ```
 
 ## Explicación sencilla
@@ -276,17 +281,19 @@ Le falta la validación. `private` protege el ACCESO al atributo, pero no valida
 
 ## Los 4 niveles de visibilidad
 
-Java tiene 4 modificadores de acceso, formando una pirámide de menos a más restrictivo:
+```mermaid
+graph TB
+    public["🌍 PUBLIC<br/>Todos pueden verlo"]
+    protected["🔓 PROTECTED<br/>Clase + hijas + mismo paquete"]
+    default["📦 DEFAULT<br/>Solo el mismo paquete"]
+    private["🔒 PRIVATE<br/>Solo esta clase"]
 
-```
-              🌍  PUBLIC       —  todos pueden verlo
-             ┌──────────┐
-            │  PROTECTED   │    —  solo la clase, sus hijas, y el mismo paquete
-           ┌┴────────────┴┐
-          │  (default)     │    —  solo el mismo paquete (sin palabra clave)
-         ┌┴──────────────┴┐
-        │    PRIVATE       │    —  solo esta clase, nadie más
-       └──────────────────┘
+    public --> protected --> default --> private
+
+    style public fill:#14532d,stroke:#22c55e,color:#bbf7d0
+    style protected fill:#1e3a5f,stroke:#3b82f6,color:#93c5fd
+    style default fill:#713f12,stroke:#f59e0b,color:#fde68a
+    style private fill:#7f1d1d,stroke:#dc2626,color:#fca5a5
 ```
 
 | Modificador | Clase misma | Mismo paquete | Subclase (hija) | Cualquiera |
@@ -300,19 +307,19 @@ Por ahora usá `private` para atributos (protección máxima) y `public` para m�
 
 ## Invariantes de clase — el contrato invisible
 
-Un **invariante** es una regla que DEBE cumplirse SIEMPRE para que un objeto esté en un estado válido. En `Product`, el invariante es: **"el precio nunca puede ser negativo"**.
+```mermaid
+flowchart LR
+    A["new Product(..., <b>-100</b>, ...)"] -->|"❌ rechazado"| X1["IllegalArgumentException"]
+    B["setPrecio(<b>-50</b>)"] -->|"❌ rechazado"| X2["IllegalArgumentException"]
+    C["setPrecio(<b>200</b>)"] -->|"✅ aceptado"| OK["precio = 200"]
 
+    style A fill:#7f1d1d,stroke:#dc2626,color:#fca5a5
+    style B fill:#7f1d1d,stroke:#dc2626,color:#fca5a5
+    style C fill:#14532d,stroke:#22c55e,color:#bbf7d0
+    style X1 fill:#450a0a,stroke:#dc2626,color:#fca5a5
+    style X2 fill:#450a0a,stroke:#dc2626,color:#fca5a5
+    style OK fill:#052e16,stroke:#22c55e,color:#bbf7d0
 ```
-         new Product(..., -100, ...)  ❌  constructor lo rechaza
-         setPrecio(-50)               ❌  setter lo rechaza
-         setPrecio(200)               ✅  pasa la validación
-```
-
-El invariante se protege en DOS lugares:
-1. **Constructor**: para que el objeto NAZCA válido
-2. **Setters**: para que SIGA siendo válido después de cada modificación
-
-Si protegés ambos, tu objeto NUNCA va a estar en un estado inválido, sin importar desde dónde lo llamen. Esto es lo que separa un diseño robusto de uno frágil.
 
 ## Ley de Demeter — no hables con extraños
 

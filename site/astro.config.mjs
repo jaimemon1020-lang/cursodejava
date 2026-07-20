@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import tailwindcss from '@tailwindcss/vite';
+import mermaid from 'astro-mermaid';
 
 const etapas = [
   { label: '00 — Cómo funciona Java', dir: 'etapa-00-como-funciona-java' },
@@ -69,6 +70,26 @@ export default defineConfig({
           },
         },
       ],
+    }),
+    mermaid({
+      theme: 'base',
+      themeVariables: {
+        primaryColor: '#6366f1',
+        primaryTextColor: '#e2e8f0',
+        primaryBorderColor: '#818cf8',
+        lineColor: '#475569',
+        secondaryColor: '#1e293b',
+        tertiaryColor: '#0f172a',
+        background: 'transparent',
+        mainBkg: '#111422',
+        nodeBorder: '#334155',
+        clusterBkg: '#0f172a',
+        clusterBorder: '#334155',
+        titleColor: '#e2e8f0',
+        edgeLabelBackground: '#111422',
+        fontFamily: 'Inter, system-ui, sans-serif',
+        fontSize: '14px',
+      },
     }),
   ],
   vite: {
