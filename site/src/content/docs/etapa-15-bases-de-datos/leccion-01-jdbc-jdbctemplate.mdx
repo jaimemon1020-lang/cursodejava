@@ -1,0 +1,266 @@
+---
+etapa: 15
+etapaTitulo: "Bases de datos"
+leccion: 1
+title: "JDBC y JdbcTemplate: SQL crudo antes del ORM"
+objetivo: "Persistir datos en una base de datos real (H2) con JdbcTemplate, escribiendo SQL explícito y mapeando resultados manualmente — la base sobre la que JPA/Hibernate construyen su automatización."
+prerrequisitos: ["etapa-14-validacion-manejo-errores/leccion-02-exceptionhandler-controlleradvice"]
+version_proyecto: "v12 — spring-boot-starter-data-jpa, H2, JdbcTemplate demo"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de ejecutar SQL directo contra una base de datos real usando `JdbcTemplate`, entendiendo qué hace CADA paso (crear tabla, insertar, consultar, mapear filas a objetos) antes de que JPA automatice todo eso en las próximas lecciones.
+
+## Por qué necesitas aprenderlo
+
+Todo el proyecto, desde la Etapa 4, guardó datos en memoria (`RepositorioProductos`) — se pierden cada vez que la aplicación se reinicia. Un sistema real necesita persistencia DURADERA en una base de datos. Antes de usar JPA/Hibernate (que automatiza el mapeo objeto-relacional), necesitás ver QUÉ es lo que se está automatizando — de lo contrario, JPA se siente como magia en vez de una herramienta que entendés.
+
+## Qué debes saber antes
+
+Todo lo visto hasta la Etapa 14 — esta lección introduce una pieza de infraestructura nueva (una base de datos real) sin modificar la lógica de negocio existente.
+
+## Recupera lo aprendido
+
+¿Por qué `StockInsuficienteException` se mapea a `409 Conflict` en vez de `400 Bad Request`?
+
+<Reveal titulo="Respuesta">
+Porque la petición en sí es válida (nombre real, cantidad numérica válida), pero entra en conflicto con el ESTADO actual del sistema (no hay stock suficiente) — 409 Conflict es el código que describe exactamente ese caso, a diferencia de 400 que es para peticiones mal formadas.
+</Reveal>
+
+## Problema
+
+Necesitás guardar datos en una base de datos REAL, no en una `List` que vive solo mientras el proceso corre. Antes de dejar que un framework mapee objetos Java a filas de tabla automáticamente, necesitás ver el trabajo MANUAL que eso reemplaza: escribir el SQL, ejecutar la consulta, y convertir cada fila del resultado en un objeto Java.
+
+## Modelo mental
+
+```
+JdbcTemplate:  vos escribís el SQL exacto. Spring simplifica
+               la conexión y el manejo de errores, pero el
+               mapeo fila -> objeto lo hacés vos con un RowMapper.
+
+(Próxima lección) JPA/Hibernate: el SQL se GENERA automáticamente
+               a partir de anotaciones sobre tus clases.
+```
+
+## Explicación sencilla
+
+`JdbcTemplate` es la forma que Spring da para trabajar con SQL sin la ceremonia manual de JDBC puro (`Connection`, `PreparedStatement`, `ResultSet`, cerrar todo en bloques `finally`). Vos seguís escribiendo el SQL exacto — `CREATE TABLE`, `INSERT`, `SELECT` — pero `JdbcTemplate` maneja la conexión, ejecuta la consulta, y te deja convertir cada fila del resultado en un objeto Java con una función que vos definís (`RowMapper`).
+
+## Explicación técnica
+
+`spring-boot-starter-data-jpa` trae, entre otras cosas, `spring-boot-starter-jdbc` (que incluye `JdbcTemplate`) — junto con Hibernate y Spring Data JPA que vas a usar en las próximas lecciones. `com.h2database:h2` es una base de datos EN MEMORIA escrita en Java — perfecta para desarrollo y aprendizaje, porque no requiere instalar ni configurar un servidor de base de datos externo.
+
+`spring.datasource.url=jdbc:h2:mem:catalogo` en `application.properties` (Etapa 11 Lección 2) configura una base H2 en memoria llamada `catalogo`. Boot AUTO-CONFIGURA un `DataSource` (con pool de conexiones HikariCP) y un bean `JdbcTemplate` automáticamente, sin que escribas ninguna configuración manual — el mismo espíritu de auto-configuración que ya viste en la Etapa 11.
+
+`jdbcTemplate.execute(sql)` ejecuta SQL que no devuelve resultados (como `CREATE TABLE`). `jdbcTemplate.update(sql, parametros...)` ejecuta `INSERT`/`UPDATE`/`DELETE`, con los `?` del SQL reemplazados de forma SEGURA por los parámetros (evitando inyección SQL — nunca concatenes valores directamente en el string SQL). `jdbcTemplate.query(sql, RowMapper)` ejecuta un `SELECT` y aplica el `RowMapper` (una lambda `(rs, rowNum) -> ...`) a CADA fila del `ResultSet`, devolviendo una `List` con el resultado de cada mapeo.
+
+## Cómo funciona
+
+1. `spring.datasource.url`, `driver-class-name`, `username`, `password` en `application.properties` describen CÓMO conectarse a la base H2.
+2. `spring.jpa.hibernate.ddl-auto=update` y `spring.h2.console.enabled=true` se usan en las próximas lecciones (JPA); en esta, solo importa que la conexión a H2 exista.
+3. `jdbcTemplate.execute("CREATE TABLE personas_demo (id INT PRIMARY KEY, nombre VARCHAR(100))")` crea la tabla manualmente — SQL puro, sin ninguna anotación de mapeo.
+4. `jdbcTemplate.update("INSERT INTO personas_demo (id, nombre) VALUES (?, ?)", 1, "Ana")` inserta una fila, con los `?` reemplazados por los argumentos en orden.
+5. `jdbcTemplate.query("SELECT nombre FROM personas_demo ORDER BY id", (rs, rowNum) -> rs.getString("nombre"))` ejecuta el `SELECT` y convierte cada fila en un `String` (el nombre), usando `ResultSet.getString(columna)` manualmente.
+
+## Ejemplo mínimo
+
+**Fragmento agregado a `proyecto-maven/pom.xml`:**
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-data-jpa</artifactId>
+</dependency>
+<dependency>
+    <groupId>com.h2database</groupId>
+    <artifactId>h2</artifactId>
+    <scope>runtime</scope>
+</dependency>
+```
+
+**Fragmento agregado a `proyecto-maven/src/main/resources/application.properties`:**
+
+```properties
+spring.datasource.url=jdbc:h2:mem:catalogo;DB_CLOSE_DELAY=-1
+spring.datasource.driver-class-name=org.h2.Driver
+spring.datasource.username=sa
+spring.datasource.password=
+spring.jpa.hibernate.ddl-auto=update
+spring.jpa.show-sql=true
+spring.h2.console.enabled=true
+```
+
+**Fragmento agregado a `proyecto-maven/src/main/java/com/curso/catalogo/Application.java`:**
+
+```java
+@Bean
+public CommandLineRunner jdbcDemo(JdbcTemplate jdbcTemplate) {
+    return args -> {
+        jdbcTemplate.execute("CREATE TABLE personas_demo (id INT PRIMARY KEY, nombre VARCHAR(100))");
+        jdbcTemplate.update("INSERT INTO personas_demo (id, nombre) VALUES (?, ?)", 1, "Ana");
+        jdbcTemplate.update("INSERT INTO personas_demo (id, nombre) VALUES (?, ?)", 2, "Beto");
+
+        List<String> nombres = jdbcTemplate.query(
+                "SELECT nombre FROM personas_demo ORDER BY id",
+                (rs, rowNum) -> rs.getString("nombre"));
+
+        System.out.println("Nombres desde JdbcTemplate: " + nombres);
+    };
+}
+```
+
+## Predice
+
+Se insertan dos filas ("Ana" con id 1, "Beto" con id 2), y se consultan ordenadas por `id`. ¿Qué lista esperás ver impresa?
+
+<Reveal titulo="Resultado real (ejecutado con Spring Boot)">
+```
+$ ./mvnw -q spring-boot:run
+...
+HikariPool-1 - Added connection conn0: url=jdbc:h2:mem:catalogo user=SA
+...
+Nombres desde JdbcTemplate: [Ana, Beto]
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- Los logs de arranque muestran `HikariPool-1` conectándose a `jdbc:h2:mem:catalogo` — la base de datos REAL (aunque en memoria) está funcionando, no es una simulación.
+- "Nombres desde JdbcTemplate: [Ana, Beto]" confirma el ciclo completo: crear tabla, insertar dos filas, consultar, y mapear cada fila a un `String` — TODO escrito explícitamente por vos, sin ninguna anotación de mapeo automático.
+- El orden `[Ana, Beto]` coincide con `ORDER BY id` — Ana (id 1) antes que Beto (id 2), confirmando que el SQL se ejecutó tal como se escribió.
+- Este mismo patrón (SQL manual + `RowMapper` manual) es exactamente lo que JPA/Hibernate (próxima lección) reemplaza con anotaciones — vas a poder comparar directamente el "antes" y el "después".
+
+## Ejemplo aplicado al proyecto
+
+Aunque este demo usa una tabla aislada (`personas_demo`, sin relación con `Product`), confirma que la infraestructura de base de datos (H2, `DataSource`, `JdbcTemplate`) está funcionando end-to-end — la base necesaria antes de migrar entidades reales del proyecto a persistencia real en las próximas lecciones.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Al agregar spring-boot-starter-data-jpa, un demo antiguo (SpringDemo, con AnnotationConfigApplicationContext manual) empieza a fallar con PlaceholderResolutionException sobre catalogo.nombre-app."
+  diagnostico="org.springframework.beans.factory.BeanCreationException: Error creating bean with name 'configDemo'... Caused by: PlaceholderResolutionException: Could not resolve placeholder 'catalogo.nombre-app'"
+  causa="AppConfig.ComponentScan(basePackages='com.curso.catalogo') descubre TAMBIEN a Application (el @SpringBootApplication, en el mismo paquete) como bean de configuracion — arrastrando sus @Bean methods (demo, configDemo, jdbcDemo) y hasta su @EnableAutoConfiguration a un contexto manual que NUNCA paso por SpringApplication.run, y que por lo tanto nunca cargo application.properties como PropertySource."
+  solucion="Excluir explicitamente la clase Application del ComponentScan de AppConfig: excludeFilters = @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE, classes = Application.class)."
+  prevencion="Cualquier clase @SpringBootApplication que conviva en el mismo paquete que otro @Configuration con ComponentScan manual corre el riesgo de ser descubierta por ese OTRO escaneo. Correr los demos con AnnotationConfigApplicationContext manual (Etapa 10) despues de CUALQUIER cambio en el pom.xml o en Application.java es lo que permitio detectar este bug real durante esta misma leccion."
+>
+```java
+@Configuration
+@ComponentScan(basePackages = "com.curso.catalogo")
+public class AppConfig {
+    // sin excludeFilters: descubre Application.class tambien
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que `JdbcTemplate` también soporta consultas con un solo resultado, usando `queryForObject`:
+
+```java
+Integer cantidad = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM personas_demo", Integer.class);
+System.out.println("Cantidad de personas: " + cantidad);
+```
+
+## Ejercicio guiado
+
+Agregá una columna `edad INT` a la tabla `personas_demo`, insertando valores para Ana (30) y Beto (25), y consultá el promedio de edad con SQL directo.
+
+<Reveal titulo="Pista 1">
+`AVG(edad)` en el `SELECT`, y `queryForObject` con tipo `Double.class` para el resultado.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+jdbcTemplate.execute("CREATE TABLE personas_demo (id INT PRIMARY KEY, nombre VARCHAR(100), edad INT)");
+jdbcTemplate.update("INSERT INTO personas_demo (id, nombre, edad) VALUES (?, ?, ?)", 1, "Ana", 30);
+jdbcTemplate.update("INSERT INTO personas_demo (id, nombre, edad) VALUES (?, ?, ?)", 2, "Beto", 25);
+
+Double promedio = jdbcTemplate.queryForObject("SELECT AVG(edad) FROM personas_demo", Double.class);
+System.out.println("Edad promedio: " + promedio);
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, agregá un `RowMapper` que devuelva un `record PersonaDemo(int id, String nombre)` en vez de solo el nombre, mapeando ambas columnas de `personas_demo`.
+
+## Transferencia
+
+Si `personas_demo` tuviera 10.000 filas, ¿qué diferencia práctica notarías entre escribir el `RowMapper` manualmente (esta lección) y dejar que un ORM como JPA/Hibernate genere el mapeo automáticamente? ¿En qué casos seguiría teniendo sentido usar SQL crudo con `JdbcTemplate` en vez de JPA, incluso conociendo ambas herramientas?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué automatiza JdbcTemplate respecto al JDBC puro (java.sql.Connection/PreparedStatement/ResultSet)?"
+  opciones={[
+    { texto: "Automatiza la generación del SQL a partir de anotaciones sobre clases Java", correcta: false, feedback: "Eso es lo que hace JPA/Hibernate (próxima lección), NO JdbcTemplate — con JdbcTemplate vos seguís escribiendo el SQL exacto, palabra por palabra." },
+    { texto: "Simplifica la gestión de conexiones, el manejo de errores, y el cierre de recursos — pero vos seguís escribiendo el SQL y el mapeo de filas a objetos", correcta: true, feedback: "Correcto: JdbcTemplate elimina el boilerplate de JDBC puro (abrir/cerrar conexiones, try/finally para liberar recursos), pero el SQL y el RowMapper siguen siendo responsabilidad tuya." },
+    { texto: "Convierte automáticamente cualquier List<Product> en una tabla SQL", correcta: false, feedback: "JdbcTemplate no genera tablas ni esquemas automáticamente a partir de clases Java — eso es responsabilidad de spring.jpa.hibernate.ddl-auto, específico de JPA/Hibernate." },
+    { texto: "Reemplaza la necesidad de una base de datos real", correcta: false, feedback: "Al contrario: JdbcTemplate es precisamente la herramienta para CONECTARSE a una base de datos real (H2 en este caso) — no la reemplaza, la usa." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+jdbcTemplate.update("INSERT INTO personas_demo (id, nombre) VALUES (" + id + ", '" + nombre + "')");
+```
+
+¿Qué problema de seguridad tiene esta línea, comparada con `jdbcTemplate.update("INSERT INTO personas_demo (id, nombre) VALUES (?, ?)", id, nombre)`?
+
+<Reveal titulo="Diagnóstico">
+Es vulnerable a **inyección SQL**: si `nombre` viniera de una entrada de usuario y contuviera algo como `'; DROP TABLE personas_demo; --`, esa cadena se ejecutaría COMO SQL, no como un simple valor de texto. Los parámetros con `?` (placeholders) le dicen a la base de datos "esto es un VALOR, nunca lo interpretes como código SQL" — concatenar strings manualmente en el SQL nunca es seguro cuando el valor puede venir de afuera.
+</Reveal>
+
+## Mini reto de diseño
+
+`jdbcDemo` usa una tabla `personas_demo` completamente AISLADA del resto del proyecto (no toca `Product` ni `RepositorioProductos`). ¿Por qué fue una decisión deliberada mantener esta lección SIN modificar el catálogo real? Pensá en qué hubiera pasado con `SpringDemo`/`BeanScopesDemo`/`QualifierDemo` (Etapa 10) si `ServicioVentas` hubiera cambiado de depender de `RepositorioProductos` a depender de una infraestructura JPA en este mismo paso.
+
+<Comparativa
+  columnas={["Aspecto", "JDBC puro", "JdbcTemplate", "JPA/Hibernate (próxima lección)"]}
+  filas={[
+    ["Quién escribe el SQL", "Vos, completo", "Vos, completo", "Se genera automáticamente"],
+    ["Manejo de conexiones", "Manual (try/finally)", "Automático", "Automático"],
+    ["Mapeo fila -> objeto", "Manual, verboso", "Manual, con RowMapper", "Automático, por anotaciones"],
+  ]}
+/>
+
+## Resumen
+
+- `JdbcTemplate` simplifica la mecánica de JDBC (conexiones, errores) sin ocultar el SQL — vos seguís escribiéndolo.
+- `RowMapper` convierte cada fila de un `ResultSet` en un objeto Java, explícitamente.
+- H2 en memoria permite desarrollar contra una base de datos real sin instalar nada externo.
+- Los parámetros `?` en el SQL previenen inyección SQL — nunca concatenar valores externos directamente.
+
+## Modelo mental final
+
+Pensá en JDBC puro como cocinar desde cero cada ingrediente; `JdbcTemplate` como tener los utensilios y el fuego ya preparados, pero la receta (el SQL) la seguís escribiendo vos; y JPA/Hibernate (próxima lección) como pedirle a un chef automático que cocine el plato completo a partir de una descripción de lo que querés — cada nivel automatiza más, a costa de menos control directo.
+
+## Conexión
+
+Esta lección deja intacto TODO lo construido hasta la Etapa 14 (`RepositorioProductos`, `ServicioVentas`, `ProductoController` siguen en memoria) — un cambio deliberado y AISLADO, siguiendo la misma disciplina de regresión que ya reveló y corrigió un bug real en `AppConfig` heredado de la Etapa 11.
+
+## Próximo paso
+
+Etapa 15 / Lección 2: JPA y Hibernate — convirtiendo una entidad del proyecto (`Cliente`) en una clase gestionada automáticamente por el ORM, reemplazando el `RowMapper` manual de esta lección por anotaciones.
+
+## Fuentes
+
+dev.java — acceso a datos con JdbcTemplate. spring.io — documentación oficial de Spring Framework, sección de acceso a datos JDBC.
+
+<SelfCheck
+  leccionId="etapa-15-bases-de-datos/leccion-01-jdbc-jdbctemplate"
+  criterios={[
+    "Puedo ejecutar SQL directo (CREATE, INSERT, SELECT) con JdbcTemplate.",
+    "Puedo escribir un RowMapper para convertir filas de un ResultSet en objetos Java.",
+    "Puedo explicar por qué los parámetros con ? previenen inyección SQL.",
+    "Puedo explicar qué automatiza JdbcTemplate y qué sigue siendo manual, en contraste con lo que JPA va a automatizar.",
+  ]}
+/>

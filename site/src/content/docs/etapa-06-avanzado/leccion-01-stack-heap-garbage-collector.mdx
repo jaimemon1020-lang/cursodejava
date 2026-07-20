@@ -1,0 +1,252 @@
+---
+etapa: 6
+etapaTitulo: "Java moderno y avanzado"
+leccion: 1
+title: "JVM, memoria: Stack, Heap y Garbage Collector (conceptual)"
+objetivo: "Explicar dónde vive cada variable en memoria (Stack vs Heap), qué significa realmente '==' entre objetos, y cuándo un objeto queda disponible para el Garbage Collector."
+prerrequisitos: ["etapa-05-funcional/leccion-04-collectors-groupingby-partitioningby"]
+version_proyecto: "v1 — StackHeapDemo"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de explicar la diferencia entre el Stack y el Heap en la JVM, entender por qué `==` entre dos objetos casi nunca es lo que querés usar, y razonar sobre cuándo un objeto queda "elegible" para que el Garbage Collector lo elimine.
+
+## Por qué necesitas aprenderlo
+
+Desde la Etapa 2 venís creando objetos con `new` sin preguntarte dónde viven en memoria ni por qué dos objetos "iguales en contenido" pueden comportarse distinto con `==`. Sin este modelo mental, la próxima lección (equals/hashCode) va a parecer magia arbitraria en vez de una consecuencia lógica de cómo Java maneja la memoria.
+
+## Qué debes saber antes
+
+Todo lo visto sobre clases y objetos (Etapa 2) — esta lección no agrega sintaxis nueva, explica QUÉ pasa por debajo de lo que ya escribís.
+
+## Recupera lo aprendido
+
+¿Qué diferencia hay entre `Collectors.groupingBy` y `Collectors.partitioningBy`?
+
+<Reveal titulo="Respuesta">
+partitioningBy siempre produce exactamente dos grupos (true/false), garantizados aunque uno esté vacío; groupingBy produce tantos grupos como valores distintos aparezcan realmente en los datos.
+</Reveal>
+
+## Problema
+
+`Product teclado = new Product(...)` y `Product otroTeclado = new Product(...)` con los MISMOS valores — ¿son "el mismo" producto? Si escribís `teclado == otroTeclado`, ¿qué esperás que imprima, y por qué el resultado real puede sorprenderte si no entendés qué compara realmente `==` entre objetos?
+
+## Modelo mental
+
+```
+Stack:  memoria de CADA método en ejecución.
+        Guarda variables locales y REFERENCIAS a objetos.
+        Se libera automáticamente al terminar el método.
+
+Heap:   memoria compartida donde viven TODOS los objetos (new).
+        Un objeto vive ahí hasta que el Garbage Collector
+        confirma que NADA lo referencia más.
+```
+
+## Explicación sencilla
+
+Cuando escribís `int cantidad = 15;`, ese `15` vive directamente en el Stack, en el marco (frame) del método actual. Cuando escribís `Product teclado = new Product(...)`, el objeto `Product` en sí vive en el Heap — lo que vive en el Stack es solo la REFERENCIA (una especie de dirección) que apunta a ese objeto en el Heap. `teclado` no ES el producto — `teclado` es un papelito con la dirección de dónde está el producto.
+
+## Explicación técnica
+
+Cada método que se ejecuta obtiene su propio **frame** (marco) en el Stack, con sus variables locales. Ese frame se destruye automáticamente cuando el método termina — por eso las variables locales "desaparecen" al salir del método. Los tipos primitivos (`int`, `double`, `boolean`, etc.) guardan su VALOR directamente en el Stack. Los tipos de referencia (cualquier objeto, incluyendo `String`) guardan en el Stack solo una REFERENCIA que apunta a la memoria real del objeto, que vive en el Heap.
+
+`==` entre dos variables de tipo referencia compara las REFERENCIAS (¿apuntan al mismo lugar en el Heap?), no el CONTENIDO de los objetos. Por eso `teclado == mismoTeclado` (donde `mismoTeclado = teclado`) da `true`: ambas variables tienen la MISMA dirección. Pero `teclado == otroTeclado` (dos objetos creados por separado con `new`, aunque con los mismos valores) da `false`: son dos direcciones distintas en el Heap, aunque el contenido sea idéntico.
+
+El **Garbage Collector** (GC) recorre periódicamente el Heap buscando objetos que ya NINGUNA referencia viva alcanza — esos objetos son "elegibles para GC" y su memoria se libera automáticamente. Vos nunca llamás manualmente a liberar memoria en Java (a diferencia de C/C++); el GC decide cuándo, no vos. Poner una referencia en `null` no borra el objeto inmediatamente — solo hace que ESA referencia deje de apuntar a él; si otra referencia todavía lo alcanza, el objeto sigue vivo.
+
+## Cómo funciona
+
+1. `int cantidad = 15;` — el valor `15` vive en el Stack del método `main`.
+2. `Product teclado = new Product(...)` — el objeto vive en el Heap; `teclado` (en el Stack) guarda la referencia hacia él.
+3. `Product mismoTeclado = teclado;` — copia la REFERENCIA, no el objeto. Ahora dos variables del Stack apuntan al MISMO objeto del Heap.
+4. `Product otroTeclado = new Product(...)` — un `new` SIEMPRE crea un objeto nuevo en el Heap, aunque los valores sean idénticos a otro ya existente.
+5. `System.identityHashCode(objeto)` expone (con fines didácticos) un número que identifica la posición del objeto en el Heap — dos referencias al MISMO objeto dan el mismo número.
+6. `mismoTeclado = null;` — esa referencia deja de apuntar al objeto, pero `teclado` TODAVÍA lo alcanza, así que el objeto sigue vivo y no es elegible para GC.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-06/StackHeapDemo.java`
+
+```java
+public class StackHeapDemo {
+    public static void main(String[] args) {
+        int cantidad = 15;
+        Product teclado = new Product("Teclado mecanico", 25000.0, cantidad);
+        Product mismoTeclado = teclado;
+        Product otroTeclado = new Product("Teclado mecanico", 25000.0, cantidad);
+
+        System.out.println("teclado == mismoTeclado: " + (teclado == mismoTeclado));
+        System.out.println("teclado == otroTeclado: " + (teclado == otroTeclado));
+        System.out.println("Identity hash teclado: " + System.identityHashCode(teclado));
+        System.out.println("Identity hash mismoTeclado: " + System.identityHashCode(mismoTeclado));
+        System.out.println("Identity hash otroTeclado: " + System.identityHashCode(otroTeclado));
+
+        mismoTeclado = null;
+        System.out.println("mismoTeclado ya no apunta a nada, pero teclado sigue accesible: " + teclado.getNombre());
+    }
+}
+```
+
+## Predice
+
+`otroTeclado` se creó con los MISMOS valores que `teclado` (mismo nombre, precio y stock), pero con un `new` separado. ¿`teclado == otroTeclado` da `true` o `false`?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+teclado == mismoTeclado: true
+teclado == otroTeclado: false
+Identity hash teclado: 366712642
+Identity hash mismoTeclado: 366712642
+Identity hash otroTeclado: 1829164700
+mismoTeclado ya no apunta a nada, pero teclado sigue accesible: Teclado mecanico
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `teclado == mismoTeclado` da `true`: `mismoTeclado = teclado` copió la REFERENCIA, así que ambas variables apuntan exactamente al mismo objeto del Heap — mismo identity hash (366712642).
+- `teclado == otroTeclado` da `false` A PESAR de tener el mismo nombre, precio y stock: son dos objetos DISTINTOS en el Heap, creados por dos `new` separados — identity hash distinto (1829164700).
+- Los dos primeros identity hash coinciden porque son la MISMA dirección; el tercero es diferente porque es OTRO objeto.
+- Después de `mismoTeclado = null`, `teclado.getNombre()` sigue funcionando perfectamente: el objeto en el Heap sigue vivo porque `teclado` todavía lo referencia — solo `mismoTeclado` dejó de apuntar a él.
+
+## Ejemplo aplicado al proyecto
+
+Este modelo explica por qué, en toda la Etapa 2 hasta ahora, nunca comparaste dos `Product` con `==` para saber si eran "el mismo producto" — comparabas por nombre o por alguna propiedad específica, porque `==` compara identidad de memoria, no igualdad de contenido. La próxima lección formaliza esa comparación por contenido con `equals`.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Un if (producto1 == producto2) que debería dar true por tener los mismos datos, da false inesperadamente."
+  diagnostico="No hay error de compilación ni excepción — el programa simplemente toma la rama 'else' cuando el programador esperaba que fueran iguales."
+  causa="Se usó == para comparar objetos esperando una comparación 'por contenido', cuando == en tipos de referencia siempre compara identidad (misma dirección en el Heap), nunca contenido."
+  solucion="Usar equals() en vez de == cuando querés comparar CONTENIDO de dos objetos — pero ojo, equals() sin sobrescribir también compara identidad por defecto (lo ves en la próxima lección)."
+  prevencion="Reservá == para tipos primitivos (int, double, boolean) y para chequear explícitamente si dos referencias apuntan al MISMO objeto (por ejemplo, null-checks: variable == null). Para 'son iguales en contenido', la herramienta correcta es equals()."
+>
+```java
+Product a = new Product("Mouse", 8000.0, 10);
+Product b = new Product("Mouse", 8000.0, 10);
+if (a == b) {
+    System.out.println("Son el mismo producto");
+} else {
+    System.out.println("Son productos distintos");
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que reasignar una variable de referencia NO afecta al objeto original al que apuntaba otra variable:
+
+```java
+Product original = new Product("Teclado mecanico", 25000.0, 15);
+Product copia = original;
+copia = new Product("Mouse inalambrico", 8000.0, 40);
+
+System.out.println("original: " + original.getNombre());
+System.out.println("copia: " + copia.getNombre());
+```
+
+## Ejercicio guiado
+
+Escribí un método `estaVacioEnHeap(Product referencia)` que reciba una referencia y devuelva `true` si es `null` (sin apuntar a ningún objeto del Heap), usando exclusivamente `==`.
+
+<Reveal titulo="Pista 1">
+`referencia == null` es exactamente el caso correcto de usar `==` con objetos: estás preguntando si esa variable NO apunta a ningún objeto, no comparando contenido.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+static boolean estaVacioEnHeap(Product referencia) {
+    return referencia == null;
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-06/`, escribí un método que reciba tres referencias `Product` y devuelva cuántas de ellas apuntan al MISMO objeto que la primera (usando `==`), para practicar la diferencia entre "misma referencia" y "mismo contenido".
+
+## Transferencia
+
+Si tuvieras un `Cliente cliente1 = new Cliente(...)` y guardaras `Cliente clienteEnLista = listaClientes.get(0)` (donde `cliente1` fue el que se agregó a esa lista), ¿`cliente1 == clienteEnLista` daría `true` o `false`? ¿Por qué agregar un objeto a una `List` no crea una copia nueva?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué compara realmente el operador == entre dos variables de tipo objeto (como Product)?"
+  opciones={[
+    { texto: "Si los objetos tienen los mismos valores en todos sus campos", correcta: false, feedback: "Eso es lo que hace equals() cuando está bien implementado (próxima lección) — == nunca mira el contenido de los campos, solo la referencia." },
+    { texto: "Si ambas variables apuntan al mismo objeto en el Heap (misma dirección de memoria)", correcta: true, feedback: "Correcto: == en tipos de referencia compara identidad — si las dos variables 'señalan' exactamente al mismo objeto, no si el contenido es parecido o idéntico." },
+    { texto: "Si los dos objetos fueron creados con el mismo constructor", correcta: false, feedback: "El constructor usado no tiene nada que ver con lo que compara == — dos objetos creados con new Product(...) por separado son SIEMPRE referencias distintas, sin importar qué constructor se haya usado." },
+    { texto: "Si los dos objetos están en el mismo método", correcta: false, feedback: "La ubicación en el código (qué método los creó) no afecta la comparación — == compara la dirección de memoria en el Heap, sin importar desde dónde se llegó a esa referencia." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Product a = new Product("Mouse", 8000.0, 10);
+a = null;
+Product b = a;
+System.out.println(b.getNombre());
+```
+
+¿Qué pasa al ejecutar la última línea?
+
+<Reveal titulo="Diagnóstico">
+`NullPointerException`. `a = null` hizo que `a` dejara de apuntar al objeto; `Product b = a` copió ese valor `null`, así que `b` TAMBIÉN es `null` — nunca llegó a apuntar al objeto original. Llamar a `.getNombre()` sobre una referencia `null` es exactamente lo que dispara NullPointerException.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué Java NO te deja liberar memoria manualmente (como `free()` en C), y en cambio delega esa decisión al Garbage Collector? ¿Qué tipo de errores (comunes en lenguajes con gestión manual de memoria) evita este diseño?
+
+<Comparativa
+  columnas={["Concepto", "Dónde vive", "Se libera cuándo"]}
+  filas={[
+    ["Variable local primitiva (int, double)", "Stack", "Al terminar el método (frame destruido)"],
+    ["Referencia a un objeto", "Stack", "Al terminar el método (la referencia, no el objeto)"],
+    ["El objeto en sí (new Product(...))", "Heap", "Cuando el Garbage Collector confirma que ninguna referencia lo alcanza"],
+  ]}
+/>
+
+## Resumen
+
+- El Stack guarda variables locales y referencias; se libera automáticamente al terminar cada método.
+- El Heap guarda los objetos reales (`new`); vive hasta que el GC confirma que nadie los referencia.
+- `==` entre objetos compara identidad (misma dirección en el Heap), nunca contenido.
+- Un objeto queda elegible para GC cuando NINGUNA referencia viva lo alcanza — no apenas una variable se pone en `null`.
+
+## Modelo mental final
+
+Pensá en el Heap como un depósito enorme donde viven todos los objetos, y en el Stack como una libreta de direcciones que cada método lleva consigo — cuando el método termina, tira la libreta (Stack liberado), pero el depósito (Heap) sigue existiendo hasta que el Garbage Collector confirma que nadie más tiene esa dirección anotada en ninguna libreta.
+
+## Conexión
+
+Todo lo creado con `new` desde la Etapa 2 (`Product`, `Cliente`, `Order`, etc.) vivió siempre en el Heap — esta lección le puso nombre a algo que ya pasaba silenciosamente. La próxima lección usa este mismo modelo para explicar por qué `equals` y `hashCode` necesitan sobrescribirse explícitamente.
+
+## Próximo paso
+
+Etapa 6 / Lección 2: equals, hashCode y toString — comparar objetos por contenido, no por identidad.
+
+## Fuentes
+
+dev.java — modelo de memoria de la JVM. openjdk.org — especificación de la JVM (JVM Specification), capítulo de áreas de datos en tiempo de ejecución (Stack, Heap).
+
+<SelfCheck
+  leccionId="etapa-06-avanzado/leccion-01-stack-heap-garbage-collector"
+  criterios={[
+    "Puedo explicar la diferencia entre el Stack y el Heap en la JVM.",
+    "Puedo explicar por qué == entre objetos compara identidad y no contenido.",
+    "Puedo predecir si dos referencias apuntan al mismo objeto o a objetos distintos.",
+    "Puedo explicar cuándo un objeto queda elegible para el Garbage Collector.",
+  ]}
+/>

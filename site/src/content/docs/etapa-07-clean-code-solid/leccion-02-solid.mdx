@@ -1,0 +1,354 @@
+---
+etapa: 7
+etapaTitulo: "Clean Code y SOLID"
+leccion: 2
+title: "SOLID: los cinco principios de diseño orientado a objetos"
+objetivo: "Reconocer los cinco principios SOLID en código ya escrito en etapas anteriores, y aplicar el que falta (ISP) separando una interfaz sobrecargada en interfaces más pequeñas y específicas."
+prerrequisitos: ["etapa-07-clean-code-solid/leccion-01-clean-code"]
+version_proyecto: "v2 — SolidDemo, IspDemo (cierra Etapa 7)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de reconocer los cinco principios SOLID (Single Responsibility, Open/Closed, Liskov Substitution, Interface Segregation, Dependency Inversion) — cuatro de los cuales YA aplicaste sin nombrarlos desde la Etapa 2 — y de aplicar el que falta, ISP, separando una interfaz que fuerza a implementar métodos irrelevantes.
+
+## Por qué necesitas aprenderlo
+
+`Descuento` y `MetodoEnvio` (Etapa 2 Lección 4) no fueron diseñados al azar — esa estructura (una interfaz, múltiples implementaciones intercambiables) es exactamente lo que SOLID prescribe. Nombrar estos principios te da vocabulario para reconocer (y explicar) POR QUÉ un diseño es bueno, en vez de que "se sienta bien" sin poder decir por qué.
+
+## Qué debes saber antes
+
+Interfaces y clases abstractas (Etapa 2 Lección 4), `Descuento`/`DescuentoFijo`/`DescuentoPorcentual` y `MetodoEnvio`/`EnvioEstandar`/`EnvioExpress` específicamente.
+
+## Recupera lo aprendido
+
+¿Por qué `CleanCodeDespues` (lección anterior) se considera "mejor" que `CleanCodeAntes`, si tiene más líneas de código?
+
+<Reveal titulo="Respuesta">
+Porque el criterio no es 'menos líneas', es 'más fácil de leer': nombres claros, funciones pequeñas con una sola responsabilidad, y constantes con nombre en vez de números mágicos — con el MISMO comportamiento exacto que la versión original.
+</Reveal>
+
+## Problema
+
+Un `CajaRegistradora` que implementa una interfaz `GestorDeVentasYReportes` con métodos de venta Y de reportes se ve obligado a implementar `generarReporteMensual()` aunque esa caja específica NUNCA genera reportes — ¿qué hace en ese método? Lanzar una excepción, dejar el cuerpo vacío, o alguna otra señal de que esa interfaz le está pidiendo algo que no le corresponde.
+
+## Modelo mental
+
+```
+S — Single Responsibility:  una clase, UNA razón para cambiar.
+O — Open/Closed:            abierta a extensión, cerrada a modificación.
+L — Liskov Substitution:    una subclase debe poder reemplazar a su
+                             padre sin romper el comportamiento esperado.
+I — Interface Segregation:  interfaces pequeñas y específicas,
+                             no una interfaz gorda con de todo.
+D — Dependency Inversion:   depender de ABSTRACCIONES (interfaces),
+                             no de implementaciones concretas.
+```
+
+## Explicación sencilla
+
+SOLID son cinco principios que, en conjunto, buscan que el código sea fácil de EXTENDER sin romper lo que ya funciona. No son reglas que se apliquen mecánicamente a cada clase — son criterios para evaluar si un diseño va a envejecer bien cuando el sistema crezca.
+
+## Explicación técnica
+
+**S — Single Responsibility Principle (SRP)**: una clase debería tener una sola razón para cambiar. `DescuentoFijo` solo sabe calcular un descuento fijo — no valida productos, no imprime, no gestiona inventario. Si mañana cambia CÓMO se calcula un descuento fijo, solo esa clase cambia.
+
+**O — Open/Closed Principle (OCP)**: el código debería estar abierto a EXTENSIÓN pero cerrado a MODIFICACIÓN. Agregar un nuevo tipo de descuento (por ejemplo, `DescuentoPorVolumen`) significa crear una clase NUEVA que implemente `Descuento` — sin tocar ni una línea de `DescuentoFijo`, `DescuentoPorcentual`, ni del código que ya usa la interfaz `Descuento`.
+
+**L — Liskov Substitution Principle (LSP)**: cualquier código que funcione con `Descuento` debería funcionar IGUAL de bien con `DescuentoFijo` o con `DescuentoPorcentual`, sin sorpresas. `aplicarDescuento(Product, Descuento)` no le importa CUÁL implementación recibe — el contrato (`aplicar(double) -> double`) se respeta en ambas.
+
+**I — Interface Segregation Principle (ISP)**: una interfaz no debería forzar a sus implementadores a depender de métodos que no usan. `GestorDeVentasYReportes` viola esto: cualquier clase que solo venda (sin generar reportes) queda forzada a "implementar" `generarReporteMensual()` de alguna forma artificial (lanzando una excepción, en el peor caso).
+
+**D — Dependency Inversion Principle (DIP)**: el código de alto nivel debería depender de ABSTRACCIONES, no de clases concretas. `aplicarDescuento(Product producto, Descuento descuento)` depende del TIPO `Descuento` (la interfaz), nunca de `DescuentoFijo` directamente — eso es lo que permite pasarle CUALQUIER implementación futura sin cambiar esa función.
+
+## Cómo funciona
+
+1. `Descuento` es la ABSTRACCIÓN (DIP); `DescuentoFijo` y `DescuentoPorcentual` son implementaciones intercambiables (LSP) sin modificar código existente al agregar una nueva (OCP).
+2. `aplicarDescuento(Product, Descuento)` en `SolidDemo` NUNCA menciona `DescuentoFijo` ni `DescuentoPorcentual` por nombre — solo conoce la interfaz `Descuento`.
+3. `GestorDeVentasYReportes` (en `IspDemo`) mezcla dos responsabilidades no relacionadas en una sola interfaz — la violación de ISP.
+4. `Vendedor`, la interfaz segregada, solo tiene `venderProducto` — cualquier clase que la implemente se compromete ÚNICAMENTE a eso, sin cargar con métodos irrelevantes.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-07/SolidDemo.java` (SRP, OCP, LSP, DIP — reutilizando Etapa 2)
+
+```java
+import java.util.List;
+
+public class SolidDemo {
+    public static void main(String[] args) {
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+
+        List<Descuento> descuentosDisponibles = List.of(
+                new DescuentoFijo(2000.0),
+                new DescuentoPorcentual(0.10)
+        );
+
+        for (Descuento descuento : descuentosDisponibles) {
+            System.out.println("Total con " + descuento.getClass().getSimpleName() + ": "
+                    + aplicarDescuento(teclado, descuento));
+        }
+
+        List<MetodoEnvio> metodosDisponibles = List.of(new EnvioEstandar(), new EnvioExpress());
+        for (MetodoEnvio metodo : metodosDisponibles) {
+            metodo.informar(teclado.getPrecio());
+        }
+    }
+
+    private static double aplicarDescuento(Product producto, Descuento descuento) {
+        return descuento.aplicar(producto.getPrecio());
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-07/IspDemo.java` (violación de ISP y su corrección)
+
+```java
+interface GestorDeVentasYReportes {
+    void venderProducto(Product producto, int cantidad);
+    void generarReporteMensual();
+}
+
+class CajaRegistradora implements GestorDeVentasYReportes {
+    @Override
+    public void venderProducto(Product producto, int cantidad) {
+        producto.venderUnidades(cantidad);
+        System.out.println("Vendido (interfaz gorda): " + cantidad + " x " + producto.getNombre());
+    }
+
+    @Override
+    public void generarReporteMensual() {
+        throw new UnsupportedOperationException("Esta caja no genera reportes");
+    }
+}
+
+interface Vendedor {
+    void venderProducto(Product producto, int cantidad);
+}
+
+class CajaRegistradoraSimple implements Vendedor {
+    @Override
+    public void venderProducto(Product producto, int cantidad) {
+        producto.venderUnidades(cantidad);
+        System.out.println("Vendido (interfaz segregada): " + cantidad + " x " + producto.getNombre());
+    }
+}
+
+public class IspDemo {
+    public static void main(String[] args) {
+        Product mouse = new Product("Mouse inalambrico", 8000.0, 40);
+        Product auriculares = new Product("Auriculares", 15000.0, 20);
+
+        CajaRegistradora cajaGorda = new CajaRegistradora();
+        cajaGorda.venderProducto(mouse, 5);
+        try {
+            cajaGorda.generarReporteMensual();
+        } catch (UnsupportedOperationException e) {
+            System.out.println("Error esperado: " + e.getMessage());
+        }
+
+        Vendedor cajaSimple = new CajaRegistradoraSimple();
+        cajaSimple.venderProducto(auriculares, 3);
+    }
+}
+```
+
+## Predice
+
+`DescuentoFijo(2000.0)` resta un monto fijo; `DescuentoPorcentual(0.10)` resta un 10%. El teclado cuesta $25.000. ¿Qué total esperás con cada uno?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Total con DescuentoFijo: 23000.0
+Total con DescuentoPorcentual: 22500.0
+Envio estandar: $1500.0
+Envio express: $3500.0
+```
+
+```
+Vendido (interfaz gorda): 5 x Mouse inalambrico
+Error esperado: Esta caja no genera reportes
+Vendido (interfaz segregada): 3 x Auriculares
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- $25.000 - $2.000 (fijo) = $23.000; $25.000 - 10% ($2.500) = $22.500 — ambos cálculos corren a través de la MISMA función `aplicarDescuento`, sin que esa función sepa cuál implementación específica está usando (DIP + LSP en acción).
+- El `for` recorre `List<Descuento>` polimórficamente — agregar un tercer tipo de descuento a esa lista NO requeriría tocar `aplicarDescuento` en absoluto (OCP).
+- `cajaGorda.generarReporteMensual()` lanza la excepción esperada — la prueba concreta de que `GestorDeVentasYReportes` le pidió a `CajaRegistradora` algo que no podía cumplir honestamente.
+- `cajaSimple.venderProducto(...)` funciona perfecto con `Vendedor`, la interfaz segregada — sin ningún método irrelevante que implementar.
+
+## Ejemplo aplicado al proyecto
+
+`Descuento` y `MetodoEnvio` (Etapa 2 Lección 4) fueron, sin que se dijera en ese momento, un ejemplo temprano de OCP y DIP: agregar un nuevo método de envío o de descuento nunca requirió tocar código existente, solo agregar una clase nueva que implemente la abstracción correspondiente.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Agregar un nuevo tipo de descuento requiere modificar un método existente con un nuevo caso if/else, en vez de solo agregar una clase nueva."
+  diagnostico="No hay excepción de compilación, pero el diseño 'huele mal': cada descuento nuevo obliga a tocar el mismo método una y otra vez."
+  causa="Se implementó la lógica de descuentos con un switch o if/else sobre un tipo (enum o String), en vez de usar polimorfismo a través de la interfaz Descuento — violando OCP: el código NO está cerrado a modificación."
+  solucion="Reemplazar la rama if/else por una interfaz (como Descuento) y una implementación por cada variante — el código que USA los descuentos deja de necesitar cambios cuando aparece un tipo nuevo."
+  prevencion="Si notás que agregar un caso nuevo de negocio siempre implica editar el MISMO método con un nuevo if/else, es una señal de que ese método debería delegar en una interfaz polimórfica en su lugar."
+>
+```java
+static double calcularDescuento(String tipo, double total) {
+    if (tipo.equals("fijo")) {
+        return total - 2000;
+    } else if (tipo.equals("porcentual")) {
+        return total * 0.9;
+    }
+    // cada descuento nuevo requiere agregar otro "else if" aca
+    return total;
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar un tercer tipo de descuento SIN modificar `aplicarDescuento` ni ninguna clase existente:
+
+```java
+public class DescuentoPorVolumen implements Descuento {
+    private int cantidadMinima;
+    private double porcentaje;
+
+    public DescuentoPorVolumen(int cantidadMinima, double porcentaje) {
+        this.cantidadMinima = cantidadMinima;
+        this.porcentaje = porcentaje;
+    }
+
+    @Override
+    public double aplicar(double total) {
+        return total * (1 - this.porcentaje);
+    }
+}
+```
+
+## Ejercicio guiado
+
+Identificá qué principio SOLID viola esta clase, y corregila:
+
+```java
+public class ServicioDeCatalogo {
+    public void agregarProducto(Product p) { }
+    public void enviarEmailBienvenida(Cliente c) { }
+    public void generarFacturaPDF(Order o) { }
+}
+```
+
+<Reveal titulo="Pista 1">
+Tres responsabilidades completamente distintas (catálogo, emails, facturación) viven en una sola clase — ¿cuántas razones DISTINTAS tendría esta clase para cambiar?
+</Reveal>
+
+<Reveal titulo="Solución">
+Viola SRP (Single Responsibility). Se debería dividir en tres clases separadas:
+
+```java
+public class ServicioDeCatalogo {
+    public void agregarProducto(Product p) { }
+}
+
+public class ServicioDeNotificaciones {
+    public void enviarEmailBienvenida(Cliente c) { }
+}
+
+public class ServicioDeFacturacion {
+    public void generarFacturaPDF(Order o) { }
+}
+```
+
+Ahora cada clase tiene UNA sola razón para cambiar: catálogo, notificaciones, o facturación — nunca las tres al mismo tiempo.
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-07/`, escribí una interfaz `Notificador` con un único método `notificar(String mensaje)`, y dos implementaciones (`NotificadorEmail`, `NotificadorSms`) — confirmando que un método que reciba `Notificador` como parámetro funciona igual con ambas, sin conocer la implementación concreta (DIP + LSP).
+
+## Transferencia
+
+Si `EnvioExpress` decidiera lanzar una excepción cuando el total de la compra es exactamente `0.0` (un caso que `EnvioEstandar` maneja sin problema), ¿qué principio SOLID estaría violando? ¿Por qué código que trata a `MetodoEnvio` de forma genérica (como `metodo.informar(total)`) podría romperse inesperadamente en ese caso?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué principio SOLID viola una interfaz que fuerza a sus implementadores a definir métodos que no les corresponden?"
+  opciones={[
+    { texto: "Single Responsibility Principle (SRP)", correcta: false, feedback: "SRP habla de que una CLASE tenga una sola razón para cambiar — el problema acá es específicamente sobre el DISEÑO DE LA INTERFAZ forzando métodos irrelevantes a sus implementadores, que es el dominio de ISP." },
+    { texto: "Interface Segregation Principle (ISP)", correcta: true, feedback: "Correcto: ISP dice que ningún cliente (implementador) debería depender de métodos que no usa — una interfaz 'gorda' con responsabilidades no relacionadas viola esto directamente." },
+    { texto: "Liskov Substitution Principle (LSP)", correcta: false, feedback: "LSP es sobre si una subclase puede reemplazar a su padre sin sorpresas de comportamiento — el problema de una interfaz gorda es anterior a eso: es sobre el DISEÑO de la interfaz en sí, no sobre sustituir implementaciones." },
+    { texto: "Open/Closed Principle (OCP)", correcta: false, feedback: "OCP es sobre si el código está cerrado a modificación al extenderlo con casos nuevos — no tiene relación directa con que una interfaz tenga métodos irrelevantes para algunos de sus implementadores." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+public class DescuentoNegativo implements Descuento {
+    @Override
+    public double aplicar(double total) {
+        return total * 1.5;
+    }
+}
+```
+
+Esta clase compila e implementa `Descuento` correctamente — pero, ¿qué principio SOLID viola conceptualmente, sabiendo que el contrato implícito de `Descuento.aplicar` es "reduce el total"?
+
+<Reveal titulo="Diagnóstico">
+Viola LSP (Liskov Substitution). Aunque compila y cumple la FIRMA del método, rompe el CONTRATO esperado: cualquier código que use `List<Descuento>` esperando que el total se reduzca o se mantenga (nunca que AUMENTE) se comportaría de forma sorprendente e incorrecta con esta implementación — sustituir `Descuento` por `DescuentoNegativo` no es "seguro" en el sentido que LSP exige.
+</Reveal>
+
+## Mini reto de diseño
+
+`Product implements Comparable<Product>` (Etapa 6 Lección 3) define un único orden natural (por precio). Si alguien agregara un SEGUNDO método `compareToStock(Product otro)` a la clase `Product` para comparar por stock, ¿estaría violando algún principio SOLID? ¿Por qué `Comparator` externo (Etapa 5) es la herramienta más alineada con SOLID para necesidades de orden alternativas, en vez de agregar métodos de comparación sueltos a la clase?
+
+<Comparativa
+  columnas={["Principio", "Pregunta que responde", "Ejemplo en el proyecto"]}
+  filas={[
+    ["SRP", "¿Esta clase tiene una sola razón para cambiar?", "DescuentoFijo solo calcula, no valida ni imprime"],
+    ["OCP", "¿Puedo extender sin modificar código existente?", "Agregar DescuentoPorVolumen sin tocar aplicarDescuento"],
+    ["LSP", "¿Cualquier implementación es sustituible sin sorpresas?", "DescuentoFijo y DescuentoPorcentual, intercambiables"],
+    ["ISP", "¿La interfaz fuerza métodos irrelevantes?", "Vendedor vs. GestorDeVentasYReportes"],
+    ["DIP", "¿Dependo de la abstracción o de lo concreto?", "aplicarDescuento(Product, Descuento), no DescuentoFijo directo"],
+  ]}
+/>
+
+## Resumen
+
+- SRP: una clase, una razón para cambiar. OCP: extender sin modificar. LSP: sustituir sin sorpresas.
+- ISP: interfaces pequeñas y específicas, no una interfaz que fuerza métodos irrelevantes.
+- DIP: depender de interfaces (abstracciones), no de clases concretas.
+- `Descuento`/`MetodoEnvio` (Etapa 2) ya aplicaban SRP, OCP, LSP y DIP sin que se nombrara en ese momento.
+
+## Modelo mental final
+
+Pensá en SOLID como cinco preguntas de control de calidad que le hacés a un diseño ANTES de que el sistema crezca: ¿esta clase hace demasiadas cosas? ¿tengo que romper algo existente para agregar algo nuevo? ¿puedo cambiar una pieza por otra sin sorpresas? ¿esta interfaz le pide a alguien más de lo que necesita? ¿estoy atado a un detalle concreto en vez de a un contrato?
+
+## Conexión
+
+Esta lección cierra la Etapa 7: Clean Code (Lección 1) da las herramientas de bajo nivel (nombres, funciones pequeñas); SOLID (esta lección) da los principios de más alto nivel para organizar clases e interfaces completas — la base conceptual necesaria antes de ver patrones de diseño formales en la próxima etapa.
+
+## Próximo paso
+
+Etapa 8: Patrones de diseño necesarios — Dependency Injection, Repository, Factory, Strategy (ya prefigurado con `Descuento`/`MetodoEnvio`) y Adapter.
+
+## Fuentes
+
+dev.java — principios de diseño orientado a objetos. "Clean Code" y "Agile Software Development, Principles, Patterns, and Practices" de Robert C. Martin — origen de la formulación clásica de SOLID.
+
+<SelfCheck
+  leccionId="etapa-07-clean-code-solid/leccion-02-solid"
+  criterios={[
+    "Puedo explicar cada uno de los cinco principios SOLID con mis propias palabras.",
+    "Puedo identificar SRP, OCP, LSP y DIP en el código ya escrito con Descuento y MetodoEnvio.",
+    "Puedo detectar una violación de ISP (interfaz que fuerza métodos irrelevantes) y separarla en interfaces más pequeñas.",
+    "Puedo explicar por qué depender de una interfaz en vez de una clase concreta facilita extender el sistema sin romperlo.",
+  ]}
+/>

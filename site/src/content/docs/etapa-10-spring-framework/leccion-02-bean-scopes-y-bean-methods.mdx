@@ -1,0 +1,297 @@
+---
+etapa: 10
+etapaTitulo: "Spring Framework"
+leccion: 2
+title: "@Bean methods y scopes: singleton vs. prototype"
+objetivo: "Registrar beans de clases que no podés anotar (con @Bean en una @Configuration), y entender la diferencia entre el scope singleton (por defecto) y prototype (una instancia nueva por cada getBean)."
+prerrequisitos: ["etapa-10-spring-framework/leccion-01-ioc-container-di-anotaciones"]
+version_proyecto: "v2 — ProcesadorPago/AdaptadorPagoExterno vía @Bean, SolicitudDeVenta @Scope prototype, BeanScopesDemo"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de registrar como bean una clase que NO podés anotar (porque viene de una librería externa, como `ProveedorPagoExterno` de la Etapa 8), usando un método `@Bean` dentro de una clase `@Configuration`, y de distinguir el scope `singleton` (una instancia compartida) del scope `prototype` (una instancia nueva cada vez).
+
+## Por qué necesitas aprenderlo
+
+`@Component`/`@Service`/`@Repository` (Etapa 10 Lección 1) solo funcionan sobre clases QUE VOS ESCRIBISTE y podés modificar. `ProveedorPagoExterno` (Adapter, Etapa 8) representa una librería externa que no podrías anotar en un proyecto real — necesitás otra forma de que Spring la gestione igual.
+
+## Qué debes saber antes
+
+Adapter (Etapa 8 Lección 3) — `ProcesadorPago`/`ProveedorPagoExterno`/`AdaptadorPagoExterno` migran a esta lección tal como los diseñaste ahí.
+
+## Recupera lo aprendido
+
+¿Por qué `contexto.getBean(ServicioVentas.class)` devuelve el MISMO objeto sin importar cuántas veces lo llames?
+
+<Reveal titulo="Respuesta">
+Porque los beans de Spring son singleton por defecto: el contenedor crea UNA sola instancia y la reutiliza cada vez que se la piden, en vez de crear una nueva cada vez.
+</Reveal>
+
+## Problema
+
+`ProveedorPagoExterno` (Etapa 8) simula una librería externa — en un proyecto real, sería un `.jar` de terceros que no podés modificar para agregarle `@Component`. Y `AdaptadorPagoExterno` necesita, además, que Spring sepa CÓMO construirlo (pasándole un `ProveedorPagoExterno` por constructor) — sin anotaciones, el contenedor no tiene forma de saberlo automáticamente. Además, necesitás una clase donde CADA vez que la pidas te dé una instancia NUEVA (por ejemplo, una solicitud de venta con su propio número consecutivo) — el comportamiento singleton por defecto no serviría para eso.
+
+## Modelo mental
+
+```
+@Component en la clase:      Spring la descubre automáticamente
+                              (solo sirve para clases tuyas).
+
+@Bean en un método de
+una @Configuration:           VOS le decís explícitamente a Spring
+                              cómo construir el objeto — sirve para
+                              CUALQUIER clase, incluso de terceros.
+
+@Scope("singleton") (default): una instancia compartida.
+@Scope("prototype"):           una instancia nueva por cada pedido.
+```
+
+## Explicación sencilla
+
+Cuando una clase es tuya, `@Component` alcanza. Cuando NO podés (o no querés) tocar la clase directamente —porque es de una librería externa, o porque su construcción necesita lógica que no cabe en un constructor simple— usás un método anotado `@Bean` dentro de una clase `@Configuration`, donde VOS escribís explícitamente el `new` y el resultado se registra igual como un bean gestionado.
+
+El **scope** de un bean controla CUÁNTAS instancias existen. `singleton` (el default) significa "una sola instancia para todo el contenedor". `prototype` significa "una instancia NUEVA cada vez que alguien la pide" — útil para objetos que representan algo efímero o con estado propio por cada uso, como una solicitud individual.
+
+## Explicación técnica
+
+Un método anotado `@Bean` dentro de una clase `@Configuration` le dice a Spring: "ejecutá este método, y registrá lo que devuelve como un bean". El NOMBRE del método (`procesadorPago`) se convierte en el nombre del bean por defecto, y el TIPO DE RETORNO (`ProcesadorPago`, la interfaz — no `AdaptadorPagoExterno`) es el tipo que Spring usa para resolver inyecciones futuras. Por eso, cualquier otra clase que necesite un `ProcesadorPago` por constructor con `@Autowired` va a recibir automáticamente lo que este método devuelve, sin que ese código sepa que por dentro hay un `AdaptadorPagoExterno` envolviendo un `ProveedorPagoExterno`.
+
+`@Scope("prototype")` sobre una clase `@Component` cambia el comportamiento de creación: en vez de crear el bean UNA VEZ al arrancar el contenedor, Spring lo crea DE NUEVO cada vez que se llama `getBean()` (o cada vez que se inyecta en otro bean). `SolicitudDeVenta` usa un contador estático para demostrar esto: cada instancia nueva incrementa el contador y se queda con un número distinto — algo que sería imposible de observar con el scope `singleton` por defecto, porque solo existiría UNA instancia con un solo número fijo.
+
+## Cómo funciona
+
+1. `@Bean public ProcesadorPago procesadorPago() { return new AdaptadorPagoExterno(new ProveedorPagoExterno()); }` en `AppConfig` registra manualmente este bean — ni `ProveedorPagoExterno` ni `AdaptadorPagoExterno` tienen `@Component`.
+2. `contexto.getBean(ProcesadorPago.class)` devuelve exactamente lo que ese método `@Bean` construyó, resuelto por su tipo de retorno (la interfaz).
+3. `SolicitudDeVenta` tiene `@Component` + `@Scope("prototype")` — cada `getBean(SolicitudDeVenta.class)` ejecuta el constructor DE NUEVO, incrementando `contadorDeInstancias`.
+4. `servicioA == servicioB` da `true` (singleton, mismo objeto); `solicitud1 == solicitud2` da `false` (prototype, objetos distintos) — la comparación de identidad (Etapa 6 Lección 1) hace visible la diferencia de scope.
+
+## Ejemplo mínimo
+
+**Fragmento agregado a `proyecto-maven/src/main/java/com/curso/catalogo/AppConfig.java`:**
+
+```java
+@Configuration
+@ComponentScan(basePackages = "com.curso.catalogo")
+public class AppConfig {
+
+    @Bean
+    public ProcesadorPago procesadorPago() {
+        return new AdaptadorPagoExterno(new ProveedorPagoExterno());
+    }
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/SolicitudDeVenta.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.context.annotation.Scope;
+import org.springframework.stereotype.Component;
+
+@Component
+@Scope("prototype")
+public class SolicitudDeVenta {
+
+    private static int contadorDeInstancias = 0;
+
+    private final int numero;
+
+    public SolicitudDeVenta() {
+        contadorDeInstancias++;
+        this.numero = contadorDeInstancias;
+    }
+
+    public int getNumero() {
+        return this.numero;
+    }
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/BeanScopesDemo.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class BeanScopesDemo {
+    public static void main(String[] args) {
+        ApplicationContext contexto = new AnnotationConfigApplicationContext(AppConfig.class);
+
+        ServicioVentas servicioA = contexto.getBean(ServicioVentas.class);
+        ServicioVentas servicioB = contexto.getBean(ServicioVentas.class);
+        System.out.println("ServicioVentas (singleton) es el mismo: " + (servicioA == servicioB));
+
+        SolicitudDeVenta solicitud1 = contexto.getBean(SolicitudDeVenta.class);
+        SolicitudDeVenta solicitud2 = contexto.getBean(SolicitudDeVenta.class);
+        System.out.println("SolicitudDeVenta (prototype) es el mismo: " + (solicitud1 == solicitud2));
+        System.out.println("Numero solicitud1: " + solicitud1.getNumero());
+        System.out.println("Numero solicitud2: " + solicitud2.getNumero());
+
+        ProcesadorPago procesador = contexto.getBean(ProcesadorPago.class);
+        System.out.println("Pago procesado: " + procesador.procesar(25000.0));
+    }
+}
+```
+
+## Predice
+
+`SolicitudDeVenta` es `prototype`. Se piden dos instancias seguidas (`solicitud1`, `solicitud2`). ¿Van a tener el MISMO número, o números consecutivos distintos?
+
+<Reveal titulo="Resultado real (ejecutado con Maven)">
+```
+$ ./mvnw -q compile exec:java -Dexec.mainClass=com.curso.catalogo.BeanScopesDemo
+ServicioVentas (singleton) es el mismo: true
+SolicitudDeVenta (prototype) es el mismo: false
+Numero solicitud1: 1
+Numero solicitud2: 2
+Pago procesado: true
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "ServicioVentas (singleton) es el mismo: true" confirma el comportamiento por defecto, ya visto en la lección anterior.
+- "SolicitudDeVenta (prototype) es el mismo: false" — CADA `getBean` ejecutó el constructor de nuevo, creando un objeto distinto en el Heap (Etapa 6 Lección 1).
+- "Numero solicitud1: 1" y "Numero solicitud2: 2" confirman que cada instancia nueva incrementó el contador estático — evidencia CONCRETA de que hubo dos construcciones reales, no una reutilización.
+- "Pago procesado: true" confirma que el bean `ProcesadorPago`, registrado con `@Bean` (sin ninguna anotación en `ProveedorPagoExterno` ni `AdaptadorPagoExterno`), funciona exactamente igual que cualquier bean anotado directamente.
+
+## Ejemplo aplicado al proyecto
+
+`ProcesadorPago` (Adapter, Etapa 8) ahora es un bean de Spring gestionado sin haber tocado NINGUNA de sus clases originales — la técnica exacta que vas a necesitar para integrar librerías reales de terceros (clientes HTTP, SDKs) que jamás vas a poder anotar directamente.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="SolicitudDeVenta se comporta como singleton a pesar de tener @Scope('prototype')."
+  diagnostico="No hay excepción — el síntoma es que solicitud1 == solicitud2 da true quando se esperaba false, y ambos números son iguales."
+  causa="Falta la anotación @Scope, o el valor pasado no es exactamente 'prototype' (por ejemplo, un typo), o la clase no tiene @Component en primer lugar y por lo tanto ni siquiera es un bean gestionado."
+  solucion="Verificar que la clase tenga tanto @Component (o @Bean si se registra manualmente) COMO @Scope('prototype') — ambas anotaciones son necesarias, @Scope solo modifica el comportamiento de un bean que YA está registrado."
+  prevencion="Si un bean con estado propio se comporta 'compartido' quando no debería, @Scope es lo primero a revisar — el comportamiento por defecto de Spring es SIEMPRE singleton salvo que se indique explícitamente lo contrario."
+>
+```java
+@Component
+public class SolicitudDeVenta {
+    // falta @Scope("prototype") — se comporta como singleton
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que un bean `@Bean` también puede depender de OTROS beans, recibiéndolos como parámetro del método:
+
+```java
+@Bean
+public ServicioNotificaciones servicioNotificaciones(ProcesadorPago procesadorPago) {
+    return new ServicioNotificaciones(procesadorPago);
+}
+```
+
+## Ejercicio guiado
+
+Agregá un SEGUNDO método `@Bean` a `AppConfig` que registre `RepositorioProductos` MANUALMENTE (en vez de dejar que `@Repository` + `@ComponentScan` lo descubran), y confirmá que seguís pudiendo obtenerlo con `getBean`.
+
+<Reveal titulo="Pista 1">
+Esto normalmente sería redundante (ya está cubierto por `@ComponentScan`), pero sirve para practicar la sintaxis: `@Bean public RepositorioProductos repositorioProductos() { return new RepositorioProductos(); }`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+@Bean
+public RepositorioProductos repositorioAlternativo() {
+    return new RepositorioProductos();
+}
+```
+
+Nota: esto crearía un SEGUNDO bean de tipo `RepositorioProductos` (además del descubierto por `@ComponentScan`) — con dos beans del mismo tipo, `getBean(RepositorioProductos.class)` sin más información lanzaría una excepción de ambigüedad, algo que vas a resolver en la próxima lección con `@Qualifier`.
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, agregá un método `@PostConstruct` a `RepositorioProductos` que imprima `"Repositorio inicializado"` apenas Spring termine de construir el bean, y confirmá en qué momento exacto aparece ese mensaje respecto a `AnnotationConfigApplicationContext`.
+
+## Transferencia
+
+Si `SolicitudDeVenta` tuviera scope `singleton` (el default) en vez de `prototype`, ¿qué pasaría con `contadorDeInstancias` a lo largo de TODA la vida de la aplicación? ¿Por qué un contador de "número de solicitud" necesita específicamente el scope `prototype` para tener sentido de negocio?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuándo tiene más sentido usar un método @Bean en vez de anotar la clase directamente con @Component?"
+  opciones={[
+    { texto: "Nunca — @Component siempre es preferible", correcta: false, feedback: "@Component es preferible cuando podés modificar la clase, pero @Bean es NECESARIO cuando la clase viene de una librería externa que no podés anotar (como ProveedorPagoExterno) o cuando su construcción necesita lógica personalizada." },
+    { texto: "Cuando la clase no es tuya (una librería externa) o su construcción necesita lógica que no cabe en una simple anotación de clase", correcta: true, feedback: "Correcto: ProveedorPagoExterno simula exactamente ese caso — una clase externa que no podés anotar, registrada como bean a través de un método @Bean que VOS controlás." },
+    { texto: "Cuando el bean necesita ser prototype en vez de singleton", correcta: false, feedback: "El scope es independiente del mecanismo de registro — tanto una clase @Component como un método @Bean pueden ser prototype o singleton, agregando @Scope en cualquiera de los dos casos." },
+    { texto: "Cuando el bean no tiene ninguna dependencia", correcta: false, feedback: "Un método @Bean puede recibir parámetros (otros beans) exactamente igual que un constructor con @Autowired — no hay relación entre usar @Bean y tener o no dependencias." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+@Bean
+public AdaptadorPagoExterno procesadorPago() {
+    return new AdaptadorPagoExterno(new ProveedorPagoExterno());
+}
+```
+
+Comparado con el ejemplo original (que devuelve `ProcesadorPago`, la interfaz), ¿qué problema trae que este método devuelva `AdaptadorPagoExterno` (la implementación concreta)?
+
+<Reveal titulo="Diagnóstico">
+Cualquier código que dependa de `ProcesadorPago` (la interfaz) por `@Autowired` podría NO encontrar este bean, porque Spring registra el bean bajo el tipo de retorno DECLARADO del método — si es `AdaptadorPagoExterno`, Spring lo conoce como esa clase concreta, no necesariamente como `ProcesadorPago`. Esto rompe el mismo principio que la Etapa 8 (Adapter) ya había establecido: programar contra la interfaz, no contra la implementación — declarar el tipo de retorno como la interfaz es lo que mantiene esa garantía también en Spring.
+</Reveal>
+
+## Mini reto de diseño
+
+`RepositorioProductos` (Etapa 10 Lección 1) es `@Repository` + `@ComponentScan` (descubrimiento automático). `ProcesadorPago` (esta lección) es `@Bean` (registro manual). ¿Por qué el PRIMERO puede ser automático y el SEGUNDO necesita ser manual? ¿Qué tienen en común `Product`, `Cliente`, y `ProveedorPagoExterno` que los distingue de `RepositorioProductos` y `ServicioVentas` en términos de "quién los diseñó para ser beans de Spring"?
+
+<Comparativa
+  columnas={["Mecanismo", "Requiere", "Cuándo usarlo"]}
+  filas={[
+    ["@Component/@Service/@Repository", "Poder modificar la clase para agregar la anotación", "Clases propias del proyecto"],
+    ["@Bean en @Configuration", "Solo poder escribir un método que construya el objeto", "Clases externas, o construcción con lógica personalizada"],
+  ]}
+/>
+
+## Resumen
+
+- `@Bean` en un método de una clase `@Configuration` registra manualmente un bean, útil para clases que no podés anotar directamente.
+- El tipo de RETORNO del método `@Bean` es el tipo que Spring usa para resolver futuras inyecciones — declarar la interfaz, no la implementación concreta.
+- `singleton` (default) comparte una instancia; `prototype` crea una instancia nueva en cada `getBean`/inyección.
+- Comparar instancias con `==` (Etapa 6 Lección 1) es la forma directa de verificar el scope real de un bean.
+
+## Modelo mental final
+
+Pensá en `@Component` como "avisale a la fábrica que existís, y ella te fabrica sola"; y en `@Bean` como "vos mismo le entregás a la fábrica el plano exacto de cómo construirte" — necesario cuando la pieza viene de afuera y la fábrica no la conoce por su cuenta.
+
+## Conexión
+
+`AdaptadorPagoExterno`/`ProveedorPagoExterno` (Adapter, Etapa 8) migran sin cambios de diseño — Spring solo cambia CÓMO se registran como beans. El contraste singleton/prototype refuerza la comparación de identidad con `==` vista en Stack/Heap (Etapa 6 Lección 1).
+
+## Próximo paso
+
+Etapa 10 / Lección 3: `@Qualifier` y `@Primary` — resolviendo múltiples implementaciones de una misma interfaz (conectando con Strategy, Etapa 8), cerrando Etapa 10.
+
+## Fuentes
+
+dev.java — configuración de beans en Spring. spring.io — documentación oficial de Spring Framework, secciones de Bean Scopes y Java-based Container Configuration.
+
+<SelfCheck
+  leccionId="etapa-10-spring-framework/leccion-02-bean-scopes-y-bean-methods"
+  criterios={[
+    "Puedo registrar un bean con @Bean para una clase que no puedo anotar directamente.",
+    "Puedo explicar por qué el tipo de retorno de un método @Bean debería ser la interfaz, no la implementación concreta.",
+    "Puedo distinguir el scope singleton del prototype y predecir el resultado de comparar instancias con ==.",
+    "Puedo elegir cuándo usar @Component vs @Bean según si la clase es propia o externa.",
+  ]}
+/>

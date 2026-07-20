@@ -1,0 +1,296 @@
+---
+etapa: 4
+etapaTitulo: "Collections, Generics, Enums, Records y Exceptions"
+leccion: 4
+title: "Enums: un conjunto fijo de valores posibles"
+objetivo: "Modelar el estado de un pedido con un enum en vez de un String o int libre, y usarlo en un switch moderno para tomar decisiones seguras."
+prerrequisitos: ["etapa-04-collections/leccion-03-generics"]
+version_proyecto: "v4 — Order con EstadoPedido"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de declarar un `enum` para representar un conjunto fijo de valores posibles (como el estado de un pedido), y usarlo en un `switch` moderno sabiendo que el compilador te protege de olvidarte un caso.
+
+## Por qué necesitas aprenderlo
+
+Un pedido pasa por estados concretos: pendiente, confirmado, cancelado — nunca "en el aire". Si modelás eso con un `String estado = "pendiente"`, nada impide escribir `"Pendiente"`, `"PENDIENTE "` con un espacio, o directamente `"volando"` por error de tipeo. Un enum elimina esa clase entera de bugs.
+
+## Qué debes saber antes
+
+Switch moderno (Etapa 1) y las clases `Order`/`OrderItem` (Etapa 3-4).
+
+## Recupera lo aprendido
+
+¿Qué error de compilación aparece si intentás agregar un `Cliente` a un `RepositorioEnMemoria<Product>`?
+
+<Reveal titulo="Respuesta">
+`incompatible types: Cliente cannot be converted to Product` — Generics protege el tipo en tiempo de compilación.
+</Reveal>
+
+## Problema
+
+`Order` necesita un estado: pendiente, confirmado o cancelado. Representarlo como `String` o `int` deja la puerta abierta a valores inválidos ("cnofirmado", con un typo, o el número `7` sin ningún significado) que el compilador jamás va a detectar.
+
+## Modelo mental
+
+```
+enum EstadoPedido {
+    PENDIENTE,
+    CONFIRMADO,
+    CANCELADO
+}
+
+Solo estos tres valores existen. Ningún otro compila.
+```
+
+## Explicación sencilla
+
+Un `enum` declara una lista cerrada de valores con nombre. `EstadoPedido.PENDIENTE` es un valor real y único — no un texto que alguien podría escribir mal.
+
+## Explicación técnica
+
+Un `enum` es, en el fondo, una clase especial cuyas únicas instancias posibles son las que vos declarás explícitamente (`PENDIENTE`, `CONFIRMADO`, `CANCELADO`). El compilador garantiza que una variable de tipo `EstadoPedido` solo puede contener uno de esos tres valores — nunca `null` por accidente de tipeo, nunca un cuarto valor inventado.
+
+Comparar enums se hace con `==` de forma segura (a diferencia de `String`, donde `==` compara referencias y `.equals()` es lo correcto) — cada constante de enum es un único objeto en toda la aplicación.
+
+En un `switch` moderno sobre un enum, el compilador puede advertirte si te falta cubrir algún valor posible (exhaustividad) — una ventaja real sobre comparar `String`s con `if`/`else`.
+
+## Cómo funciona
+
+1. `EstadoPedido` declara sus tres únicos valores posibles.
+2. `Order` guarda un `EstadoPedido estado`, inicializado en `PENDIENTE` en el constructor.
+3. `confirmar()` y `cancelar()` validan la transición ANTES de cambiar el estado — protegiendo reglas como "un pedido confirmado no puede cancelarse".
+4. El `switch` moderno sobre `pedido.getEstado()` cubre los tres casos posibles, sin necesitar un `default` (porque ya cubriste TODOS los valores que `EstadoPedido` puede tomar).
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-04/EstadoPedido.java`
+
+```java
+public enum EstadoPedido {
+    PENDIENTE,
+    CONFIRMADO,
+    CANCELADO
+}
+```
+
+**Fragmento relevante de `proyecto/etapa-04/Order.java`:**
+
+```java
+private EstadoPedido estado;
+
+Order(Cliente cliente) {
+    this.cliente = cliente;
+    this.items = new ArrayList<>();
+    this.estado = EstadoPedido.PENDIENTE;
+}
+
+public void confirmar() {
+    if (this.estado != EstadoPedido.PENDIENTE) {
+        throw new IllegalStateException("Solo un pedido pendiente puede confirmarse");
+    }
+    this.estado = EstadoPedido.CONFIRMADO;
+}
+
+public void cancelar() {
+    if (this.estado == EstadoPedido.CONFIRMADO) {
+        throw new IllegalStateException("Un pedido confirmado no puede cancelarse");
+    }
+    this.estado = EstadoPedido.CANCELADO;
+}
+```
+
+**Archivo:** `proyecto/etapa-04/EnumDemo.java`
+
+```java
+public class EnumDemo {
+    public static void main(String[] args) {
+        Cliente cliente = new Cliente("Juan Perez", "juan@ejemplo.com", "Av. Siempre Viva 123");
+        Order pedido = new Order(cliente);
+
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+        pedido.agregarItem(new OrderItem(teclado, 1));
+
+        System.out.println("Estado inicial: " + pedido.getEstado());
+
+        pedido.confirmar();
+        System.out.println("Estado despues de confirmar: " + pedido.getEstado());
+
+        String mensaje = switch (pedido.getEstado()) {
+            case PENDIENTE -> "Esperando confirmacion";
+            case CONFIRMADO -> "Listo para preparar envio";
+            case CANCELADO -> "El pedido fue cancelado";
+        };
+        System.out.println("Mensaje: " + mensaje);
+    }
+}
+```
+
+## Predice
+
+Un pedido recién creado, antes de llamar `confirmar()`. ¿Qué imprime `pedido.getEstado()`?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Estado inicial: PENDIENTE
+Estado despues de confirmar: CONFIRMADO
+Mensaje: Listo para preparar envio
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- El constructor de `Order` fija `estado = EstadoPedido.PENDIENTE` — nunca queda en un estado indefinido.
+- `confirmar()` verifica `this.estado != EstadoPedido.PENDIENTE` — como recién se creó, la condición es falsa, y el cambio a `CONFIRMADO` procede.
+- El `switch` moderno no necesita `EstadoPedido.CONFIRMADO` en cada `case` — dentro de un switch sobre un enum, alcanza con el nombre de la constante (`CONFIRMADO`, no `EstadoPedido.CONFIRMADO`).
+
+## Ejemplo aplicado al proyecto
+
+Este `EstadoPedido` es exactamente lo que el prompt maestro de este curso anticipó desde la Etapa 1: el ciclo de vida real de un pedido, protegido ahora con transiciones válidas — ya no alcanza con "cambiar una variable", hay reglas de negocio que lo gobiernan.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Cancelar un pedido ya confirmado hace que el programa se detenga con un error."
+  diagnostico="El stack trace muestra: Exception in thread 'main' java.lang.IllegalStateException: Un pedido confirmado no puede cancelarse, señalando la línea exacta en Order.cancelar()."
+  causa="Se llamó cancelar() sobre un pedido cuyo estado ya era CONFIRMADO — la regla de negocio dice que un pedido confirmado ya no puede cancelarse."
+  solucion="Verificar el estado del pedido antes de intentar cancelarlo, o diseñar el flujo de la aplicación para que esa transición inválida ni siquiera sea posible desde la interfaz de usuario."
+  prevencion="Protegé las transiciones de estado dentro de la propia clase (como ya hiciste), para que ningún código externo pueda saltarse las reglas del ciclo de vida del pedido."
+>
+```java
+Order pedido = new Order(cliente);
+pedido.agregarItem(new OrderItem(producto, 1));
+pedido.confirmar();
+pedido.cancelar(); // ya esta confirmado, no se puede cancelar
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar un método a `Order` que informe si el pedido todavía admite cambios:
+
+```java
+public boolean puedeModificarse() {
+    return this.estado == EstadoPedido.PENDIENTE;
+}
+```
+
+## Ejercicio guiado
+
+Agregá un cuarto estado `ENVIADO` a `EstadoPedido`, y actualizá el switch moderno de `EnumDemo` para cubrirlo.
+
+<Reveal titulo="Pista 1">
+Agregar un valor a un enum es tan simple como sumarlo a la lista, separado por coma: `PENDIENTE, CONFIRMADO, CANCELADO, ENVIADO`.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+Si olvidás agregar el `case ENVIADO -> ...` al switch moderno, el compilador te lo va a marcar como error (switch no exhaustivo) — dejá que el compilador te guíe.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+public enum EstadoPedido {
+    PENDIENTE,
+    CONFIRMADO,
+    CANCELADO,
+    ENVIADO
+}
+```
+```java
+String mensaje = switch (pedido.getEstado()) {
+    case PENDIENTE -> "Esperando confirmacion";
+    case CONFIRMADO -> "Listo para preparar envio";
+    case CANCELADO -> "El pedido fue cancelado";
+    case ENVIADO -> "El pedido ya esta en camino";
+};
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-04/`, creá un enum `CategoriaProducto` con valores `PERIFERICOS`, `MONITORES`, `ACCESORIOS`, agregá un atributo `categoria` a una variable local de tipo `Product` (sin modificar `Product.java` todavía), e imprimilo usando un switch moderno que devuelva una descripción distinta por categoría.
+
+## Transferencia
+
+Si necesitaras que cada valor de `EstadoPedido` tuviera además un texto descriptivo para mostrar al usuario (no solo el nombre técnico `CONFIRMADO`), ¿cómo lo agregarías? (Pista: un enum puede tener constructor y atributos propios, igual que una clase — es algo que podés explorar por tu cuenta antes de que el curso lo formalice.)
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál es la ventaja principal de un enum sobre un String para representar el estado de un pedido?"
+  opciones={[
+    { texto: "Un enum ocupa menos memoria que un String", correcta: false, feedback: "La diferencia de memoria no es la razón principal — la ventaja real es de seguridad de tipos, no de rendimiento." },
+    { texto: "El compilador garantiza que solo existan los valores declarados, sin typos ni valores inventados", correcta: true, feedback: "Correcto: con String, 'CONFIRMADO' y 'Confirmado' y 'CONFIRMDO' (con typo) compilan igual. Con enum, solo los valores declarados existen." },
+    { texto: "Un enum permite que el estado cambie sin ninguna validación", correcta: false, feedback: "Al revés: fue Order.confirmar()/cancelar() (código tuyo) el que agregó las validaciones — el enum por sí solo no valida transiciones, solo restringe qué VALORES son posibles." },
+    { texto: "Un enum no puede usarse dentro de un switch", correcta: false, feedback: "Todo lo contrario: los enums son ideales para switch, y hasta permiten que el compilador detecte switches no exhaustivos." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+EstadoPedido estado = EstadoPedido.PENDIENTE;
+if (estado == "PENDIENTE") {
+    System.out.println("Es pendiente");
+}
+```
+
+¿Por qué este código ni siquiera compila?
+
+<Reveal titulo="Diagnóstico">
+`EstadoPedido.PENDIENTE` es un valor de tipo `EstadoPedido`, no un `String` — comparar un `EstadoPedido` contra el texto `"PENDIENTE"` con `==` es comparar tipos incompatibles, y el compilador lo rechaza directamente. La comparación correcta es `estado == EstadoPedido.PENDIENTE`.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que las reglas de transición (`confirmar()` no permite pasar de `CANCELADO` a `CONFIRMADO`, por ejemplo) viven en métodos de `Order`, y no simplemente como una asignación libre `pedido.estado = EstadoPedido.CONFIRMADO`? Relacionalo con la lección de encapsulamiento.
+
+<Comparativa
+  columnas={["Concepto", "Valores posibles", "Seguridad de tipos", "Cuándo usarlo"]}
+  filas={[
+    ["String suelto", "Cualquier texto", "Ninguna (typos compilan)", "Nunca para un conjunto fijo de opciones"],
+    ["int con significado implícito", "Cualquier número", "Ninguna (7 no significa nada por sí solo)", "Nunca — el número no se auto-explica"],
+    ["enum", "Solo los valores declarados", "Total, verificada en compilación", "Cualquier conjunto cerrado y conocido de opciones"],
+  ]}
+/>
+
+## Resumen
+
+- `enum` declara un conjunto cerrado y con nombre de valores posibles.
+- El compilador impide crear o asignar un valor que no esté declarado.
+- Comparar enums con `==` es seguro, a diferencia de comparar `String` con `==`.
+- Un switch moderno sobre un enum puede detectar en compilación si te falta cubrir algún valor.
+- Las transiciones válidas (qué estado puede pasar a cuál) siguen siendo responsabilidad de tu propio código, no del enum.
+
+## Modelo mental final
+
+Cuando pienses en un enum, imaginá un semáforo: rojo, amarillo, verde — nada más existe. No hay "rojo oscuro" ni "verde con typo"; el conjunto de posibilidades está cerrado por diseño.
+
+## Conexión
+
+`Order` sigue usando `Cliente`, `Product` y `OrderItem` de etapas anteriores sin modificarlos — el enum solo agregó una nueva dimensión de estado, protegida por los mismos principios de encapsulamiento ya aprendidos.
+
+## Próximo paso
+
+Etapa 4 / Lección 5: Records — modelar datos inmutables de forma compacta.
+
+## Fuentes
+
+dev.java — sección de enums. openjdk.org — especificación del lenguaje Java (JLS), tipos enum.
+
+<SelfCheck
+  leccionId="etapa-04-collections/leccion-04-enums"
+  criterios={[
+    "Puedo declarar un enum para un conjunto cerrado de valores posibles.",
+    "Puedo usar un enum dentro de un switch moderno, cubriendo todos sus valores.",
+    "Sé por qué comparar enums con == es seguro, a diferencia de String.",
+    "Puedo proteger las transiciones válidas de un estado dentro de los métodos de la clase.",
+  ]}
+/>

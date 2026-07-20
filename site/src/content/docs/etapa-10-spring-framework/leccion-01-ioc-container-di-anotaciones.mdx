@@ -1,0 +1,349 @@
+---
+etapa: 10
+etapaTitulo: "Spring Framework"
+leccion: 1
+title: "IoC Container: @Component, @Autowired y ApplicationContext"
+objetivo: "Entender el contenedor de Inversión de Control (IoC) de Spring, dejar que el framework cree e inyecte dependencias automáticamente con @Component/@Service/@Autowired, y comparar esto con la inyección manual de la Etapa 8."
+prerrequisitos: ["etapa-09-maven/leccion-02-dependencias-y-ciclo-de-vida"]
+version_proyecto: "v1 — spring-context, RepositorioProductos, ServicioVentas (Spring), AppConfig, SpringDemo"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de marcar tus clases con `@Component`/`@Service`/`@Repository` para que Spring las gestione, usar `@Autowired` para que el framework inyecte dependencias automáticamente por vos, y arrancar un `ApplicationContext` que crea y conecta todos esos objetos sin que escribas un solo `new` manual.
+
+## Por qué necesitas aprenderlo
+
+En la Etapa 8, `new ServicioVentas(repositorio)` requería que VOS crearas manualmente el `RepositorioEnMemoria` y se lo pasaras al constructor. Eso funciona con dos o tres clases — en una aplicación real con decenas de servicios interconectados, cablear todo eso a mano se vuelve inviable. Spring automatiza EXACTAMENTE ese cableado.
+
+## Qué debes saber antes
+
+Dependency Injection manual por constructor (Etapa 8 Lección 1), dependencias en `pom.xml` (Etapa 9 Lección 2).
+
+## Recupera lo aprendido
+
+¿Qué significa que una dependencia en `pom.xml` tenga `scope=test`?
+
+<Reveal titulo="Respuesta">
+Que la dependencia está disponible para compilar y ejecutar src/test/java, pero no se incluye en el artefacto final de producción — JUnit es el ejemplo típico, necesario solo durante el desarrollo/testing, nunca en producción.
+</Reveal>
+
+## Problema
+
+`ServicioVentas` (Etapa 8) necesita un `RepositorioEnMemoria`, y en algún lugar del código TENÍAS que escribir `new RepositorioEnMemoria<>()` y `new ServicioVentas(repositorio)` a mano, en el orden correcto. A medida que agregás más clases con más dependencias entre sí, ese cableado manual (quién crea qué, en qué orden, pasándole qué a quién) se vuelve una fuente constante de errores y código repetitivo.
+
+## Modelo mental
+
+```
+Sin Spring (Etapa 8):  VOS creás cada objeto con new,
+                        en el orden correcto, y se lo pasás
+                        manualmente a quien lo necesita.
+
+Con Spring:             Marcás las clases con anotaciones.
+                        El CONTENEDOR (ApplicationContext) las
+                        descubre, las crea, y las conecta
+                        automáticamente entre sí.
+```
+
+## Explicación sencilla
+
+**Inversión de Control (IoC)** significa que, en vez de que TU código controle cuándo y cómo se crean los objetos (como hacías con `new` en la Etapa 8), le CEDÉS ese control a un contenedor externo (el `ApplicationContext` de Spring). Vos solo declarás QUÉ clases existen (con anotaciones) y QUÉ necesita cada una (con `@Autowired`), y Spring se encarga de crearlas, conectarlas, y dártelas cuando las pedís.
+
+## Explicación técnica
+
+`@Component` (y sus especializaciones semánticas `@Service` para lógica de negocio, `@Repository` para acceso a datos) marcan una clase como un **bean** — un objeto que Spring va a gestionar. `@ComponentScan(basePackages = "com.curso.catalogo")` le dice al contenedor DÓNDE buscar esas clases anotadas.
+
+`@Autowired` sobre un constructor le dice a Spring: "cuando crees este bean, resolvé automáticamente sus parámetros buscando OTROS beans del tipo correcto, y pasámelos". Spring resuelve `RepositorioProductos` como parámetro de `ServicioVentas` porque `RepositorioProductos` también está anotada como bean (`@Repository`) — sin que vos escribas ningún `new RepositorioProductos()` en ningún lado.
+
+`ApplicationContext` es el contenedor IoC en sí — `new AnnotationConfigApplicationContext(AppConfig.class)` lo arranca, escanea el paquete configurado, crea TODOS los beans encontrados (resolviendo sus dependencias en el orden correcto automáticamente), y queda listo para entregártelos con `contexto.getBean(TipoDeClase.class)`.
+
+Por defecto, cada bean de Spring es un **singleton**: existe UNA sola instancia compartida en todo el contenedor — pedirle `ServicioVentas` al contexto dos veces te devuelve la MISMA instancia, no dos objetos distintos.
+
+## Cómo funciona
+
+1. `@Repository` sobre `RepositorioProductos` la marca como bean gestionado por Spring.
+2. `@Service` sobre `ServicioVentas`, junto con `@Autowired` en su constructor, le dice a Spring que este bean necesita un `RepositorioProductos` para construirse.
+3. `@Configuration` + `@ComponentScan(basePackages = "com.curso.catalogo")` en `AppConfig` le dice al contenedor dónde buscar clases anotadas.
+4. `new AnnotationConfigApplicationContext(AppConfig.class)` arranca el contenedor: escanea el paquete, encuentra `RepositorioProductos` y `ServicioVentas`, y los crea EN EL ORDEN CORRECTO (primero el repositorio, porque el servicio lo necesita).
+5. `contexto.getBean(ServicioVentas.class)` devuelve la instancia YA CONSTRUIDA y CONECTADA — el `RepositorioProductos` ya está inyectado adentro, sin que vos hicieras nada manualmente.
+
+## Ejemplo mínimo
+
+**Fragmento agregado a `proyecto-maven/pom.xml`:**
+
+```xml
+<dependency>
+    <groupId>org.springframework</groupId>
+    <artifactId>spring-context</artifactId>
+    <version>6.1.21</version>
+</dependency>
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/RepositorioProductos.java`
+
+```java
+package com.curso.catalogo;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Predicate;
+
+import org.springframework.stereotype.Repository;
+
+@Repository
+public class RepositorioProductos {
+
+    private final List<Product> productos = new ArrayList<>();
+
+    public void agregar(Product producto) {
+        this.productos.add(producto);
+    }
+
+    public List<Product> listarTodos() {
+        return this.productos;
+    }
+
+    public Optional<Product> buscar(Predicate<Product> criterio) {
+        return this.productos.stream().filter(criterio).findFirst();
+    }
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/ServicioVentas.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ServicioVentas {
+
+    private final RepositorioProductos repositorio;
+
+    @Autowired
+    public ServicioVentas(RepositorioProductos repositorio) {
+        this.repositorio = repositorio;
+    }
+
+    public void venderProducto(String nombre, int cantidad) {
+        Product producto = repositorio.buscar(p -> p.getNombre().equals(nombre))
+                .orElseThrow(() -> new IllegalArgumentException("Producto no encontrado: " + nombre));
+        producto.venderUnidades(cantidad);
+        System.out.println("Vendido: " + cantidad + " x " + producto.getNombre());
+    }
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/AppConfig.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+@ComponentScan(basePackages = "com.curso.catalogo")
+public class AppConfig {
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/SpringDemo.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class SpringDemo {
+    public static void main(String[] args) {
+        ApplicationContext contexto = new AnnotationConfigApplicationContext(AppConfig.class);
+
+        RepositorioProductos repositorio = contexto.getBean(RepositorioProductos.class);
+        repositorio.agregar(new Product("Teclado mecanico", 25000.0, 15));
+
+        ServicioVentas servicio = contexto.getBean(ServicioVentas.class);
+        servicio.venderProducto("Teclado mecanico", 5);
+
+        ServicioVentas otraReferencia = contexto.getBean(ServicioVentas.class);
+        System.out.println("Es el mismo bean (singleton): " + (servicio == otraReferencia));
+    }
+}
+```
+
+## Predice
+
+`ServicioVentas` nunca se construyó con `new` en ningún lugar del código — Spring lo creó automáticamente. ¿`contexto.getBean(ServicioVentas.class)` llamado dos veces va a devolver el MISMO objeto o dos objetos distintos?
+
+<Reveal titulo="Resultado real (ejecutado con Maven)">
+```
+$ ./mvnw -q compile exec:java -Dexec.mainClass=com.curso.catalogo.SpringDemo
+Vendido: 5 x Teclado mecanico
+Es el mismo bean (singleton): true
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "Vendido: 5 x Teclado mecanico" confirma que `ServicioVentas.venderProducto` funcionó, usando un `RepositorioProductos` que NUNCA se le pasó manualmente en `SpringDemo` — Spring lo inyectó automáticamente en el constructor gracias a `@Autowired`.
+- "Es el mismo bean (singleton): true" confirma el comportamiento por defecto de Spring: pedir el mismo tipo de bean dos veces devuelve la MISMA instancia, no una copia — por eso ambas variables (`servicio` y `otraReferencia`) apuntan al mismo objeto (`==` da `true`, como viste en Etapa 6 Lección 1).
+- En NINGÚN lugar del código escribiste `new RepositorioProductos()` ni `new ServicioVentas(repositorio)` — el `ComponentScan` encontró ambas clases anotadas, y el contenedor resolvió automáticamente que `ServicioVentas` necesitaba un `RepositorioProductos`, creándolo primero.
+
+## Ejemplo aplicado al proyecto
+
+Este es literalmente el MISMO patrón de `ServicioVentas` recibiendo un repositorio por constructor que viste en la Etapa 8 — la diferencia es que ahí VOS escribías `new ServicioVentas(repositorio)` en `DiDemo`, y acá Spring lo hace automáticamente al escanear las anotaciones. DI manual y DI por Spring son el MISMO principio, con distinto nivel de automatización.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="contexto.getBean(ServicioVentas.class) lanza NoSuchBeanDefinitionException."
+  diagnostico="org.springframework.beans.factory.NoSuchBeanDefinitionException: No qualifying bean of type 'com.curso.catalogo.ServicioVentas' available"
+  causa="La clase ServicioVentas no tiene la anotación @Service (o @Component), o el paquete donde vive no está incluido en basePackages del @ComponentScan — Spring solo gestiona clases que encuentra Y que están anotadas."
+  solucion="Verificar que la clase tenga @Service, @Repository, o @Component, y que AppConfig.basePackages incluya el paquete donde vive esa clase (com.curso.catalogo o un subpaquete de este)."
+  prevencion="Si un bean 'no aparece', revisá primero la anotación (¿está?) y después el ComponentScan (¿el paquete de la clase está cubierto?) — son las dos causas más comunes de este error, en ese orden de probabilidad."
+>
+```java
+// Falta @Service en la clase:
+public class ServicioVentas {
+    @Autowired
+    public ServicioVentas(RepositorioProductos repositorio) { ... }
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que `RepositorioProductos` también es singleton, agregando productos desde una referencia obtenida en otro punto del código:
+
+```java
+RepositorioProductos otraVezElRepositorio = contexto.getBean(RepositorioProductos.class);
+System.out.println("Productos visibles desde otra referencia: " + otraVezElRepositorio.listarTodos().size());
+```
+
+## Ejercicio guiado
+
+Creá una clase `ServicioReportes` anotada con `@Service`, que reciba `RepositorioProductos` por constructor con `@Autowired`, con un método `contarProductos()` que devuelva `repositorio.listarTodos().size()`.
+
+<Reveal titulo="Pista 1">
+El patrón es idéntico a `ServicioVentas`: `@Service` en la clase, `@Autowired` en el constructor que recibe `RepositorioProductos`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+package com.curso.catalogo;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ServicioReportes {
+
+    private final RepositorioProductos repositorio;
+
+    @Autowired
+    public ServicioReportes(RepositorioProductos repositorio) {
+        this.repositorio = repositorio;
+    }
+
+    public int contarProductos() {
+        return repositorio.listarTodos().size();
+    }
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, agregá `ServicioReportes` (del ejercicio guiado) a `SpringDemo`, obtenelo del contexto con `getBean`, y confirmá que `contarProductos()` refleja los productos agregados a través del MISMO `RepositorioProductos` singleton usado por `ServicioVentas`.
+
+## Transferencia
+
+Si `ServicioVentas` necesitara TAMBIÉN un `ServicioReportes` inyectado (además de `RepositorioProductos`), ¿qué cambiarías en su constructor? ¿Por qué Spring podría resolver esa dependencia adicional automáticamente, sin que cambies nada en `AppConfig` ni en `SpringDemo`?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué significa 'Inversión de Control' (IoC) en el contexto de Spring?"
+  opciones={[
+    { texto: "Que Spring invierte el orden en que se ejecutan los métodos de tu programa", correcta: false, feedback: "IoC no tiene que ver con el orden de ejecución de métodos — es sobre QUIÉN controla la creación y conexión de objetos: tu código (Etapa 8) o el contenedor (Spring)." },
+    { texto: "Que el control de crear y conectar objetos pasa de tu código (con new manual) a un contenedor externo que lo hace por vos, basándose en anotaciones", correcta: true, feedback: "Correcto: en la Etapa 8 vos controlabas cuándo y cómo se creaba cada objeto; con Spring, ese control se 'invierte' hacia el ApplicationContext, que lo hace automáticamente." },
+    { texto: "Que las pruebas automatizadas se ejecutan antes que el código de producción", correcta: false, feedback: "Eso describe el orden del ciclo de vida de Maven (Etapa 9), no IoC — son conceptos completamente distintos, aunque ambos vistos en etapas cercanas del curso." },
+    { texto: "Que Spring reemplaza automáticamente cualquier excepción por un valor por defecto", correcta: false, feedback: "IoC no tiene relación con el manejo de excepciones — ServicioVentas sigue lanzando IllegalArgumentException normalmente, Spring no intercepta eso por defecto." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+@Service
+public class ServicioVentas {
+    private RepositorioProductos repositorio;
+
+    public ServicioVentas(RepositorioProductos repositorio) {
+        this.repositorio = repositorio;
+    }
+}
+```
+
+Esta versión NO tiene `@Autowired` en el constructor. Si `ServicioVentas` tiene un ÚNICO constructor, ¿Spring igual lo va a poder inyectar?
+
+<Reveal titulo="Diagnóstico">
+Sí. Desde Spring 4.3, si una clase tiene UN SOLO constructor, Spring lo usa automáticamente para inyección, incluso sin `@Autowired` explícito — la anotación se vuelve obligatoria solo cuando hay MÚLTIPLES constructores y necesitás indicarle a Spring cuál usar. Aun así, se considera buena práctica escribir `@Autowired` explícitamente para que la intención sea clara con solo leer el código, sin depender de esa regla implícita.
+</Reveal>
+
+## Mini reto de diseño
+
+`ServicioVentas` de esta lección es prácticamente IDÉNTICO al `ServicioVentas` de la Etapa 8 (mismo constructor, misma lógica) — solo se agregaron `@Service` y `@Autowired`. ¿Qué te dice esto sobre el verdadero rol de Spring: cambia CÓMO diseñás tus clases, o solo AUTOMATIZA un patrón que ya sabías aplicar manualmente?
+
+<Comparativa
+  columnas={["Aspecto", "Etapa 8 (DI manual)", "Etapa 10 (Spring)"]}
+  filas={[
+    ["Quién crea RepositorioEnMemoria/RepositorioProductos", "Vos, con new, en DiDemo", "El ApplicationContext, automáticamente"],
+    ["Quién decide el orden de creación", "Vos, escribiendo el código en el orden correcto", "Spring, resolviendo dependencias automáticamente"],
+    ["Cuántas instancias de ServicioVentas existen", "Las que vos creaste explícitamente", "Una sola (singleton), gestionada por el contenedor"],
+    ["Diseño de la clase ServicioVentas", "Constructor recibe la dependencia", "Exactamente igual, solo con anotaciones agregadas"],
+  ]}
+/>
+
+## Resumen
+
+- IoC significa que un contenedor externo (Spring) controla la creación y conexión de objetos, en vez de tu código.
+- `@Component`/`@Service`/`@Repository` marcan clases como beans gestionados por Spring.
+- `@Autowired` le dice a Spring que resuelva automáticamente las dependencias de un constructor.
+- Por defecto, cada bean es singleton: una sola instancia compartida en todo el contenedor.
+
+## Modelo mental final
+
+Pensá en el `ApplicationContext` como un director de orquesta que sabe qué instrumentos (beans) existen y en qué orden entran — vos solo le decís qué instrumento toca cada músico (anotaciones), y el director se encarga de que todos entren en el momento correcto, sin que cada músico tenga que coordinarse manualmente con los demás.
+
+## Conexión
+
+`ServicioVentas` recibiendo `RepositorioProductos` por constructor (Etapa 10) es EXACTAMENTE el mismo diseño de `ServicioVentas` recibiendo `RepositorioEnMemoria<Product>` por constructor (Etapa 8 Lección 1) — Spring no cambió el diseño, automatizó la construcción. DIP (Etapa 7) y DI manual (Etapa 8) fueron los cimientos necesarios para que esta lección tuviera sentido en vez de sentirse como magia.
+
+## Próximo paso
+
+Etapa 10 / Lección 2: ciclo de vida de beans y scopes — profundizando qué controla Spring además de la creación inicial.
+
+## Fuentes
+
+dev.java — introducción a Spring Framework. spring.io — documentación oficial de Spring Framework, sección de IoC Container.
+
+<SelfCheck
+  leccionId="etapa-10-spring-framework/leccion-01-ioc-container-di-anotaciones"
+  criterios={[
+    "Puedo explicar qué significa Inversión de Control (IoC) comparándolo con DI manual de la Etapa 8.",
+    "Puedo marcar clases con @Component/@Service/@Repository para que Spring las gestione.",
+    "Puedo usar @Autowired en un constructor para que Spring resuelva sus dependencias automáticamente.",
+    "Puedo explicar por qué un bean de Spring es singleton por defecto.",
+  ]}
+/>

@@ -1,0 +1,291 @@
+---
+etapa: 6
+etapaTitulo: "Java moderno y avanzado"
+leccion: 6
+title: "Concurrencia básica: Thread, Runnable y AtomicInteger"
+objetivo: "Crear y ejecutar un hilo con Thread y Runnable, esperar su finalización con join, y entender por qué una variable compartida entre hilos necesita protección explícita (AtomicInteger) para dar resultados correctos."
+prerrequisitos: ["etapa-06-avanzado/leccion-05-nio-path-files"]
+version_proyecto: "v6 — ThreadsDemo, ContadorConcurrenteDemo (cierra Etapa 6)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de crear y ejecutar un hilo (`Thread`) a partir de una tarea (`Runnable`), esperar su finalización con `join()`, y explicar por qué incrementar una variable compartida desde varios hilos sin protección puede dar un resultado INCORRECTO — y cómo `AtomicInteger` lo resuelve.
+
+## Por qué necesitas aprenderlo
+
+Todo el código del curso hasta ahora ejecuta en un único flujo secuencial: una línea termina antes de que empiece la siguiente. Los programas reales (sobre todo con Spring, más adelante en el curso) manejan MÚLTIPLES peticiones simultáneas — necesitás un modelo mental de qué puede salir mal cuando dos flujos de ejecución tocan el mismo dato al mismo tiempo.
+
+## Qué debes saber antes
+
+Stack y Heap (Etapa 6 Lección 1) — cada hilo tiene su PROPIO Stack, pero todos comparten el MISMO Heap, que es justamente la raíz del problema que esta lección explica.
+
+## Recupera lo aprendido
+
+¿Por qué `Files.delete()` lanza una excepción si el archivo ya no existe, en vez de fallar en silencio?
+
+<Reveal titulo="Respuesta">
+Es una decisión de diseño de NIO: fallar explícitamente ayuda a detectar bugs temprano (por ejemplo, borrar el mismo archivo dos veces por error), en vez de que el programa siga como si nada hubiera pasado cuando en realidad algo inesperado ocurrió.
+</Reveal>
+
+## Problema
+
+Necesitás ejecutar una tarea SIN bloquear el flujo principal del programa (por ejemplo, procesar algo en paralelo), y necesitás sumar un contador desde MÚLTIPLES tareas simultáneas sin perder incrementos. Hacerlo de forma ingenua con una variable `int` compartida puede dar un resultado menor al esperado, de forma impredecible.
+
+## Modelo mental
+
+```
+Thread:    un flujo de ejecución independiente, con su PROPIO Stack.
+Runnable:  la tarea que ese hilo va a ejecutar (una interfaz funcional:
+           void run()).
+join():    el hilo que llama a join() ESPERA a que el otro termine
+           antes de seguir.
+```
+
+## Explicación sencilla
+
+Un `Thread` es un flujo de ejecución adicional que corre "en paralelo" al principal. `Runnable` es la tarea que le das a ese hilo — literalmente una interfaz funcional con un método `run()`, así que se puede escribir como una lambda, igual que `Predicate` o `Consumer` en la Etapa 5. `hilo.start()` arranca el hilo; `hilo.join()` hace que el hilo que llama espere a que el otro termine antes de continuar — sin `join()`, el programa principal podría terminar ANTES de que el hilo secundario haya hecho su trabajo.
+
+## Explicación técnica
+
+Cada `Thread` tiene su PROPIO Stack (Etapa 6 Lección 1) — sus propias variables locales son privadas a ese hilo. Pero TODOS los hilos de un mismo programa comparten el MISMO Heap — cualquier objeto puede ser accedido por múltiples hilos simultáneamente. Ahí está el problema: si dos hilos leen y modifican la MISMA variable en el Heap al mismo tiempo, sin coordinación, pueden "pisarse" — un hilo lee el valor, otro lo modifica, el primero escribe de vuelta un valor ya desactualizado, y se pierde un incremento.
+
+`int contador++` NO es una operación atómica (de un solo paso indivisible) — en realidad son tres pasos: leer el valor actual, sumarle uno, y guardar el resultado. Si dos hilos ejecutan esos tres pasos entrelazados, es posible que ambos lean el MISMO valor inicial antes de que ninguno haya guardado su resultado, y el incremento de uno de los dos se "pierda" — esto se llama una **condición de carrera** (race condition).
+
+`AtomicInteger` (de `java.util.concurrent.atomic`) resuelve esto: `incrementAndGet()` garantiza que leer, sumar y guardar ocurra como una sola operación indivisible, sin que otro hilo pueda intercalarse en el medio — sin necesitar que vos escribas sincronización manual con `synchronized`.
+
+## Cómo funciona
+
+1. `Runnable tarea = () -> { ... }` define el trabajo a ejecutar como una lambda — `Runnable` es una interfaz funcional (`void run()`), igual patrón que `Predicate`/`Consumer` de la Etapa 5.
+2. `new Thread(tarea, "hilo-inventario")` crea el hilo con un nombre identificable (útil para debugging con múltiples hilos).
+3. `hilo.start()` arranca el hilo de forma asíncrona — el `main` NO espera automáticamente a que termine.
+4. `hilo.join()` bloquea el hilo `main` hasta que `hilo` termine completamente — por eso el orden de salida es 100% predecible en el primer ejemplo.
+5. En `ContadorConcurrenteDemo`, dos hilos ejecutan la MISMA lambda `incrementar`, cada uno sumando 1000 veces a un `AtomicInteger` compartido.
+6. `hilo1.join(); hilo2.join();` asegura que AMBOS hilos terminaron antes de leer `contador.get()` — sin esas dos líneas, el programa podría imprimir el contador ANTES de que los hilos terminaran de incrementar.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-06/ThreadsDemo.java`
+
+```java
+public class ThreadsDemo {
+    public static void main(String[] args) throws InterruptedException {
+        Runnable tarea = () -> {
+            System.out.println("Ejecutando en: " + Thread.currentThread().getName());
+            for (int i = 1; i <= 3; i++) {
+                System.out.println("Paso " + i);
+            }
+        };
+
+        Thread hilo = new Thread(tarea, "hilo-inventario");
+        System.out.println("Antes de start, hilo principal: " + Thread.currentThread().getName());
+        hilo.start();
+        hilo.join();
+        System.out.println("Despues de join: el hilo termino, el main continua");
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-06/ContadorConcurrenteDemo.java`
+
+```java
+import java.util.concurrent.atomic.AtomicInteger;
+
+public class ContadorConcurrenteDemo {
+    public static void main(String[] args) throws InterruptedException {
+        AtomicInteger contador = new AtomicInteger(0);
+        Runnable incrementar = () -> {
+            for (int i = 0; i < 1000; i++) {
+                contador.incrementAndGet();
+            }
+        };
+
+        Thread hilo1 = new Thread(incrementar);
+        Thread hilo2 = new Thread(incrementar);
+        hilo1.start();
+        hilo2.start();
+        hilo1.join();
+        hilo2.join();
+
+        System.out.println("Contador final (2 hilos x 1000 incrementos): " + contador.get());
+    }
+}
+```
+
+## Predice
+
+Dos hilos incrementan el mismo `AtomicInteger` 1000 veces cada uno, y `main` espera a ambos con `join()` antes de imprimir. ¿Qué valor final esperás, sabiendo que `AtomicInteger` garantiza que ningún incremento se pierde?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Antes de start, hilo principal: main
+Ejecutando en: hilo-inventario
+Paso 1
+Paso 2
+Paso 3
+Despues de join: el hilo termino, el main continua
+```
+
+```
+Contador final (2 hilos x 1000 incrementos): 2000
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "Antes de start" imprime desde `main`, ANTES de que el hilo secundario haya hecho nada — el orden es garantizado porque esa línea se ejecuta antes de `hilo.start()`.
+- "Ejecutando en: hilo-inventario" y los tres "Paso" confirman que el `Runnable` corrió en un hilo CON NOMBRE PROPIO, distinto de `main`.
+- "Despues de join" aparece SIEMPRE al final, nunca antes — `hilo.join()` garantiza que `main` esperó a que el hilo secundario terminara por completo.
+- El contador final da EXACTAMENTE `2000` (1000 + 1000), sin ningún incremento perdido — gracias a que `AtomicInteger.incrementAndGet()` es atómico, y a que `join()` en ambos hilos asegura leer el valor DESPUÉS de que terminaron de incrementar.
+- Si `contador` fuera un `int` normal con `contador++` (no atómico) en vez de `AtomicInteger`, el resultado podría dar MENOS de 2000 de forma impredecible — una condición de carrera clásica.
+
+## Ejemplo aplicado al proyecto
+
+Este modelo es la base conceptual de por qué, más adelante en el curso (Spring Boot, Etapa 11 en adelante), cada petición HTTP corre en su PROPIO hilo — y por qué compartir estado mutable (como una variable de instancia en un servicio) entre esas peticiones concurrentes requiere las mismas precauciones vistas acá.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Un contador compartido con int normal (no AtomicInteger) da un resultado MENOR al esperado después de sumar con múltiples hilos, y el valor exacto cambia entre ejecuciones."
+  diagnostico="No hay excepción — el programa simplemente imprime un numero incorrecto, distinto en cada corrida (por ejemplo, 1847 en vez de 2000)."
+  causa="contador++ no es atómico: son tres pasos (leer, sumar, guardar) que pueden entrelazarse entre hilos. Dos hilos pueden leer el MISMO valor antes de que ninguno haya guardado su resultado, perdiendo uno de los dos incrementos."
+  solucion="Usar AtomicInteger (o synchronized) para cualquier variable compartida entre hilos que se modifique concurrentemente — incrementAndGet() garantiza que la operación completa (leer+sumar+guardar) ocurra sin interrupciones de otro hilo."
+  prevencion="Cualquier variable MUTABLE compartida entre múltiples hilos es sospechosa por defecto. Si dos hilos pueden modificarla al mismo tiempo, necesita AtomicInteger/AtomicLong (para contadores simples) o synchronized (para lógica más compleja) — nunca asumas que 'total++' es seguro solo porque compila sin errores."
+>
+```java
+int contador = 0;
+Runnable incrementar = () -> {
+    for (int i = 0; i < 1000; i++) {
+        contador++;
+    }
+};
+
+Thread hilo1 = new Thread(incrementar);
+Thread hilo2 = new Thread(incrementar);
+hilo1.start();
+hilo2.start();
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Ejecutar dos tareas DIFERENTES en paralelo (no la misma lambda dos veces), esperando ambas con `join`:
+
+```java
+Thread hiloA = new Thread(() -> System.out.println("Tarea A completada"));
+Thread hiloB = new Thread(() -> System.out.println("Tarea B completada"));
+hiloA.start();
+hiloB.start();
+hiloA.join();
+hiloB.join();
+System.out.println("Ambas tareas terminaron");
+```
+
+## Ejercicio guiado
+
+Escribí un `Runnable` que sume los precios de todos los productos de un `RepositorioEnMemoria<Product>` (reutilizando `reduce` de la Etapa 5), ejecutalo en un `Thread`, y esperá su resultado con `join()` antes de imprimir un mensaje de confirmación.
+
+<Reveal titulo="Pista 1">
+Como `Runnable.run()` no puede devolver un valor directamente, necesitás guardar el resultado en una variable capturada por la lambda — por ejemplo, un `AtomicReference<Double>` o simplemente imprimir el resultado DENTRO del propio `Runnable`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+Runnable calcularTotal = () -> {
+    double total = repositorio.listarTodos().stream()
+            .map(Product::getPrecio)
+            .reduce(0.0, Double::sum);
+    System.out.println("Total calculado en hilo secundario: " + total);
+};
+
+Thread hilo = new Thread(calcularTotal);
+hilo.start();
+hilo.join();
+System.out.println("Calculo terminado, main continua");
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-06/`, escribí una versión de `ContadorConcurrenteDemo` con CUATRO hilos (en vez de dos) incrementando 500 veces cada uno, y confirmá que el resultado final sigue siendo `2000` gracias a `AtomicInteger`.
+
+## Transferencia
+
+Si tuvieras un `Map<String, Integer>` compartido entre varios hilos (en vez de un simple contador), ¿por qué `AtomicInteger` NO alcanzaría para protegerlo? ¿Qué tipo de herramienta (pista: buscá `ConcurrentHashMap`) necesitarías para una colección completa, no solo un número?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué contador++ sobre una variable compartida entre hilos puede perder incrementos?"
+  opciones={[
+    { texto: "Porque Java no permite que dos hilos ejecuten código al mismo tiempo", correcta: false, feedback: "Es al revés: Java SÍ permite que múltiples hilos ejecuten simultáneamente (esa es la razón de ser de los Thread) — el problema es justamente que esa ejecución simultánea no está coordinada por defecto." },
+    { texto: "Porque contador++ es en realidad tres pasos (leer, sumar, guardar) que no son atómicos, y dos hilos pueden entrelazarse entre esos pasos", correcta: true, feedback: "Correcto: si dos hilos leen el mismo valor antes de que ninguno haya guardado su resultado, uno de los dos incrementos se pierde — eso es una condición de carrera." },
+    { texto: "Porque int no puede superar cierto valor cuando hay múltiples hilos", correcta: false, feedback: "El límite de int (Integer.MAX_VALUE) es el mismo sin importar cuántos hilos lo modifiquen — el problema no es de rango numérico, es de coordinación entre hilos." },
+    { texto: "Porque Thread.start() no ejecuta el Runnable inmediatamente", correcta: false, feedback: "start() sí ejecuta el Runnable — el problema no es de si se ejecuta o no, sino de qué pasa cuando DOS ejecuciones tocan la misma variable compartida al mismo tiempo, sin coordinación." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Thread hilo = new Thread(() -> System.out.println("Trabajo en segundo plano"));
+hilo.start();
+System.out.println("Main termino");
+```
+
+Sin `join()`, ¿está garantizado que "Trabajo en segundo plano" se imprima ANTES que "Main termino"?
+
+<Reveal titulo="Diagnóstico">
+No, NO está garantizado. Sin `join()`, `main` sigue ejecutando inmediatamente después de `start()`, sin esperar al hilo secundario — el orden entre "Trabajo en segundo plano" y "Main termino" depende de cómo el sistema operativo decida repartir tiempo de CPU entre ambos hilos, y puede variar entre ejecuciones. Si el orden importa, `join()` es obligatorio.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué `AtomicInteger` es la herramienta correcta para UN contador compartido, pero sería excesivo (e insuficiente) usarlo para proteger una lógica de negocio más compleja, como "vender una unidad SOLO SI hay stock disponible" ejecutada desde múltiples hilos? ¿Qué tendría que pasar entre el chequeo de stock y el descuento para que dos hilos "se pisen" incluso con variables atómicas individuales?
+
+<Comparativa
+  columnas={["Herramienta", "Protege", "Cuándo alcanza"]}
+  filas={[
+    ["AtomicInteger / AtomicLong", "Un solo valor numérico compartido", "Operaciones simples: incrementar, sumar, comparar-y-actualizar"],
+    ["synchronized", "Un bloque de código completo (varias operaciones relacionadas)", "Lógica de negocio con múltiples pasos que deben ejecutarse como una unidad"],
+  ]}
+/>
+
+## Resumen
+
+- Cada `Thread` tiene su propio Stack, pero todos comparten el mismo Heap — ahí nace la necesidad de coordinación.
+- `Runnable` es la tarea (interfaz funcional `void run()`); `Thread` es el hilo que la ejecuta; `join()` espera su finalización.
+- `contador++` no es atómico: leer+sumar+guardar pueden entrelazarse entre hilos, perdiendo incrementos (condición de carrera).
+- `AtomicInteger` garantiza operaciones atómicas sobre un valor compartido, sin necesitar `synchronized` manual para casos simples.
+
+## Modelo mental final
+
+Pensá en dos cajeros (hilos) cobrando del mismo cajón de dinero (una variable compartida en el Heap): si ambos miran el total, hacen la cuenta por separado, y después escriben el resultado sin coordinarse, uno de los dos puede pisar el trabajo del otro — `AtomicInteger` es como si cada movimiento de dinero fuera una operación instantánea e indivisible, sin que nadie pueda interrumpirla a la mitad.
+
+## Conexión
+
+Esta lección cierra la Etapa 6: usa Stack/Heap (Lección 1) para explicar POR QUÉ existe el problema de concurrencia (Heap compartido entre hilos), y `Runnable` es, otra vez, una interfaz funcional (Etapa 5 Lección 1) — el mismo patrón reaparece una vez más en un contexto nuevo.
+
+## Próximo paso
+
+Etapa 7: Clean Code y SOLID — los principios de diseño que van a guiar cómo estructurás el código a partir de ahora, antes de introducir patrones de diseño formales.
+
+## Fuentes
+
+dev.java — concurrencia básica en Java. openjdk.org — paquete `java.util.concurrent.atomic` y clase `java.lang.Thread` en la documentación oficial de la API de Java SE.
+
+<SelfCheck
+  leccionId="etapa-06-avanzado/leccion-06-concurrencia-basica"
+  criterios={[
+    "Puedo crear un Thread a partir de un Runnable y esperar su finalización con join().",
+    "Puedo explicar por qué contador++ no es una operación atómica.",
+    "Puedo explicar qué es una condición de carrera y cómo AtomicInteger la previene para un contador simple.",
+    "Puedo explicar por qué todos los hilos comparten el Heap pero cada uno tiene su propio Stack.",
+  ]}
+/>

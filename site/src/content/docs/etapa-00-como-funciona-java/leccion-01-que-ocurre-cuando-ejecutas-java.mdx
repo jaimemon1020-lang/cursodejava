@@ -1,0 +1,271 @@
+---
+etapa: 0
+etapaTitulo: "Cómo funciona Java"
+leccion: 1
+title: "Qué ocurre cuando ejecutas un programa Java"
+objetivo: "Explicar el camino desde el código fuente hasta la ejecución en la JVM."
+prerrequisitos: []
+version_proyecto: "v0 — Hola Mundo (javac/java manual)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección vas a ser capaz de explicar qué ocurre entre escribir `HolaMundo.java` y ver el resultado en pantalla, y de ejecutar ese proceso manualmente con `javac` y `java`, sin depender de un botón "Run" de un IDE.
+
+## Por qué necesitas aprenderlo
+
+Todo lo que vas a construir en este curso —incluido el Sistema de Gestión de Pedidos e Inventario que vas a ir armando etapa por etapa— corre sobre la JVM. Más adelante vas a usar Spring Boot, vas a empaquetar aplicaciones con Maven, vas a leer stack traces y vas a diagnosticar errores de arranque. Nada de eso tiene sentido si no entiendes qué es la JVM, qué es el bytecode y por qué Java compila en un paso separado de la ejecución. Esta lección es la base sobre la que se apoya literalmente todo lo demás.
+
+## Qué debes saber antes
+
+Nada. Esta es la primera lección del curso.
+
+## Recupera lo aprendido
+
+Primera lección, sin repaso previo.
+
+## Problema
+
+Escribes un archivo de texto plano con código Java, por ejemplo `HolaMundo.java`. Ese archivo es texto: la computadora no puede "ejecutar texto". ¿Cómo se convierte ese texto en un programa que corre de verdad? ¿Y por qué en Java hace falta un paso explícito de compilación antes de poder correrlo, en lugar de simplemente "ejecutar el archivo" como pasa con un script?
+
+## Modelo mental
+
+```
+HolaMundo.java  --[ javac ]-->  HolaMundo.class  --[ JVM ]-->  Sistema operativo / CPU
+ (código fuente,                  (bytecode,                    (resultado en pantalla)
+  texto legible)                  independiente de la           
+                                   plataforma)
+```
+
+Dos pasos, dos herramientas distintas: `javac` compila (código fuente → bytecode), `java` ejecuta (bytecode → resultado, a través de la JVM).
+
+## Explicación sencilla
+
+Java funciona en dos etapas separadas. Primero, un programa llamado compilador (`javac`) lee tu código fuente y lo traduce a un formato intermedio llamado bytecode, guardado en un archivo `.class`. Ese bytecode todavía no es algo que tu procesador entienda directamente. Segundo, otro programa —la JVM (Java Virtual Machine)— lee ese bytecode y lo va ejecutando, traduciéndolo sobre la marcha a instrucciones que tu sistema operativo y tu procesador sí entienden.
+
+## Explicación técnica
+
+Java es, a la vez, un lenguaje y una plataforma. El JDK (Java Development Kit) es el conjunto de herramientas que se instala para desarrollar: incluye el compilador `javac`, el lanzador `java`, la consola interactiva `jshell` y la propia JVM. (Vas a ver referencias a un "JRE" —Java Runtime Environment— en documentación más vieja: era el subconjunto necesario solo para *ejecutar* Java, sin herramientas de desarrollo. Hoy ese concepto quedó absorbido dentro del JDK y no hace falta instalarlo por separado.)
+
+`javac` no traduce tu código a instrucciones nativas del procesador. Lo traduce a **bytecode**: un conjunto de instrucciones intermedias, definidas por la especificación de la JVM, que son las mismas sin importar si vas a correr el programa en Linux, Windows o macOS, en x86 o en ARM. El bytecode queda guardado en un archivo `.class` por cada clase pública.
+
+La JVM es la que realmente ejecuta ese bytecode. Lo interpreta instrucción por instrucción y, para las partes que se ejecutan muchas veces, aplica compilación JIT (*just-in-time*): las traduce a código máquina nativo en caliente, mientras el programa corre, para que sea más rápido. La implementación de referencia, libre y de código abierto, es OpenJDK.
+
+Esto es exactamente lo que significa la frase "write once, run anywhere" (escribe una vez, ejecuta en cualquier lado): el bytecode que se genera en una máquina es el mismo bytecode que corre en un servidor Linux en la nube, porque en el medio no hay código nativo específico de una plataforma — hay una JVM en cada plataforma que sabe interpretar ese bytecode.
+
+Un punto de contraste que puede servir si vienes de PHP: en PHP no hay un paso de compilación explícito — el intérprete lee el script directamente en cada request. En Java, el paso de `javac` ocurre una sola vez, por adelantado (*ahead-of-time*), y produce el bytecode que la JVM va a ejecutar todas las veces que haga falta, sin volver a leer ni traducir el código fuente.
+
+## Cómo funciona (paso a paso interno)
+
+1. Escribes el código fuente en un archivo de texto con extensión `.java`.
+2. Ejecutas `javac NombreDelArchivo.java`. El compilador analiza la sintaxis, verifica tipos y, si todo es válido, genera un archivo `NombreDeLaClase.class` con el bytecode.
+3. Ejecutas `java NombreDeLaClase` (sin la extensión `.class`). La JVM arranca, carga ese archivo `.class` en memoria y busca dentro de él un método `main` con la firma exacta `public static void main(String[] args)` — ese es el punto de entrada.
+4. La JVM empieza a interpretar el bytecode desde `main`, instrucción por instrucción.
+5. Cada instrucción que produce una salida (como imprimir texto) termina, en algún punto de la cadena, llamando a servicios del sistema operativo — es el sistema operativo el que efectivamente escribe los caracteres en tu terminal.
+6. Cuando `main` termina, la JVM finaliza el proceso (salvo que haya otros hilos corriendo).
+
+## Ejemplo mínimo
+
+Este es el archivo real del proyecto, en `proyecto/etapa-00/HolaMundo.java`:
+
+```java
+public class HolaMundo {
+    public static void main(String[] args) {
+        System.out.println("Sistema de Gestion de Pedidos e Inventario");
+    }
+}
+```
+
+Para compilarlo y ejecutarlo:
+
+```bash
+cd proyecto/etapa-00
+javac HolaMundo.java
+java HolaMundo
+```
+
+## Predice
+
+Antes de ver el resultado: ¿qué piensas que va a imprimir `java HolaMundo` en la terminal? ¿Y qué archivos esperas que haya creado el comando `javac HolaMundo.java` en esa misma carpeta?
+
+<Reveal titulo="Resultado real (compilado y ejecutado para esta lección)">
+Al correr `javac HolaMundo.java`, se genera un archivo nuevo `HolaMundo.class` en la misma carpeta (se puede confirmar con `ls`). Al correr `java HolaMundo` a continuación, la terminal imprime exactamente esto:
+
+```
+Sistema de Gestion de Pedidos e Inventario
+```
+
+Este es el output real, capturado ejecutando el comando — no un resultado inventado.
+</Reveal>
+
+## Explicación paso a paso (del código)
+
+- `public class HolaMundo` — declara una clase pública llamada `HolaMundo`. En Java, si una clase es `public`, el archivo que la contiene tiene que llamarse **exactamente igual** a la clase, con el sufijo `.java` (`HolaMundo.java`). Esto no es una convención de estilo: es una regla que el compilador exige.
+- `public static void main(String[] args)` — este es el método que la JVM busca como punto de entrada. `public` para que la JVM pueda invocarlo desde afuera de la clase; `static` porque la JVM lo llama sin crear antes un objeto `HolaMundo`; `void` porque no devuelve ningún valor; `String[] args` es el arreglo donde llegan los argumentos que le pases al programa por línea de comandos (en este ejemplo no usamos ninguno).
+- `System.out.println("...")` — `System.out` es el flujo de salida estándar (la terminal). `println` escribe el texto que se le pasa y agrega un salto de línea al final.
+
+## Ejemplo aplicado al proyecto
+
+Este `HolaMundo.java` no es un ejemplo descartable: es literalmente el primer archivo del Sistema de Gestión de Pedidos e Inventario que vas a construir a lo largo del curso. Por ahora solo imprime el nombre del sistema como marcador de posición (`version_proyecto: "v0 — Hola Mundo"`). En las próximas etapas este mismo archivo, o archivos junto a él, van a ir incorporando variables, clases para representar productos y pedidos, lógica de negocio y, más adelante, un framework como Spring Boot. Hoy es un `println`; con el tiempo va a ser un sistema real. El camino código fuente → bytecode → JVM que viste en esta lección es el mismo, sin importar cuánto crezca el programa.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Al compilar con `javac holamundo.java` aparece un error de compilación y no se genera ningún archivo `.class`."
+  diagnostico="El compilador señala la línea exacta del problema: `class HolaMundo is public, should be declared in a file named HolaMundo.java`. javac exige que el nombre del archivo coincida, letra por letra (mayúsculas incluidas), con el nombre de la clase `public` que declara adentro."
+  causa="El archivo se guardó como `holamundo.java` (con minúsculas), pero la clase declarada adentro es `public class HolaMundo` (con H y M mayúsculas). Java exige que un archivo que contiene una clase `public` tenga exactamente el mismo nombre que esa clase."
+  solucion="Renombrar el archivo a `HolaMundo.java`, idéntico a la clase pública que contiene, y volver a compilar."
+  prevencion="Nombra el archivo copiando el nombre de la clase `public` apenas la escribes, antes de agregar el resto del código. La mayoría de los editores e IDEs lo hacen automáticamente al crear el archivo."
+>
+```
+// archivo guardado como: holamundo.java
+public class HolaMundo {
+    public static void main(String[] args) {
+        System.out.println("hola");
+    }
+}
+```
+
+Al compilar:
+
+```
+$ javac holamundo.java
+holamundo.java:1: error: class HolaMundo is public, should be declared in a file named HolaMundo.java
+public class HolaMundo {
+       ^
+1 error
+```
+</ErrorChallenge>
+
+## Diagnóstico (lectura del error)
+
+El mensaje de `javac` sigue siempre el mismo patrón: `archivo:línea: error: descripción`. En este caso te dice tres cosas a la vez: en qué archivo está el problema (`holamundo.java`), en qué línea (`1`) y cuál es la causa (`class HolaMundo is public, should be declared in a file named HolaMundo.java`). No hace falta adivinar nada — el compilador dice exactamente qué corregir y dónde. Conviene acostumbrarse a leer el mensaje completo antes de tocar el código: casi siempre la solución está en la última línea con `error:`.
+
+Otro error frecuente al empezar: correr `java HolaMundo` **antes** de haber compilado (o después de borrar el `.class`). La JVM no encuentra el bytecode y falla al arrancar, con un mensaje del estilo `Error: no se ha encontrado o cargado la clase principal HolaMundo` (el texto exacto puede variar según el idioma configurado en tu sistema, pero el mensaje siempre identifica la clase que no pudo cargar). La causa siempre es la misma: falta el paso `javac` antes del paso `java`, o el `.class` no está en la carpeta desde la que estás corriendo `java`.
+
+## Ejercicio trabajado
+
+Modifica `HolaMundo.java` para que imprima dos líneas en lugar de una:
+
+```java
+public class HolaMundo {
+    public static void main(String[] args) {
+        System.out.println("Sistema de Gestion de Pedidos e Inventario");
+        System.out.println("Version 0.1 - Etapa 0");
+    }
+}
+```
+
+<Reveal titulo="Resultado real de este ejemplo">
+```
+Sistema de Gestion de Pedidos e Inventario
+Version 0.1 - Etapa 0
+```
+
+Cada `System.out.println` agrega una línea nueva. La JVM ejecuta las instrucciones del método `main` en el orden en que aparecen, de arriba hacia abajo.
+</Reveal>
+
+## Ejercicio guiado
+
+Modifica tu copia de `HolaMundo.java` para que, además de las dos líneas anteriores, imprima una tercera línea con tu propio nombre, usando un tercer `System.out.println`. Recompila y ejecuta.
+
+<Reveal titulo="Pista 1">
+Se necesita una tercera línea dentro de `main`, con la misma forma que las anteriores: `System.out.println("...")`. Se agrega **dentro** de las llaves `{ }` del método `main`, no afuera.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+Después de editar el archivo, hay que volver a compilarlo (`javac HolaMundo.java`) antes de ejecutarlo (`java HolaMundo`). Si solo se ejecuta sin recompilar, la JVM sigue usando el `.class` viejo y el cambio no se ve.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+public class HolaMundo {
+    public static void main(String[] args) {
+        System.out.println("Sistema de Gestion de Pedidos e Inventario");
+        System.out.println("Version 0.1 - Etapa 0");
+        System.out.println("Autor: (tu nombre aqui)");
+    }
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En tu propio editor o IDE, crea un archivo nuevo llamado `Presentacion.java` con una clase pública `Presentacion` que imprima, en líneas separadas: el nombre del sistema, la versión del proyecto y una línea que diga en qué etapa del curso estás. Compílalo y ejecútalo desde la terminal, sin usar el botón "Run" del editor si tu IDE lo ofrece. Este ejercicio no tiene solución en la lección — resuélvelo en tu proyecto y verifica tú mismo que compila y corre sin errores.
+
+## Transferencia
+
+Piensa esta situación: compilas `HolaMundo.java` en tu máquina con Linux y le mandas el archivo `HolaMundo.class` resultante a un compañero que tiene Windows. ¿Va a poder ejecutarlo? La respuesta es sí, siempre que tenga una JVM instalada (cualquier JVM compatible, no necesariamente la misma que se usó para compilar) — porque el `.class` contiene bytecode, no código máquina específico de Linux. Es exactamente el mecanismo de portabilidad que viste en la explicación técnica: no le mandaste un ejecutable de Linux, le mandaste instrucciones intermedias que la JVM de Windows sabe interpretar igual.
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué produce exactamente el comando `javac HolaMundo.java`?"
+  opciones={[
+    { texto: "Un archivo ejecutable nativo para tu sistema operativo (como un .exe)", correcta: false, feedback: "No — javac no genera código máquina nativo para tu procesador. Genera bytecode independiente de la plataforma, que recién después interpreta la JVM. Esa es la diferencia clave frente a un lenguaje que compila directo a nativo." },
+    { texto: "Un archivo HolaMundo.class con bytecode que la JVM puede ejecutar", correcta: true, feedback: "Correcto. javac traduce tu código fuente a bytecode — instrucciones intermedias que no dependen del sistema operativo ni del procesador. Ese bytecode queda guardado en el archivo .class." },
+    { texto: "El resultado en pantalla (el texto que imprime el programa)", correcta: false, feedback: "No — compilar no ejecuta el programa. javac solo traduce el código fuente a bytecode; recién cuando se ejecuta java HolaMundo la JVM corre ese bytecode y ahí aparece el resultado en pantalla." },
+    { texto: "Una copia del código fuente, solo que renombrada con otra extensión", correcta: false, feedback: "No — el resultado no es texto fuente ni un simple cambio de nombre. Es bytecode en formato binario, un contenido completamente distinto del código Java que escribiste." },
+  ]}
+/>
+
+## Comparativa: javac vs java
+
+<Comparativa
+  columnas={["Comando", "Qué hace", "Cuándo se usa"]}
+  filas={[
+    ["javac", "Compila código fuente (.java) a bytecode (.class). No ejecuta nada.", "Cada vez que se modifica el código fuente y hace falta una versión actualizada del bytecode."],
+    ["java", "Carga el bytecode (.class) en la JVM y lo ejecuta.", "Cada vez que se quiere correr el programa ya compilado, sin haberlo modificado."],
+    ["jshell", "Abre una consola interactiva (REPL) que compila y ejecuta línea por línea, sin dejar archivos .class permanentes.", "Para probar fragmentos de código sueltos y rápidos, sin armar un archivo ni un proyecto completo."],
+  ]}
+/>
+
+## Mini reto de debugging
+
+Ya resolviste uno arriba (el error de nombre de archivo/clase). Como segundo reto rápido: si borras el archivo `HolaMundo.class` pero dejas `HolaMundo.java` intacto, y corres `java HolaMundo` sin volver a compilar, ¿qué esperas que pase? Responde antes de probarlo en tu propia copia del proyecto, y después verifícalo de verdad en tu terminal.
+
+## Mini reto de diseño
+
+¿Por qué crees que Java separa la compilación y la ejecución en dos pasos distintos (`javac` y después `java`), en lugar de leer y ejecutar el código fuente directamente cada vez, como hace un lenguaje interpretado? Piénsalo en términos de qué se gana al compilar una sola vez y ejecutar el mismo bytecode muchas veces.
+
+## Resumen
+
+- Java tiene dos pasos separados: compilación (`javac`) y ejecución (`java`).
+- `javac` traduce código fuente (`.java`) a bytecode (`.class`); no ejecuta nada ni produce resultado en pantalla.
+- La JVM es la que ejecuta el bytecode, interpretándolo y, para las partes calientes, compilándolo *just-in-time* a código nativo.
+- El bytecode es portable: el mismo `.class` corre en cualquier sistema operativo que tenga una JVM compatible instalada.
+- El JDK incluye `javac`, `java`, `jshell` y la propia JVM; el "JRE" es un concepto histórico ya absorbido por el JDK.
+- Un archivo con una clase `public` tiene que llamarse exactamente igual que esa clase, incluidas mayúsculas.
+- `jshell` sirve para probar código suelto de forma interactiva, sin compilar archivos completos.
+
+## Modelo mental final
+
+Cuando pienses en ejecutar Java, imagina una traducción en dos etapas: primero un traductor (`javac`) pasa el texto fuente a un idioma intermedio y universal (bytecode) que cualquier "intérprete" Java entiende, sin importar el país (sistema operativo) en el que esté. Después, ese intérprete (la JVM) lee el idioma intermedio y lo va diciendo en voz alta, en el idioma local de la máquina donde corre (instrucciones nativas del procesador). El código fuente se escribe una sola vez; el intérprete se encarga de adaptarse a cada máquina.
+
+## Conexión
+
+Esta es la primera lección del curso, así que no hay conocimiento previo que conectar todavía. Lo que sí conviene tener claro es que **todo** lo que vas a ver de aquí en adelante —variables, clases, colecciones, Spring Boot, Maven— se ejecuta siguiendo exactamente este mismo camino: código fuente → `javac` → bytecode → JVM → resultado. Esta lección es la base sobre la que se apoya el resto del curso.
+
+## Próximo paso
+
+En la Lección 2 empiezas con Java básico: variables, tipos de datos y control de flujo (`if`, `for`, `while`). Vas a seguir compilando y ejecutando de la misma forma manual que aprendiste aquí, pero con programas que ya toman decisiones y repiten instrucciones.
+
+## Fuentes
+
+Los conceptos técnicos de esta lección (rol de `javac`, bytecode, la JVM, JIT, portabilidad y el JDK) están basados en la documentación oficial de Java en [dev.java](https://dev.java) y en la documentación del proyecto [OpenJDK](https://openjdk.org), la implementación de referencia de código abierto de la plataforma Java.
+
+<SelfCheck
+  leccionId="etapa-00-como-funciona-java/leccion-01-que-ocurre-cuando-ejecutas-java"
+  criterios={[
+    "Puedo explicar con mis palabras qué hace javac y en qué se diferencia de java.",
+    "Puedo explicar qué es el bytecode y por qué lo hace portable entre sistemas operativos.",
+    "Puedo compilar y ejecutar un programa Java desde la terminal, sin depender de un IDE.",
+    "Puedo leer un error de javac (archivo, línea, descripción) y encontrar la causa sin ayuda.",
+  ]}
+/>

@@ -1,0 +1,277 @@
+---
+etapa: 11
+etapaTitulo: "Spring Boot"
+leccion: 2
+title: "application.properties, @Value y @ConfigurationProperties"
+objetivo: "Externalizar configuración en application.properties, leer un valor individual con @Value, y agrupar configuración relacionada de forma type-safe con @ConfigurationProperties sobre un record."
+prerrequisitos: ["etapa-11-spring-boot/leccion-01-springbootapplication-autoconfiguracion"]
+version_proyecto: "v5 — application.properties, CatalogoProperties (record), @Value (cierra Etapa 11)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de externalizar valores de configuración en `application.properties` (en vez de números o strings sueltos en el código), leer un valor individual con `@Value`, y agrupar configuración relacionada de forma segura por tipos con `@ConfigurationProperties` sobre un `record`.
+
+## Por qué necesitas aprenderlo
+
+`UMBRAL_DESCUENTO` (Etapa 7, Clean Code) era una constante FIJA en el código — cambiar su valor exigía recompilar. En una aplicación real, valores como umbrales de negocio, URLs, credenciales o nombres de entorno necesitan poder cambiar SIN tocar el código fuente (por ejemplo, distintos valores en desarrollo vs. producción) — `application.properties` es la forma estándar de Spring Boot para eso.
+
+## Qué debes saber antes
+
+`@SpringBootApplication`, `CommandLineRunner` (Etapa 11 Lección 1) — los beans de esta lección se inyectan con el mismo mecanismo.
+
+## Recupera lo aprendido
+
+¿Qué reemplaza `SpringApplication.run(Application.class, args)` de la Etapa 10?
+
+<Reveal titulo="Respuesta">
+Reemplaza la creación manual de new AnnotationConfigApplicationContext(AppConfig.class) — arranca el contenedor, ejecuta la auto-configuración de Boot, y deja la aplicación lista, todo en una sola línea.
+</Reveal>
+
+## Problema
+
+`UMBRAL_DESCUENTO = 50000.0` (Etapa 7) está escrito directamente en el código Java — cambiarlo exige recompilar y volver a desplegar toda la aplicación. Y el nombre de la aplicación, si quisieras mostrarlo en un log o una respuesta, tampoco debería estar hardcodeado en ningún lugar del código fuente.
+
+## Modelo mental
+
+```
+application.properties:  archivo de configuración FUERA del código
+                          compilado — clave=valor.
+
+@Value("${clave}"):        lee UN valor individual directamente.
+
+@ConfigurationProperties:  agrupa VARIAS claves relacionadas (mismo
+                            prefijo) en un objeto tipado, con
+                            validación de tipos automática.
+```
+
+## Explicación sencilla
+
+`application.properties` (o su equivalente en YAML) es un archivo de configuración que vive en `src/main/resources`, fuera del código Java compilado — Spring Boot lo lee automáticamente al arrancar. `@Value("${clave}")` inyecta el valor de UNA clave específica directamente en un campo o parámetro. `@ConfigurationProperties` es la alternativa "en grupo": en vez de una anotación `@Value` por cada propiedad, agrupás varias relacionadas (con el mismo prefijo) en un solo objeto, con los TIPOS ya validados por Spring al arrancar.
+
+## Explicación técnica
+
+`catalogo.nombre-app=Catalogo Demo` en `application.properties` define una clave `catalogo.nombre-app` — Spring Boot convierte automáticamente el `kebab-case` (con guiones) del archivo a `camelCase` en Java (`nombreApp`), siguiendo una convención llamada **relaxed binding**.
+
+`@Value("${catalogo.nombre-app}")` como parámetro de un método `@Bean` (o campo `@Autowired`) le pide a Spring que resuelva ESE valor específico del entorno de configuración y lo inyecte directamente — útil para valores sueltos, pero se vuelve repetitivo si necesitás VARIOS relacionados.
+
+`@ConfigurationProperties(prefix = "catalogo")` sobre un `record` (`CatalogoProperties(String nombreApp, double umbralDescuento)`) le dice a Spring: "tomá TODAS las claves que empiecen con `catalogo.` y construí este record con ellas" — `nombreApp` se llena con `catalogo.nombre-app`, `umbralDescuento` con `catalogo.umbral-descuento`. Usar un `record` (Etapa 4 Lección 5) aquí es la forma MODERNA y recomendada en Spring Boot 3.x: inmutable, con validación de tipos automática (si `catalogo.umbral-descuento` no fuera un número válido, la aplicación fallaría al ARRANCAR, no en tiempo de ejecución más adelante).
+
+`@ConfigurationPropertiesScan` sobre `Application` le dice a Spring que busque automáticamente TODAS las clases anotadas con `@ConfigurationProperties` en el proyecto y las registre como beans, sin necesitar declarar cada una explícitamente.
+
+## Cómo funciona
+
+1. `application.properties` define `catalogo.nombre-app` y `catalogo.umbral-descuento`.
+2. `CatalogoProperties` (un `record` con `@ConfigurationProperties(prefix = "catalogo")`) se registra automáticamente como bean gracias a `@ConfigurationPropertiesScan` en `Application`.
+3. `configDemo(CatalogoProperties propiedades, @Value("${catalogo.nombre-app}") String nombreAppPorValue)` recibe AMBAS formas de acceder a la configuración: el objeto agrupado, y un valor individual leído directamente.
+4. `propiedades.nombreApp()` y `propiedades.umbralDescuento()` acceden a los campos del record con la sintaxis de accessor automática (Etapa 4 Lección 5).
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto-maven/src/main/resources/application.properties`
+
+```properties
+catalogo.nombre-app=Catalogo Demo
+catalogo.umbral-descuento=100000.0
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/CatalogoProperties.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.boot.context.properties.ConfigurationProperties;
+
+@ConfigurationProperties(prefix = "catalogo")
+public record CatalogoProperties(String nombreApp, double umbralDescuento) {
+}
+```
+
+**Fragmento agregado a `proyecto-maven/src/main/java/com/curso/catalogo/Application.java`:**
+
+```java
+@SpringBootApplication
+@ConfigurationPropertiesScan
+public class Application {
+
+    // ... main() y demo() sin cambios ...
+
+    @Bean
+    public CommandLineRunner configDemo(CatalogoProperties propiedades,
+                                         @Value("${catalogo.nombre-app}") String nombreAppPorValue) {
+        return args -> {
+            System.out.println("Nombre de la app (ConfigurationProperties): " + propiedades.nombreApp());
+            System.out.println("Umbral de descuento (ConfigurationProperties): " + propiedades.umbralDescuento());
+            System.out.println("Nombre de la app (Value): " + nombreAppPorValue);
+        };
+    }
+}
+```
+
+## Predice
+
+`catalogo.nombre-app=Catalogo Demo` y `catalogo.umbral-descuento=100000.0` en `application.properties`. ¿Qué valores esperás leer de `propiedades.nombreApp()` y `nombreAppPorValue`?
+
+<Reveal titulo="Resultado real (ejecutado con Spring Boot)">
+```
+$ ./mvnw -q spring-boot:run
+...
+Nombre de la app (ConfigurationProperties): Catalogo Demo
+Umbral de descuento (ConfigurationProperties): 100000.0
+Nombre de la app (Value): Catalogo Demo
+Vendido: 5 x Teclado mecanico
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- Ambas formas de leer `catalogo.nombre-app` ("ConfigurationProperties" y "Value") dan EXACTAMENTE el mismo resultado ("Catalogo Demo") — son dos caminos distintos hacia la MISMA fuente de configuración.
+- `catalogo.umbral-descuento=100000.0` (texto en el archivo) se convirtió automáticamente en `double 100000.0` en `propiedades.umbralDescuento()` — Spring hizo la conversión de tipos sin código adicional tuyo.
+- Si `application.properties` tuviera `catalogo.umbral-descuento=noEsUnNumero`, la aplicación fallaría al ARRANCAR (no cuando se usa el valor más adelante) — esa es la ventaja concreta de `@ConfigurationProperties` con tipos fuertes sobre leer un `String` suelto y convertirlo manualmente.
+- El `CommandLineRunner` de `demo` (con "Vendido: 5 x Teclado mecanico") también se ejecutó, confirmando que ambos beans `CommandLineRunner` coexisten sin conflicto.
+
+## Ejemplo aplicado al proyecto
+
+Con `application.properties`, valores de negocio como el umbral de descuento (que en la Etapa 7 vivía FIJO en el código como `UMBRAL_DESCUENTO`) podrían externalizarse — cambiar el umbral en producción ya no requeriría recompilar la aplicación, solo cambiar el archivo de configuración (o una variable de entorno, algo que Spring Boot también soporta transparentemente).
+
+## Error común
+
+<ErrorChallenge
+  sintoma="La aplicación falla al arrancar con algo como 'Failed to bind properties' o un mensaje sobre conversión de tipos."
+  diagnostico="org.springframework.boot.context.properties.bind.BindException: Failed to bind properties under 'catalogo.umbral-descuento'"
+  causa="El valor en application.properties no puede convertirse al tipo declarado en el record (por ejemplo, texto donde se espera un double), o falta una clave requerida por el constructor del record."
+  solucion="Verificar que cada clave en application.properties tenga un valor del tipo correcto, y que el nombre en kebab-case coincida con el campo del record (relaxed binding convierte automáticamente nombreApp <-> nombre-app, pero el prefijo y la estructura general deben coincidir)."
+  prevencion="Usar @ConfigurationProperties sobre un record (en vez de @Value sueltos) es justamente lo que te da este chequeo TEMPRANO al arrancar — un error de configuración se detecta antes de que la aplicación esté 'funcionando' con datos incorrectos silenciosamente."
+>
+```properties
+catalogo.nombre-app=Catalogo Demo
+catalogo.umbral-descuento=no-es-un-numero
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar una tercera propiedad al `record` y confirmar que sigue funcionando sin tocar `Application.java`:
+
+```properties
+catalogo.version=1.0
+```
+
+```java
+@ConfigurationProperties(prefix = "catalogo")
+public record CatalogoProperties(String nombreApp, double umbralDescuento, String version) {
+}
+```
+
+## Ejercicio guiado
+
+Agregá una propiedad `catalogo.stock-minimo-alerta=5` a `application.properties`, y un campo correspondiente `int stockMinimoAlerta` a `CatalogoProperties`, imprimiéndolo en `configDemo`.
+
+<Reveal titulo="Pista 1">
+El patrón de relaxed binding convierte `stock-minimo-alerta` (kebab-case en el archivo) a `stockMinimoAlerta` (camelCase en el record) automáticamente — no necesitás configuración adicional.
+</Reveal>
+
+<Reveal titulo="Solución">
+```properties
+catalogo.stock-minimo-alerta=5
+```
+
+```java
+@ConfigurationProperties(prefix = "catalogo")
+public record CatalogoProperties(String nombreApp, double umbralDescuento, int stockMinimoAlerta) {
+}
+```
+
+```java
+System.out.println("Stock minimo de alerta: " + propiedades.stockMinimoAlerta());
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, cambiá el valor de `catalogo.nombre-app` en `application.properties` a algo distinto, ejecutá `./mvnw spring-boot:run` de nuevo, y confirmá que el nuevo valor aparece en la salida SIN haber modificado ningún archivo `.java`.
+
+## Transferencia
+
+Si necesitaras valores de configuración DISTINTOS para desarrollo y producción (por ejemplo, un `catalogo.umbral-descuento` más bajo en desarrollo para testear más fácil), ¿qué mecanismo de Spring Boot (pista: archivos `application-{perfil}.properties`) usarías para lograrlo sin duplicar toda la configuración?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál es la ventaja principal de @ConfigurationProperties sobre múltiples @Value sueltos?"
+  opciones={[
+    { texto: "@ConfigurationProperties es más rápido en tiempo de ejecución", correcta: false, feedback: "No hay diferencia de performance relevante — la ventaja es de mantenibilidad y seguridad de tipos, no de velocidad." },
+    { texto: "Agrupa configuración relacionada en un objeto tipado, con conversión y validación automática al arrancar, en vez de repetir @Value por cada propiedad individual", correcta: true, feedback: "Correcto: CatalogoProperties agrupa nombreApp y umbralDescuento en un solo record, con Spring validando los tipos al arrancar — @Value individual no ofrece esa agrupación ni ese chequeo temprano." },
+    { texto: "@Value no puede leer valores numéricos, solo texto", correcta: false, feedback: "@Value SÍ puede leer y convertir valores numéricos (Spring hace la conversión de tipos igual) — la diferencia no es sobre QUÉ tipos soporta cada uno, sino sobre organización y validación agrupada." },
+    { texto: "@ConfigurationProperties solo funciona con archivos YAML, nunca con .properties", correcta: false, feedback: "Funciona igual de bien con application.properties (usado en este ejemplo) que con application.yml — el formato del archivo de configuración es independiente del mecanismo de binding." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+@ConfigurationProperties(prefix = "catalogo")
+public record CatalogoProperties(String nombreApp, double umbralDescuento) {
+}
+
+// Application.java SIN @ConfigurationPropertiesScan
+@SpringBootApplication
+public class Application { ... }
+```
+
+¿Qué esperás que pase al pedir `CatalogoProperties` como parámetro de un `@Bean`?
+
+<Reveal titulo="Diagnóstico">
+Falla con un error de bean no encontrado (similar a `NoSuchBeanDefinitionException`). `@ConfigurationProperties` por sí sola NO registra la clase como bean — necesita `@ConfigurationPropertiesScan` (o `@EnableConfigurationProperties(CatalogoProperties.class)` explícito) en algún lugar del contexto para que Spring la descubra y la construya. Es un error common: la anotación en la clase de propiedades es necesaria pero NO suficiente.
+</Reveal>
+
+## Mini reto de diseño
+
+`CatalogoProperties` es un `record` INMUTABLE — una vez que Spring lo construye al arrancar, sus valores no cambian durante toda la vida de la aplicación (a menos que se reinicie). ¿Por qué esa inmutabilidad es una propiedad DESEABLE para configuración, en vez de un objeto mutable que alguien pudiera cambiar en tiempo de ejecución accidentalmente?
+
+<Comparativa
+  columnas={["Mecanismo", "Alcance", "Chequeo de tipos"]}
+  filas={[
+    ["@Value con una clave", "Un valor individual por anotación", "En el momento de la inyección"],
+    ["@ConfigurationProperties", "Múltiples valores relacionados, agrupados en un objeto", "Al arrancar la aplicación completa, para todo el grupo"],
+  ]}
+/>
+
+## Resumen
+
+- `application.properties` externaliza configuración fuera del código Java compilado.
+- `@Value("${clave}")` lee un valor individual; útil para casos puntuales.
+- `@ConfigurationProperties` sobre un `record` agrupa configuración relacionada con validación de tipos automática al arrancar.
+- `@ConfigurationPropertiesScan` registra automáticamente las clases `@ConfigurationProperties` del proyecto como beans.
+
+## Modelo mental final
+
+Pensá en `application.properties` como el panel de control externo de la aplicación — cambiar un dial ahí no requiere abrir la máquina (recompilar) para ajustar su comportamiento. `@ConfigurationProperties` es como tener ese panel completo ya traducido a un formulario legible, en vez de leer cada dial suelto con `@Value` uno por uno.
+
+## Conexión
+
+Esta lección cierra la Etapa 11: `@SpringBootApplication` y `CommandLineRunner` (Lección 1) dieron el arranque simplificado; configuración externalizada (esta lección) reemplaza constantes fijas como `UMBRAL_DESCUENTO` (Etapa 7) por valores ajustables sin recompilar. `record` (Etapa 4 Lección 5) reaparece como la forma moderna e idiomática de modelar configuración type-safe en Spring Boot 3.x.
+
+## Próximo paso
+
+Etapa 12: HTTP y REST — agregando `spring-boot-starter-web` para exponer la aplicación a través de endpoints HTTP reales, dejando de ser una app de consola.
+
+## Fuentes
+
+dev.java — configuración externalizada en Spring Boot. spring.io — documentación oficial de Spring Boot, sección "Externalized Configuration" y "Type-safe Configuration Properties".
+
+<SelfCheck
+  leccionId="etapa-11-spring-boot/leccion-02-application-properties-configuration-properties"
+  criterios={[
+    "Puedo definir propiedades en application.properties y explicar la convención kebab-case a camelCase.",
+    "Puedo leer un valor individual con @Value.",
+    "Puedo agrupar configuración relacionada con @ConfigurationProperties sobre un record.",
+    "Puedo explicar por qué @ConfigurationProperties detecta errores de tipos al arrancar, antes que @Value suelto.",
+  ]}
+/>

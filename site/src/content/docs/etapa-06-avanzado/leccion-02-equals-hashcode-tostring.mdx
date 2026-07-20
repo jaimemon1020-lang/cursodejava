@@ -1,0 +1,298 @@
+---
+etapa: 6
+etapaTitulo: "Java moderno y avanzado"
+leccion: 2
+title: "equals, hashCode y toString: comparar objetos por contenido"
+objetivo: "Sobrescribir equals, hashCode y toString correctamente en una clase propia, y entender por qué HashSet y HashMap dependen de que ambos métodos estén implementados de forma consistente."
+prerrequisitos: ["etapa-06-avanzado/leccion-01-stack-heap-garbage-collector"]
+version_proyecto: "v2 — Product.equals/hashCode/toString, EqualsHashCodeDemo"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de sobrescribir `equals`, `hashCode` y `toString` en una clase propia siguiendo el contrato que Java espera, y de explicar por qué un `HashSet<Product>` no elimina duplicados si esos tres métodos no están bien implementados.
+
+## Por qué necesitas aprenderlo
+
+La lección anterior mostró que `==` compara identidad, no contenido — y que dos `Product` con los mismos valores son objetos DISTINTOS en el Heap. Pero `Set<Product>` (Etapa 4 Lección 2) se supone que no permite duplicados. ¿Cómo decide un `HashSet` qué es "duplicado" si no puede usar `==`?
+
+## Qué debes saber antes
+
+Stack, Heap, y qué compara `==` entre objetos (Etapa 6 Lección 1). `Set` y `HashSet` (Etapa 4 Lección 2).
+
+## Recupera lo aprendido
+
+¿Por qué `teclado == otroTeclado` da `false` aunque ambos productos tengan el mismo nombre, precio y stock?
+
+<Reveal titulo="Respuesta">
+== compara identidad (misma dirección en el Heap), no contenido. teclado y otroTeclado son dos objetos DISTINTOS creados por dos new separados, aunque sus valores internos sean idénticos.
+</Reveal>
+
+## Problema
+
+Agregás dos `Product` con el mismo nombre, precio y stock a un `HashSet<Product>`, esperando que el segundo se descarte por ser "duplicado" — pero sin sobrescribir nada, el `Set` los trata como dos elementos DISTINTOS, porque por defecto `equals()` (heredado de `Object`) se comporta exactamente igual que `==`.
+
+## Modelo mental
+
+```
+equals():   ¿son iguales EN CONTENIDO? (vos decidís el criterio)
+hashCode(): un número que resume el objeto, usado por HashSet/HashMap
+            para ubicarlo rápido en su estructura interna.
+
+REGLA DE ORO: si a.equals(b) es true, a.hashCode() DEBE ser igual a b.hashCode().
+```
+
+## Explicación sencilla
+
+`Object` (la superclase de TODA clase en Java) ya trae una implementación por defecto de `equals()` que compara identidad (igual que `==`), y de `hashCode()` que deriva del identity hash. Si querés que "iguales en contenido" cuente como "iguales" para tu clase, tenés que sobrescribir (`@Override`) ambos métodos vos mismo, comparando los campos que definen esa igualdad.
+
+`toString()` también viene de `Object`, y por defecto devuelve algo como `Product@15db9742` — poco útil. Sobrescribirlo te da control sobre cómo se ve un objeto cuando lo imprimís con `System.out.println` o lo concatenás con `+`.
+
+## Explicación técnica
+
+El contrato de `equals()`/`hashCode()` en Java establece: **si `a.equals(b)` es `true`, entonces `a.hashCode()` DEBE ser igual a `b.hashCode()`**. `HashSet` y `HashMap` usan `hashCode()` primero para ubicar rápidamente el "cajón" (bucket) donde buscar, y DESPUÉS usan `equals()` para confirmar si el objeto que encontraron ahí es realmente igual. Si rompés este contrato (por ejemplo, sobrescribiendo `equals` pero no `hashCode`), un `HashSet` puede fallar en detectar duplicados de forma impredecible.
+
+`Objects.equals(a, b)` (de `java.util.Objects`) compara dos valores manejando `null` de forma segura, sin lanzar `NullPointerException` si alguno es `null`. `Objects.hash(campo1, campo2, ...)` genera un `hashCode` combinando varios campos, siguiendo una fórmula estándar y consistente.
+
+Una decisión de DISEÑO importante: no todos los campos de una clase tienen que entrar en `equals`/`hashCode`. `Product.fechaIngreso` (Etapa 4 Lección 7) queda deliberadamente FUERA — no es parte de lo que define "qué producto es este", es metadata sobre cuándo entró al inventario. Incluirla rompería la intuición de que dos productos con el mismo nombre, precio y stock deberían considerarse el mismo producto.
+
+## Cómo funciona
+
+1. `Product.equals(Object obj)` primero chequea `this == obj` (atajo rápido: si son la misma referencia, son iguales sin comparar nada más).
+2. Después chequea `obj instanceof Product` — si `obj` no es un `Product` (o es `null`), no puede ser igual.
+3. Compara `precio` con `Double.compare` (la forma correcta de comparar `double`, evitando problemas de precisión de `==` con decimales), `stock` con `==` (es `int`, tipo primitivo), y `nombre` con `Objects.equals` (maneja `null` de forma segura).
+4. `hashCode()` usa `Objects.hash(nombre, precio, stock)` — EXACTAMENTE los mismos campos que `equals`, cumpliendo el contrato.
+5. `HashSet.add()` usa `hashCode()` para encontrar el bucket, y `equals()` para confirmar si ya existe un elemento igual ahí — si ambos coinciden con un elemento existente, `add()` no agrega nada nuevo.
+
+## Ejemplo mínimo
+
+**Fragmento agregado a `proyecto/etapa-02/Product.java`:**
+
+```java
+import java.util.Objects;
+
+@Override
+public boolean equals(Object obj) {
+    if (this == obj) {
+        return true;
+    }
+    if (!(obj instanceof Product)) {
+        return false;
+    }
+    Product otro = (Product) obj;
+    return Double.compare(this.precio, otro.precio) == 0
+            && this.stock == otro.stock
+            && Objects.equals(this.nombre, otro.nombre);
+}
+
+@Override
+public int hashCode() {
+    return Objects.hash(this.nombre, this.precio, this.stock);
+}
+
+@Override
+public String toString() {
+    return "Product{nombre='" + this.nombre + "', precio=" + this.precio + ", stock=" + this.stock + "}";
+}
+```
+
+**Archivo:** `proyecto/etapa-06/EqualsHashCodeDemo.java`
+
+```java
+import java.util.HashSet;
+import java.util.Set;
+
+public class EqualsHashCodeDemo {
+    public static void main(String[] args) {
+        Product productoA = new Product("Teclado mecanico", 25000.0, 15);
+        Product productoB = new Product("Teclado mecanico", 25000.0, 15);
+
+        System.out.println("productoA == productoB: " + (productoA == productoB));
+        System.out.println("productoA.equals(productoB): " + productoA.equals(productoB));
+        System.out.println("Mismo hashCode: " + (productoA.hashCode() == productoB.hashCode()));
+        System.out.println("toString: " + productoA);
+
+        Set<Product> catalogo = new HashSet<>();
+        catalogo.add(productoA);
+        catalogo.add(productoB);
+        System.out.println("Tamano del Set (A y B son 'iguales' en contenido): " + catalogo.size());
+
+        Product productoDistinto = new Product("Mouse inalambrico", 8000.0, 40);
+        catalogo.add(productoDistinto);
+        System.out.println("Tamano del Set con producto distinto agregado: " + catalogo.size());
+    }
+}
+```
+
+## Predice
+
+`productoA` y `productoB` tienen el mismo nombre, precio y stock, pero son objetos distintos (`new` separados). Con `equals`/`hashCode` sobrescritos, ¿cuántos elementos tendrá el `HashSet` después de agregar ambos?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+productoA == productoB: false
+productoA.equals(productoB): true
+Mismo hashCode: true
+toString: Product{nombre='Teclado mecanico', precio=25000.0, stock=15}
+Tamano del Set (A y B son 'iguales' en contenido): 1
+Tamano del Set con producto distinto agregado: 2
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `productoA == productoB` sigue dando `false` — `==` NUNCA cambia de comportamiento, sin importar qué sobrescribas. Compara identidad, siempre.
+- `productoA.equals(productoB)` da `true` — este SÍ cambió, porque ahora compara contenido (nombre, precio, stock), no identidad.
+- "Mismo hashCode: true" confirma que se cumplió el contrato: como `equals` dio `true`, `hashCode` también coincide.
+- El `toString` ya no muestra `Product@15db9742` — muestra los datos reales del objeto, gracias a la sobrescritura.
+- El `HashSet` queda con tamaño `1` después de agregar `productoA` y `productoB`: el `Set` los reconoció como "el mismo" producto en contenido, y descartó el segundo `add`.
+- Al agregar `productoDistinto` (Mouse, valores distintos), el tamaño sube a `2` — ese sí es realmente diferente en contenido.
+
+## Ejemplo aplicado al proyecto
+
+`Set<Product>` (Etapa 4 Lección 2) ahora funciona como vos esperabas intuitivamente desde el principio: "sin duplicados" significa sin duplicados EN CONTENIDO, no solo sin la misma referencia de memoria — eso solo es posible porque `Product` ahora sobrescribe `equals` y `hashCode` de forma consistente.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Un HashSet<Product> permite 'duplicados' aunque equals() esté sobrescrito y devuelva true para esos objetos."
+  diagnostico="No hay excepción — el Set simplemente tiene más elementos de los esperados, y productoA.equals(productoB) da true pero ambos igual aparecen en el Set."
+  causa="Se sobrescribió equals() pero NO hashCode() (o se sobrescribieron con campos distintos) — violando el contrato. HashSet usa hashCode() primero para decidir en qué bucket buscar; si dos objetos iguales según equals() tienen hashCode() distinto, el Set nunca los compara entre sí."
+  solucion="Sobrescribir SIEMPRE ambos juntos, usando EXACTAMENTE los mismos campos en los dos métodos — la mayoría de los IDEs generan ambos a la vez para evitar este error."
+  prevencion="Nunca sobrescribas equals() sin hashCode(), ni al revés. Si cambiás qué campos usa equals(), actualizá hashCode() con los mismos campos en el mismo cambio."
+>
+```java
+@Override
+public boolean equals(Object obj) {
+    if (!(obj instanceof Product)) return false;
+    Product otro = (Product) obj;
+    return this.nombre.equals(otro.nombre);
+}
+// hashCode() no sobrescrito: sigue usando el identity hash heredado de Object
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que `toString()` se usa automáticamente al concatenar con `+` o imprimir directo:
+
+```java
+Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+System.out.println("Producto: " + teclado);
+System.out.println(teclado);
+```
+
+## Ejercicio guiado
+
+Escribí `equals`/`hashCode` para `Cliente` (Etapa 2), considerando que dos clientes son "el mismo" si tienen el mismo `email` (asumiendo que el email es único por cliente, a diferencia de `nombre`, que podría repetirse).
+
+<Reveal titulo="Pista 1">
+Solo `email` entra en la comparación — `nombre` y `direccion` quedan afuera, igual que `fechaIngreso` quedó afuera de `Product.equals`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+@Override
+public boolean equals(Object obj) {
+    if (this == obj) {
+        return true;
+    }
+    if (!(obj instanceof Cliente)) {
+        return false;
+    }
+    Cliente otro = (Cliente) obj;
+    return Objects.equals(this.email, otro.email);
+}
+
+@Override
+public int hashCode() {
+    return Objects.hash(this.email);
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-06/`, escribí un método que reciba una `List<Product>` con posibles duplicados EN CONTENIDO, y devuelva un `Set<Product>` sin esos duplicados, usando el `equals`/`hashCode` ya implementado.
+
+## Transferencia
+
+Si `Product.equals()` solo comparara por `nombre` (ignorando precio y stock), ¿qué pasaría si agregás a un `Set<Product>` un "Teclado mecanico" a $25.000 y después otro "Teclado mecanico" a $30.000? ¿Cuál de los dos quedaría en el Set, y por qué esa ambigüedad es una razón para elegir con cuidado qué campos definen la igualdad?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué hay que sobrescribir hashCode() cada vez que se sobrescribe equals()?"
+  opciones={[
+    { texto: "Es solo una convención de estilo, no afecta el comportamiento del programa", correcta: false, feedback: "No es solo estilo — HashSet y HashMap dependen de que ambos sean consistentes. Si los rompés, el comportamiento de esas estructuras se vuelve impredecible, aunque el código compile sin errores." },
+    { texto: "Porque el contrato de Java exige que si a.equals(b) es true, entonces a.hashCode() debe ser igual a b.hashCode() — si no, HashSet y HashMap no funcionan correctamente", correcta: true, feedback: "Correcto: HashSet/HashMap usan hashCode() para ubicar el bucket y equals() para confirmar la igualdad — si un par de objetos 'iguales' tiene hashCode() distinto, el Set nunca los compara y trata a ambos como distintos." },
+    { texto: "hashCode() es obligatorio solo si la clase implementa Comparable", correcta: false, feedback: "hashCode() no tiene relación con Comparable — Comparable define un orden entre objetos (para sorted, TreeSet), mientras que equals()/hashCode() definen igualdad, usada por HashSet/HashMap." },
+    { texto: "Sin hashCode(), el programa no compila", correcta: false, feedback: "El código SÍ compila perfectamente sin sobrescribir hashCode() — el problema aparece en tiempo de ejecución, cuando HashSet/HashMap se comportan de forma inconsistente con lo que equals() dice." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+System.out.println(teclado.equals("Teclado mecanico"));
+```
+
+¿Este código lanza una excepción, o qué imprime?
+
+<Reveal titulo="Diagnóstico">
+Imprime `false`, sin excepción. `obj instanceof Product` da `false` cuando `obj` es un `String`, así que el método devuelve `false` inmediatamente en ese chequeo — comparar un `Product` con algo de OTRO tipo nunca debería lanzar una excepción, solo confirmar que no son iguales.
+</Reveal>
+
+## Mini reto de diseño
+
+`Product.equals` NO incluye `fechaIngreso` en la comparación. ¿Por qué esa es la decisión correcta, y qué problema traería si dos productos con el mismo nombre/precio/stock, pero ingresados en fechas distintas, se consideraran "diferentes" solo por eso?
+
+<Comparativa
+  columnas={["Campo", "¿Entra en equals/hashCode?", "Por qué"]}
+  filas={[
+    ["nombre", "Sí", "Parte de la identidad de negocio del producto"],
+    ["precio", "Sí", "Parte de la identidad de negocio del producto"],
+    ["stock", "Sí", "Parte de la identidad de negocio del producto"],
+    ["fechaIngreso", "No", "Es metadata sobre CUÁNDO se creó, no sobre QUÉ producto es"],
+  ]}
+/>
+
+## Resumen
+
+- `Object` trae `equals`/`hashCode`/`toString` por defecto, comparando identidad — sobrescribirlos es una decisión explícita de la clase.
+- El contrato: si `equals()` da `true`, `hashCode()` DEBE coincidir — romperlo hace que `HashSet`/`HashMap` fallen en detectar duplicados de forma consistente.
+- No todos los campos tienen que entrar en `equals`/`hashCode` — elegí los que definen la identidad de negocio del objeto.
+- `toString()` sobrescrito hace que imprimir un objeto muestre información útil, en vez del hash de memoria por defecto.
+
+## Modelo mental final
+
+Pensá en `hashCode()` como el número de un casillero de correo, y en `equals()` como abrir ese casillero para confirmar que la carta adentro es realmente la que buscabas — si dos cartas iguales tuvieran casilleros distintos (hashCode inconsistente), nunca las encontrarías juntas.
+
+## Conexión
+
+`HashSet<Product>` (Etapa 4 Lección 2) ahora se comporta como se esperaba desde el principio, gracias a `equals`/`hashCode` (esta lección). El modelo de Stack/Heap (Lección 1) explica POR QUÉ hacía falta esta sobrescritura: sin ella, la comparación por defecto siempre era por identidad.
+
+## Próximo paso
+
+Etapa 6 / Lección 3: Comparable — definir un orden natural para tus propias clases, más allá del Comparator externo ya visto en Streams.
+
+## Fuentes
+
+dev.java — equals, hashCode y el contrato de Object. openjdk.org — documentación oficial de `java.lang.Object` y `java.util.Objects` en la API de Java SE.
+
+<SelfCheck
+  leccionId="etapa-06-avanzado/leccion-02-equals-hashcode-tostring"
+  criterios={[
+    "Puedo sobrescribir equals() comparando el contenido relevante de una clase propia.",
+    "Puedo explicar el contrato entre equals() y hashCode(), y por qué romperlo afecta a HashSet/HashMap.",
+    "Puedo decidir qué campos deberían entrar en equals/hashCode y cuáles no, según la identidad de negocio del objeto.",
+    "Puedo sobrescribir toString() para que un objeto se imprima de forma útil.",
+  ]}
+/>

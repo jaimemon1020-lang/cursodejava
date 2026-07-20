@@ -1,10 +1,19 @@
-import { defineCollection } from 'astro:content';
-import { glob } from 'astro/loaders';
-import { leccionSchema } from './content/schema';
+import { defineCollection, z } from 'astro:content';
+import { docsLoader } from '@astrojs/starlight/loaders';
+import { docsSchema } from '@astrojs/starlight/schema';
 
-const lecciones = defineCollection({
-  loader: glob({ pattern: '**/*.mdx', base: './src/content/lecciones' }),
-  schema: leccionSchema,
+const leccionExtras = z.object({
+  etapa: z.number().optional(),
+  etapaTitulo: z.string().optional(),
+  leccion: z.number().optional(),
+  objetivo: z.string().optional(),
+  prerrequisitos: z.array(z.string()).default([]),
+  version_proyecto: z.string().optional(),
 });
 
-export const collections = { lecciones };
+const docs = defineCollection({
+  loader: docsLoader(),
+  schema: docsSchema({ extend: leccionExtras }),
+});
+
+export const collections = { docs };

@@ -1,0 +1,312 @@
+---
+etapa: 11
+etapaTitulo: "Spring Boot"
+leccion: 1
+title: "@SpringBootApplication y auto-configuración: arrancar una app real"
+objetivo: "Migrar de un ApplicationContext manual a una aplicación Spring Boot real con @SpringBootApplication, entendiendo qué hace spring-boot-starter-parent y cómo CommandLineRunner ejecuta código al arrancar."
+prerrequisitos: ["etapa-10-spring-framework/leccion-03-qualifier-y-primary"]
+version_proyecto: "v4 — spring-boot-starter-parent, Application (@SpringBootApplication + CommandLineRunner)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de arrancar una aplicación Spring Boot real con `@SpringBootApplication` y `SpringApplication.run`, entender qué automatiza `spring-boot-starter-parent` en el `pom.xml`, y ejecutar código al arrancar la aplicación con `CommandLineRunner`.
+
+## Por qué necesitas aprenderlo
+
+En la Etapa 10, cada demo (`SpringDemo`, `BeanScopesDemo`, `QualifierDemo`) arrancaba el contenedor MANUALMENTE con `new AnnotationConfigApplicationContext(AppConfig.class)`. Spring Boot es Spring Framework CON auto-configuración: en vez de que vos decidas explícitamente cada pieza, Boot detecta qué tenés en el `classpath` y configura sensatamente por vos — la base de CUALQUIER aplicación Spring moderna, incluyendo las que vas a construir con REST (Etapa 12) en adelante.
+
+## Qué debes saber antes
+
+`ApplicationContext`, `@Component`/`@Autowired` (Etapa 10 Lección 1) — Spring Boot no reemplaza esos conceptos, los envuelve en una capa de arranque más simple.
+
+## Recupera lo aprendido
+
+¿Qué gana `@Qualifier` sobre `@Primary` cuando ambos aplican al mismo punto de inyección?
+
+<Reveal titulo="Respuesta">
+@Qualifier siempre gana: es una instrucción local y específica para ESE punto de inyección exacto, mientras que @Primary es solo una preferencia global que aplica cuando no hay nada más específico indicado.
+</Reveal>
+
+## Problema
+
+Cada demo de la Etapa 10 repetía el mismo arranque manual: `new AnnotationConfigApplicationContext(AppConfig.class)`, después `getBean(...)` para cada cosa que necesitabas. En una aplicación real, con decenas de dependencias (base de datos, seguridad, serialización JSON), configurar cada una a mano sería una tarea enorme — Spring Boot existe exactamente para eliminar ese trabajo repetitivo.
+
+## Modelo mental
+
+```
+Spring Framework (Etapa 10): VOS armás el ApplicationContext
+                              a mano, decidiendo cada pieza.
+
+Spring Boot (esta etapa):    SpringApplication.run() detecta
+                              qué hay en el classpath y
+                              AUTO-CONFIGURA todo lo razonable
+                              por vos, con valores por defecto
+                              sensatos que podés sobrescribir.
+```
+
+## Explicación sencilla
+
+Spring Boot no es un framework DISTINTO a Spring — es Spring Framework con una capa de arranque (`SpringApplication`) y auto-configuración inteligente encima. En vez de escribir `@Configuration` + `@ComponentScan` + `new AnnotationConfigApplicationContext(...)` a mano, una sola anotación (`@SpringBootApplication`) y una sola línea (`SpringApplication.run(...)`) hacen todo eso por vos, además de detectar automáticamente QUÉ MÁS necesitás configurar según las dependencias que tengas en el `pom.xml`.
+
+## Explicación técnica
+
+`spring-boot-starter-parent` (declarado como `<parent>` en `pom.xml`) es un POM padre que centraliza la gestión de VERSIONES de todo el ecosistema Spring — por eso `spring-boot-starter` ya no necesita declarar su propia `<version>`: la hereda del padre, garantizando que todas las piezas de Spring en el proyecto sean compatibles entre sí. También define plugins y configuraciones sensatas por defecto (como el `java.version` que reemplaza a `maven.compiler.release`).
+
+`@SpringBootApplication` es en realidad TRES anotaciones combinadas en una: `@Configuration` (la clase puede definir beans con `@Bean`), `@ComponentScan` (escanea automáticamente el paquete de la clase anotada Y sus subpaquetes — sin necesitar `basePackages` explícito), y `@EnableAutoConfiguration` (activa la auto-configuración de Boot: detecta qué librerías están en el `classpath` y configura beans razonables automáticamente).
+
+`SpringApplication.run(Application.class, args)` reemplaza `new AnnotationConfigApplicationContext(AppConfig.class)`: arranca el contenedor, ejecuta toda la auto-configuración, y deja la aplicación lista. `CommandLineRunner` es una interfaz funcional (`void run(String... args)`) que, si se registra como bean, Spring Boot ejecuta AUTOMÁTICAMENTE apenas el contexto termina de arrancar — el lugar natural para lógica de inicio, reemplazando el código que antes escribías manualmente después de crear el contexto.
+
+## Cómo funciona
+
+1. `spring-boot-starter-parent` en `pom.xml` gestiona versiones compatibles de todo Spring; `spring-boot-starter` trae Spring Core + Context como dependencia mínima.
+2. `@SpringBootApplication` sobre `Application` (en `com.curso.catalogo`) escanea automáticamente todo ese paquete — encontrando `RepositorioProductos`, `ServicioVentas`, `Descuento`/`DescuentoFijo`/`DescuentoPorcentual`, y hasta `AppConfig` (que sigue siendo `@Configuration` con su propio `@Bean` de `ProcesadorPago`).
+3. `SpringApplication.run(Application.class, args)` arranca todo el contexto de una sola línea.
+4. El método `demo(RepositorioProductos repositorio, ServicioVentas servicio)`, anotado `@Bean` y devolviendo un `CommandLineRunner`, recibe sus parámetros INYECTADOS automáticamente (igual que un constructor `@Autowired`) — Spring resuelve `RepositorioProductos` y `ServicioVentas` sin que se los pidas explícitamente con `getBean`.
+5. El lambda `args -> { ... }` (la implementación de `CommandLineRunner.run`) se ejecuta automáticamente apenas la aplicación termina de arrancar.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto-maven/pom.xml` (fragmento relevante)
+
+```xml
+<parent>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-parent</artifactId>
+    <version>3.5.16</version>
+    <relativePath/>
+</parent>
+
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-test</artifactId>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-maven-plugin</artifactId>
+        </plugin>
+    </plugins>
+</build>
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/Application.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.boot.CommandLineRunner;
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
+
+@SpringBootApplication
+public class Application {
+
+    public static void main(String[] args) {
+        SpringApplication.run(Application.class, args);
+    }
+
+    @Bean
+    public CommandLineRunner demo(RepositorioProductos repositorio, ServicioVentas servicio) {
+        return args -> {
+            repositorio.agregar(new Product("Teclado mecanico", 25000.0, 15));
+            servicio.venderProducto("Teclado mecanico", 5);
+        };
+    }
+}
+```
+
+## Predice
+
+`CommandLineRunner` recibe `RepositorioProductos` y `ServicioVentas` YA INYECTADOS por Spring, sin que `main` haga ningún `getBean`. ¿Va a imprimir el mismo resultado que `SpringDemo` (Etapa 10 Lección 1), que sí usaba `getBean` manualmente?
+
+<Reveal titulo="Resultado real (ejecutado con Spring Boot)">
+```
+$ ./mvnw -q spring-boot:run
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+
+ :: Spring Boot ::               (v3.5.16)
+
+... Starting Application using Java 25.0.3 ...
+... No active profile set, falling back to 1 default profile: "default"
+... Started Application in 0.589 seconds (process running for 0.75)
+Vendido: 5 x Teclado mecanico
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- El banner ASCII y los logs de "Starting Application"/"Started Application" son característicos de Spring Boot — confirman que `SpringApplication.run` arrancó el contenedor completo, con auto-configuración incluida.
+- "No active profile set, falling back to 1 default profile" es una pista de que Boot soporta PERFILES de configuración (útil más adelante, para distinguir entornos como desarrollo/producción) — sin que hayamos configurado ninguno todavía.
+- "Vendido: 5 x Teclado mecanico" es exactamente el mismo resultado que en `SpringDemo` (Etapa 10) — el `CommandLineRunner` ejecutó la MISMA lógica de negocio, pero SIN que `main` escribiera ningún `getBean` explícito: Spring inyectó `RepositorioProductos` y `ServicioVentas` directamente como parámetros del método `@Bean`.
+- Todo esto ocurrió en menos de un segundo ("Started Application in 0.589 seconds") — la auto-configuración de Boot no agrega una sobrecarga perceptible para una aplicación de este tamaño.
+
+## Ejemplo aplicado al proyecto
+
+`Application` reemplaza el rol de `AppConfig` + arranque manual de la Etapa 10 — pero `AppConfig` sigue funcionando SIN modificarse, porque `@SpringBootApplication` escanea el mismo paquete y encuentra su `@Configuration` y su `@Bean` de `ProcesadorPago` automáticamente. Nada de lo construido en la Etapa 10 se perdió; Spring Boot lo envuelve en una capa de arranque más simple.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="SpringApplication.run falla con un error sobre múltiples clases @SpringBootApplication, o el contexto no arranca correctamente."
+  diagnostico="Errores confusos de auto-configuración, o comportamiento inesperado al tener más de una clase con @SpringBootApplication en el mismo proyecto."
+  causa="Un proyecto Spring Boot debe tener EXACTAMENTE UNA clase con @SpringBootApplication — es el punto de entrada que define desde dónde escanear todo lo demás. Tener dos (por ejemplo, una por accidente en otro paquete) genera configuraciones ambiguas o conflictivas."
+  solucion="Mantené una única clase @SpringBootApplication en el proyecto, típicamente en el paquete RAÍZ (com.curso.catalogo), para que su @ComponentScan implícito cubra todos los subpaquetes con una sola declaración."
+  prevencion="Si estás migrando un proyecto Spring Framework 'puro' a Boot, revisá que no queden clases @SpringBootApplication duplicadas por copiar y pegar, y que la única sobreviviente esté en el paquete más alto posible del proyecto."
+>
+```java
+package com.curso.catalogo;
+
+@SpringBootApplication
+public class Application { ... }
+
+package com.curso.catalogo.otro;
+
+@SpringBootApplication
+public class OtraApplication { ... } // duplicado, genera confusión
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar un segundo `CommandLineRunner` para confirmar que Spring Boot ejecuta TODOS los que encuentre, no solo el primero:
+
+```java
+@Bean
+public CommandLineRunner reporte(RepositorioProductos repositorio) {
+    return args -> System.out.println("Productos en catalogo: " + repositorio.listarTodos().size());
+}
+```
+
+## Ejercicio guiado
+
+Cambiá el `CommandLineRunner` de `demo` para que, en vez de vender directamente, use `ServicioDescuentos` (Etapa 10 Lección 3) para calcular el precio con descuento ANTES de imprimir el resultado de la venta.
+
+<Reveal titulo="Pista 1">
+Agregá `ServicioDescuentos servicioDescuentos` como tercer parámetro del método `demo` — Spring lo va a inyectar automáticamente, igual que a los otros dos.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+@Bean
+public CommandLineRunner demo(RepositorioProductos repositorio, ServicioVentas servicio, ServicioDescuentos servicioDescuentos) {
+    return args -> {
+        repositorio.agregar(new Product("Teclado mecanico", 25000.0, 15));
+        double conDescuento = servicioDescuentos.aplicarPorDefecto(25000.0);
+        System.out.println("Precio con descuento: " + conDescuento);
+        servicio.venderProducto("Teclado mecanico", 5);
+    };
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, ejecutá `./mvnw spring-boot:run` y contá cuántas líneas de log de Spring Boot aparecen ANTES de "Vendido: 5 x Teclado mecanico" — comparalo con la ausencia total de esos logs en `SpringDemo` (Etapa 10), y pensá qué información adicional te da Boot sobre el arranque de la aplicación.
+
+## Transferencia
+
+Si agregaras `spring-boot-starter-web` como dependencia (adelanto de la Etapa 12), ¿qué esperás que cambie en el comportamiento de `SpringApplication.run` SIN que modifiques una sola línea de `Application.java`? ¿Por qué la auto-configuración de Boot puede reaccionar a una dependencia nueva sin que vos le digas explícitamente qué hacer con ella?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué tres anotaciones combina @SpringBootApplication?"
+  opciones={[
+    { texto: "@Service, @Repository, @Controller", correcta: false, feedback: "Esas son especializaciones de @Component para distintas capas (lógica de negocio, acceso a datos, web) — no tienen relación con lo que @SpringBootApplication combina." },
+    { texto: "@Configuration, @ComponentScan, @EnableAutoConfiguration", correcta: true, feedback: "Correcto: @Configuration permite definir @Bean methods, @ComponentScan descubre clases anotadas automáticamente, y @EnableAutoConfiguration activa la configuración automática según lo que haya en el classpath." },
+    { texto: "@Autowired, @Qualifier, @Primary", correcta: false, feedback: "Esas anotaciones (Etapa 10 Lección 3) resuelven inyección de dependencias entre múltiples implementaciones — no tienen relación con arrancar la aplicación en sí." },
+    { texto: "@Test, @BeforeEach, @AfterEach", correcta: false, feedback: "Esas son anotaciones de JUnit para testing (Etapa 9 Lección 2 y más adelante Etapa 17) — @SpringBootApplication no tiene relación con el framework de testing." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+@SpringBootApplication
+public class Application {
+    public static void main(String[] args) {
+        // falta SpringApplication.run(...)
+    }
+
+    @Bean
+    public CommandLineRunner demo(RepositorioProductos repositorio) {
+        return args -> System.out.println("Productos: " + repositorio.listarTodos().size());
+    }
+}
+```
+
+¿Qué pasa al ejecutar `main` con este código?
+
+<Reveal titulo="Diagnóstico">
+El programa termina inmediatamente sin hacer NADA — nunca se imprime "Productos: ...". `@SpringBootApplication` solo DECLARA que la clase es el punto de entrada de una app Spring Boot; sin `SpringApplication.run(Application.class, args)`, nunca se arranca ningún contenedor, ningún bean se crea, y ningún `CommandLineRunner` se ejecuta. La anotación por sí sola no hace nada sin la llamada explícita.
+</Reveal>
+
+## Mini reto de diseño
+
+`AppConfig` (Etapa 10) sigue existiendo intacta en el proyecto, sin que la migración a Spring Boot la haya tocado. ¿Por qué fue posible mantenerla sin cambios? ¿Qué hubiera pasado si `AppConfig` estuviera en un paquete FUERA de `com.curso.catalogo` (por ejemplo, `com.curso.config`)?
+
+<Comparativa
+  columnas={["Aspecto", "Spring Framework puro (Etapa 10)", "Spring Boot (esta etapa)"]}
+  filas={[
+    ["Arranque", "new AnnotationConfigApplicationContext(AppConfig.class)", "SpringApplication.run(Application.class, args)"],
+    ["Component scan", "Explícito con @ComponentScan(basePackages=...)", "Implícito: paquete de la clase @SpringBootApplication y subpaquetes"],
+    ["Gestión de versiones", "Cada dependencia declara su propia <version>", "spring-boot-starter-parent gestiona versiones compatibles"],
+    ["Ejecutar código al arrancar", "Código manual después de crear el contexto", "CommandLineRunner registrado como bean"],
+  ]}
+/>
+
+## Resumen
+
+- `spring-boot-starter-parent` centraliza la gestión de versiones compatibles de todo el ecosistema Spring.
+- `@SpringBootApplication` combina `@Configuration` + `@ComponentScan` + `@EnableAutoConfiguration` en una sola anotación.
+- `SpringApplication.run` reemplaza la creación manual de `ApplicationContext`.
+- `CommandLineRunner` registrado como bean se ejecuta automáticamente apenas la aplicación arranca, con sus dependencias inyectadas como parámetros.
+
+## Modelo mental final
+
+Pensá en Spring Framework puro (Etapa 10) como armar un auto pieza por pieza vos mismo, y en Spring Boot como comprarlo ya ensamblado de fábrica con configuración de serie sensata — seguís pudiendo abrir el capot y ajustar cualquier pieza (como `AppConfig` con su `@Bean` manual), pero no necesitás ensamblar todo desde cero cada vez.
+
+## Conexión
+
+Todo lo construido en la Etapa 10 (`RepositorioProductos`, `ServicioVentas`, `Descuento` con `@Qualifier`/`@Primary`, `AppConfig` con `@Bean`) sigue funcionando SIN cambios — Spring Boot es una capa de arranque y auto-configuración sobre el MISMO Spring Framework, no un reemplazo.
+
+## Próximo paso
+
+Etapa 12: HTTP y REST — agregando `spring-boot-starter-web` para exponer `ServicioVentas` a través de endpoints HTTP reales, la primera vez que el proyecto deja de ser solo una app de consola.
+
+## Fuentes
+
+dev.java — introducción a Spring Boot. spring.io — documentación oficial de Spring Boot, secciones "Developing Your First Spring Boot Application" y "SpringApplication".
+
+<SelfCheck
+  leccionId="etapa-11-spring-boot/leccion-01-springbootapplication-autoconfiguracion"
+  criterios={[
+    "Puedo explicar qué hace spring-boot-starter-parent en el pom.xml.",
+    "Puedo explicar las tres anotaciones que combina @SpringBootApplication.",
+    "Puedo arrancar una aplicación con SpringApplication.run y explicar en qué se diferencia de AnnotationConfigApplicationContext.",
+    "Puedo registrar un CommandLineRunner que reciba dependencias inyectadas y se ejecute automáticamente al arrancar.",
+  ]}
+/>

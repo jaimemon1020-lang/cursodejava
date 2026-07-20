@@ -1,0 +1,229 @@
+---
+etapa: 20
+etapaTitulo: "Arquitectura Hexagonal"
+leccion: 1
+title: "Puertos y Adaptadores: el patrón que estabas usando sin saberlo"
+objetivo: "Entender el patrón de Puertos y Adaptadores (Arquitectura Hexagonal), identificar qué partes de tu proyecto YA siguen este patrón, y ver cómo la interfaz RepositorioProductos es exactamente un PUERTO."
+prerrequisitos: ["etapa-19-fundamentos-arquitectura/leccion-01-clean-architecture-dependencia"]
+version_proyecto: "v20 — RepositorioProductos como interfaz (puerto), RepositorioProductosEnMemoria como adaptador"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección entenderás el patrón de Arquitectura Hexagonal (Puertos y Adaptadores): tu dominio define PUERTOS (interfaces), y la infraestructura provee ADAPTADORES (implementaciones) que conectan esos puertos con el mundo exterior — bases de datos, HTTP, mensajería, sistemas de archivos.
+
+## Por qué necesitas aprenderlo
+
+La Arquitectura Hexagonal es la culminación de TODO lo que aprendiste en este curso: Dependency Injection (Etapa 8), interfaces vs implementaciones (Etapa 2), separación de responsabilidades (SOLID, Etapa 7), Clean Architecture (Etapa 19). Es el patrón que usan los sistemas empresariales reales para mantener el dominio TESTEABLE, REEMPLAZABLE y PROTEGIDO de los detalles de infraestructura.
+
+## Qué debes saber antes
+
+`RepositorioProductos` (interfaz ahora, Etapa 8 y 20), `ServicioVentas`, `ProductoController`, Dependency Injection (Etapa 8/10), Clean Architecture (Etapa 19).
+
+## Recupera lo aprendido
+
+¿Por qué la regla de dependencia de Clean Architecture dice que el dominio no debe importar clases de infraestructura?
+
+<Reveal titulo="Respuesta">
+Porque si el dominio importa infraestructura (ej. `import jakarta.persistence.*` en `Product`), queda ACOPLADO a esa tecnología para siempre — cambiar JPA por JDBC o MongoDB requeriría reescribir el dominio, que es justo lo que Clean Architecture busca evitar.
+</Reveal>
+
+## Problema
+
+Tu aplicación funciona, pero `ProductoController` (HTTP) y `RepositorioProductosEnMemoria` (persistencia) están en el MISMO proyecto que `Product` (dominio) y `ServicioVentas` (casos de uso). Si mañana necesitás:
+- Exponer la misma lógica vía gRPC además de REST
+- Cambiar el almacenamiento en memoria por PostgreSQL
+- Ejecutar `ServicioVentas` desde un job programado sin HTTP
+
+...cada cambio toca archivos en TODAS las capas. Necesitás una estructura donde cada preocupación tenga SU lugar, y las dependencias apunten en UNA sola dirección: hacia el dominio.
+
+## Modelo mental
+
+```
+        ┌──────────────────────────────┐
+        │    ADAPTADORES (driving)     │
+        │  ┌──────────┐ ┌───────────┐  │
+        │  │ REST API │ │ gRPC/CLI  │  │ ← entran peticiones
+        │  └────┬─────┘ └─────┬─────┘  │
+        │       │              │        │
+        │       ▼              ▼        │
+        │  ┌─────────────────────────┐  │
+        │  │     PUERTOS (in)        │  │
+        │  │  ServicioVentas (interf)│  │ ← contrato del dominio
+        │  └────────────┬────────────┘  │
+        │               │               │
+        │               ▼               │
+        │  ┌─────────────────────────┐  │
+        │  │       DOMINIO           │  │
+        │  │  Product, reglas de     │  │ ← NO sabe nada del exterior
+        │  │  negocio, excepciones   │  │
+        │  └────────────┬────────────┘  │
+        │               │               │
+        │               ▼               │
+        │  ┌─────────────────────────┐  │
+        │  │     PUERTOS (out)       │  │
+        │  │ RepositorioProductos    │  │ ← interfaz definida POR el dominio
+        │  └────────────┬────────────┘  │
+        │               │               │
+        │       ┌───────┴───────┐       │
+        │       ▼               ▼       │
+        │  ┌────────┐    ┌──────────┐   │
+        │  │ En Mem │    │PostgreSQL│   │ ← ADAPTADORES (driven)
+        │  └────────┘    └──────────┘   │
+        └──────────────────────────────┘
+```
+
+## Explicación sencilla
+
+Arquitectura Hexagonal = tu aplicación es un HEXÁGONO (el dominio) con PUERTOS en cada lado. Por cada puerto entra o sale información, pero el hexágono NO SABE qué hay del otro lado. Del lado de afuera hay ADAPTADORES que traducen entre el mundo exterior (HTTP, PostgreSQL, Kafka) y el lenguaje del dominio. Si querés cambiar PostgreSQL por MongoDB, solo cambiás UN adaptador — el hexágono ni se entera.
+
+## Explicación técnica
+
+Un PUERTO es una INTERFAZ definida por el dominio que establece un contrato. Hay dos tipos:
+- **Puertos de entrada (driving)**: definen cómo el mundo exterior PUEDE USAR el dominio. Ej: `ServicioVentas` (aunque actualmente es clase concreta, podría ser interfaz).
+- **Puertos de salida (driven)**: definen qué necesita el dominio DEL mundo exterior. Ej: `RepositorioProductos` (interfaz) — el dominio dice "necesito guardar y buscar productos", pero no dice CÓMO.
+
+Un ADAPTADOR es una IMPLEMENTACIÓN concreta de un puerto, que conecta con una tecnología específica:
+- **Adaptadores de entrada**: `ProductoController` (REST) implementa la interfaz HTTP y llama al dominio.
+- **Adaptadores de salida**: `RepositorioProductosEnMemoria` implementa `RepositorioProductos` usando una `ArrayList`.
+
+La REGLA DE DEPENDENCIA hexagonal: TODO apunta hacia el dominio. Los adaptadores dependen de los puertos (interfaces del dominio). Los puertos NO dependen de los adaptadores.
+
+## Cómo funciona
+
+1. **Puerto de salida**: `RepositorioProductos` es una interfaz en el dominio (raíz del paquete) con tres métodos: `agregar`, `listarTodos`, `buscar`. No tiene anotaciones de framework — es Java puro.
+2. **Adaptador de salida**: `RepositorioProductosEnMemoria` (en `infraestructura/persistencia/`) IMPLEMENTA esa interfaz usando `ArrayList`. Tiene `@Repository` — la ÚNICA concesión a Spring, necesaria para que el contenedor lo detecte.
+3. **Dominio**: `Product`, `ServicioVentas`, `ProductoNoEncontradoException` — ninguno sabe que existe `RepositorioProductosEnMemoria`. Solo conocen la INTERFAZ `RepositorioProductos`.
+4. **Adaptador de entrada**: `ProductoController` (HTTP) recibe peticiones REST, llama a `ServicioVentas` (dominio), y devuelve respuestas HTTP. El dominio no sabe que existe HTTP.
+5. **Inyección**: Spring (vía DI) inyecta `RepositorioProductosEnMemoria` donde el código pide `RepositorioProductos` — el dominio pide la interfaz, Spring provee la implementación.
+
+## Ejemplo mínimo
+
+**Puerto de salida (dominio):**
+```java
+// com.curso.catalogo.RepositorioProductos
+public interface RepositorioProductos {
+    void agregar(Product producto);
+    List<Product> listarTodos();
+    Optional<Product> buscar(Predicate<Product> criterio);
+}
+```
+
+**Adaptador de salida (infraestructura):**
+```java
+// com.curso.catalogo.infraestructura.persistencia.RepositorioProductosEnMemoria
+@Repository
+public class RepositorioProductosEnMemoria implements RepositorioProductos {
+    private final List<Product> productos = new ArrayList<>();
+
+    @Override
+    public void agregar(Product producto) { productos.add(producto); }
+
+    @Override
+    public List<Product> listarTodos() { return productos; }
+
+    @Override
+    public Optional<Product> buscar(Predicate<Product> criterio) {
+        return productos.stream().filter(criterio).findFirst();
+    }
+}
+```
+
+**Caso de uso (dominio) — solo conoce la interfaz:**
+```java
+// com.curso.catalogo.ServicioVentas
+public class ServicioVentas {
+    private final RepositorioProductos repositorio; // ← PUERTO, no implementación
+
+    public ServicioVentas(RepositorioProductos repositorio) {
+        this.repositorio = repositorio;
+    }
+
+    public void venderProducto(String nombre, int cantidad) {
+        Product p = repositorio.buscar(prod -> prod.getNombre().equals(nombre))
+                .orElseThrow(() -> new ProductoNoEncontradoException(nombre));
+        p.venderUnidades(cantidad);
+    }
+}
+```
+
+## Predice
+
+Si quisieras cambiar el almacenamiento de `ArrayList` en memoria a PostgreSQL, ¿cuántas líneas de `ServicioVentas` tendrías que modificar?
+
+<Reveal titulo="Respuesta">
+CERO. `ServicioVentas` solo conoce la interfaz `RepositorioProductos`. Crearías un NUEVO adaptador (`RepositorioProductosPostgres`) que implemente la misma interfaz, y cambiarías la configuración de Spring para que inyecte ESE adaptador en vez del de memoria. `ServicioVentas` no cambia ni una coma.
+</Reveal>
+
+## Ejemplo aplicado al proyecto
+
+El refactoring de esta etapa convirtió `RepositorioProductos` de una CLASE concreta con `@Repository` a una INTERFAZ pura, y movió la implementación a `infraestructura/persistencia/RepositorioProductosEnMemoria`. El comportamiento de la aplicación NO CAMBIÓ — los tests pasan exactamente igual. Lo que cambió es la ARQUITECTURA: ahora podés crear `RepositorioProductosPostgres`, `RepositorioProductosMongoDB`, o `RepositorioProductosFake` (para tests) sin tocar una sola línea del dominio.
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="RepositorioProductos es una interfaz en el paquete raíz (com.curso.catalogo). ¿Esto viola la separación de capas que viste en Etapa 19, donde la interfaz debería estar en un paquete 'dominio'?"
+  opciones={[
+    { texto: "Sí, es una violación — la interfaz debería moverse a com.curso.catalogo.dominio", correcta: false, feedback: "Técnicamente es cierto que el paquete 'dominio' sería más explícito, pero el PRINCIPIO se cumple igual: la interfaz está en el mismo nivel que Product (el dominio conceptual), sin dependencias de infraestructura. Moverla a un subpaquete 'dominio' es un refactoring cosmético, no arquitectónico." },
+    { texto: "No — lo importante no es el nombre del paquete, sino la DIRECCIÓN de las dependencias: RepositorioProductos no importa nada de infraestructura, y la implementación (RepositorioProductosEnMemoria) importa la interfaz, no al revés", correcta: true, feedback: "Correcto: la arquitectura hexagonal se define por la DIRECCIÓN de las dependencias, no por los nombres de paquetes. Mientras la interfaz no dependa de infraestructura y la implementación dependa de la interfaz, el principio se cumple." },
+    { texto: "Sí, pero no importa porque este proyecto es chico", correcta: false, feedback: "El tamaño del proyecto no justifica violar principios arquitectónicos — pero en este caso NO hay violación. La interfaz en el paquete raíz, sin dependencias de infraestructura, es arquitectónicamente correcta." },
+    { texto: "No, porque Java no permite interfaces en subpaquetes", correcta: false, feedback: "Java permite interfaces en cualquier paquete. La ubicación es una decisión de diseño, no una restricción del lenguaje." },
+  ]}
+/>
+
+## Mini reto de diseño
+
+Si quisieras que `ServicioVentas` también fuera un PUERTO (interfaz) en vez de una clase concreta, ¿qué cambiaría? ¿Qué ganarías?
+
+<Reveal titulo="Respuesta">
+Convertirías `ServicioVentas` en una interfaz con el método `venderProducto(String, int)`, y tendrías `ServicioVentasImpl` como implementación. Ganarías: poder tener MÚLTIPLES implementaciones (una real, una fake para tests de integración), y que los adaptadores de entrada (REST, gRPC, CLI) dependan de la INTERFAZ, no de la implementación concreta — aplicando exactamente el mismo principio que ya aplicaste a `RepositorioProductos`.
+</Reveal>
+
+<Comparativa
+  columnas={["Antes (monolito)", "Ahora (hexagonal inicial)"]}
+  filas={[
+    ["RepositorioProductos", "Clase concreta con @Repository", "Interfaz pura (puerto de salida)"],
+    ["Implementación", "La misma clase", "RepositorioProductosEnMemoria en infraestructura/persistencia"],
+    ["Cambiar storage", "Reescribir RepositorioProductos", "Crear nuevo adaptador, cero cambios en dominio"],
+    ["Tests", "Dependen de implementación concreta", "Pueden mockear la interfaz (Mockito, Etapa 17)"],
+  ]}
+/>
+
+## Resumen
+
+- Arquitectura Hexagonal = dominio en el centro, puertos (interfaces) en el borde, adaptadores (implementaciones) afuera.
+- Puerto de entrada: define cómo el mundo usa el dominio. Puerto de salida: define qué necesita el dominio del mundo.
+- Adaptador: implementación concreta de un puerto, atada a una tecnología específica (HTTP, PostgreSQL, etc.).
+- La regla de dependencia: todo apunta hacia el dominio — los adaptadores dependen de puertos, los puertos NO dependen de adaptadores.
+- Tu proyecto YA aplica este patrón: `RepositorioProductos` (puerto/interfaz) y `RepositorioProductosEnMemoria` (adaptador).
+
+## Modelo mental final
+
+Pensá en un enchufe eléctrico (el puerto): define la FORMA (dos patas planas, redondas, tres patas) sin decir qué hay del otro lado. Del otro lado puede haber un cargador de celular, una lámpara, una computadora (los adaptadores). El enchufe no sabe ni necesita saber qué se conecta — solo define el CONTRATO. Cambiás el adaptador sin tocar el enchufe.
+
+## Conexión
+
+Dependency Injection (Etapa 8 L1) + interfaces (Etapa 2 L4) + Clean Architecture (Etapa 19) = Arquitectura Hexagonal. No son conceptos separados — son CAPAS del mismo principio: el domino define QUÉ, la infraestructura define CÓMO, y Spring conecta ambos sin que el dominio se entere.
+
+## Próximo paso
+
+Etapa 20 / Lección 2: el refactoring en acción — el diff completo de `RepositorioProductos` (clase → interfaz) y `RepositorioProductosEnMemoria` (nueva implementación), verificando que TODO sigue funcionando.
+
+## Fuentes
+
+alistair.cockburn.us/hexagonal-architecture — artículo original del patrón (2005). jmgarciag.wordpress.com — "Arquitectura Hexagonal en Spring Boot" (artículo en español con ejemplos prácticos).
+
+<SelfCheck
+  leccionId="etapa-20-arquitectura-hexagonal/leccion-01-puertos-y-adaptadores"
+  criterios={[
+    "Entiendo la diferencia entre puerto (interfaz) y adaptador (implementación).",
+    "Puedo identificar el puerto de salida (RepositorioProductos) y su adaptador (RepositorioProductosEnMemoria) en el proyecto.",
+    "Entiendo por qué el dominio no debe importar clases de infraestructura.",
+    "Puedo explicar cómo cambiar la base de datos sin tocar el dominio.",
+  ]}
+/>

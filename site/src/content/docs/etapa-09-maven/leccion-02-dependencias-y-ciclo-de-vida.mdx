@@ -1,0 +1,265 @@
+---
+etapa: 9
+etapaTitulo: "Maven"
+leccion: 2
+title: "Dependencias y el ciclo de vida de Maven"
+objetivo: "Agregar una dependencia externa real al pom.xml, entender qué hace cada fase del ciclo de vida de Maven (validate, compile, test, package), y usar src/test/java para tests automatizados."
+prerrequisitos: ["etapa-09-maven/leccion-01-pom-y-estructura-estandar"]
+version_proyecto: "v2 — junit-jupiter (test scope), ProductTest (cierra Etapa 9)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de agregar una dependencia externa real al `pom.xml` (con su `scope` correcto), entender qué hace cada fase del ciclo de vida de Maven (`validate`, `compile`, `test`, `package`), y escribir un test automatizado en `src/test/java` que Maven ejecuta con `mvn test`.
+
+## Por qué necesitas aprenderlo
+
+Todo el código de este curso hasta ahora usó SOLO la biblioteca estándar de Java (`java.util`, `java.time`, `java.nio.file`) — nunca una librería de un tercero. Spring, JPA, y prácticamente cualquier framework real son DEPENDENCIAS EXTERNAS que se declaran en `pom.xml` — necesitás entender el mecanismo antes de usarlo con frameworks más complejos.
+
+## Qué debes saber antes
+
+`pom.xml`, estructura estándar `src/main/java` (Etapa 9 Lección 1).
+
+## Recupera lo aprendido
+
+¿Por qué la carpeta de un archivo Java en Maven debe coincidir exactamente con su declaración de `package`?
+
+<Reveal titulo="Respuesta">
+Porque Maven usa "convención sobre configuración": asume que la ruta `src/main/java` seguida del paquete convertido en carpetas refleja el paquete declarado, sin que se lo indiques explícitamente — si no coinciden, la resolución de clases falla.
+</Reveal>
+
+## Problema
+
+Necesitás escribir un TEST automatizado para `Product.venderUnidades()` que confirme que reduce el stock correctamente, y otro que confirme que lanza `StockInsuficienteException` cuando corresponde. Estas herramientas de testing (`assertEquals`, `assertThrows`) no son parte de la biblioteca estándar de Java — vienen de una librería externa (JUnit) que necesitás DECLARAR como dependencia antes de poder usarla.
+
+## Modelo mental
+
+```
+pom.xml declara QUÉ dependencias necesita el proyecto.
+Maven las DESCARGA automáticamente (de un repositorio central)
+la primera vez, y las reutiliza de una caché local después.
+
+Ciclo de vida: validate -> compile -> test -> package
+(cada fase ejecuta TODAS las anteriores automáticamente)
+```
+
+## Explicación sencilla
+
+Una dependencia es una librería externa que tu proyecto necesita para funcionar (o, en este caso, para testear). En vez de descargarla manualmente y agregarla al classpath a mano, la DECLARÁS en `pom.xml` (qué librería, qué versión), y Maven se encarga de descargarla de un repositorio central (Maven Central) y ponerla disponible automáticamente.
+
+## Explicación técnica
+
+Una dependencia en `pom.xml` necesita `groupId`, `artifactId`, y `version` — igual que tu propio proyecto tiene esos tres datos, cada librería publicada en Maven Central también los tiene, así Maven sabe EXACTAMENTE qué descargar. El **`scope`** controla EN QUÉ MOMENTO esa dependencia está disponible: `test` significa que solo se usa para compilar y ejecutar tests (`src/test/java`), y NO se incluye en el `.jar` final de producción — JUnit es un ejemplo perfecto de esto: tu aplicación en producción nunca necesita JUnit, solo tus tests durante el desarrollo.
+
+El **ciclo de vida de Maven** es una secuencia ORDENADA de fases, donde ejecutar una fase EJECUTA AUTOMÁTICAMENTE todas las anteriores: `validate` (verifica que el proyecto esté bien formado) → `compile` (compila `src/main/java`) → `test` (compila y ejecuta los tests de `src/test/java`) → `package` (empaqueta todo en un `.jar`). Por eso `mvn package` compila Y testea automáticamente ANTES de empaquetar — si un test falla, el `package` NUNCA se ejecuta, evitando empaquetar código roto.
+
+`src/test/java` es la contraparte de `src/main/java`, con la MISMA convención de paquetes. Una clase de test como `ProductTest` normalmente NO necesita ser `public` (a diferencia de las clases de producción), porque el framework de testing la descubre e invoca directamente, no otro código de tu aplicación.
+
+## Cómo funciona
+
+1. `<dependency>` en `pom.xml` declara `junit-jupiter` con `scope=test` — disponible SOLO para compilar/ejecutar `src/test/java`, nunca empaquetado en el `.jar` de producción.
+2. `ProductTest` (en `src/test/java/com/curso/catalogo/`) usa `@Test` para marcar cada método como un caso de prueba independiente.
+3. `assertEquals(10, teclado.getStock())` falla el test si el valor real no coincide con el esperado; `assertThrows(StockInsuficienteException.class, () -> ...)` falla si el código NO lanza esa excepción.
+4. `./mvnw test` ejecuta automáticamente `validate` → `compile` → `test`, compilando TANTO `src/main/java` COMO `src/test/java`, y corriendo cada método `@Test`.
+5. Si `venderMasDeLoDisponibleLanzaExcepcion` fallara, `./mvnw package` se DETENDRÍA ahí — nunca llegaría a generar el `.jar`.
+
+## Ejemplo mínimo
+
+**Fragmento agregado a `proyecto-maven/pom.xml`:**
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.junit.jupiter</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>5.10.2</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+**Archivo:** `proyecto-maven/src/test/java/com/curso/catalogo/ProductTest.java`
+
+```java
+package com.curso.catalogo;
+
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+
+class ProductTest {
+
+    @Test
+    void venderUnidadesReduceElStock() {
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+
+        teclado.venderUnidades(5);
+
+        assertEquals(10, teclado.getStock());
+    }
+
+    @Test
+    void venderMasDeLoDisponibleLanzaExcepcion() {
+        Product teclado = new Product("Teclado mecanico", 25000.0, 15);
+
+        assertThrows(StockInsuficienteException.class, () -> teclado.venderUnidades(100));
+    }
+}
+```
+
+## Predice
+
+`venderUnidadesReduceElStock` vende 5 de un stock de 15, esperando 10. `venderMasDeLoDisponibleLanzaExcepcion` intenta vender 100 de un stock de 15. ¿Cuántos tests van a pasar?
+
+<Reveal titulo="Resultado real (ejecutado con Maven)">
+```
+$ ./mvnw test
+...
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0
+[INFO] BUILD SUCCESS
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "Tests run: 2" confirma que Maven encontró y ejecutó AMBOS métodos `@Test` de `ProductTest`, sin que se los hayas registrado manualmente en ningún lado — el descubrimiento es automático.
+- "Failures: 0, Errors: 0" confirma que `venderUnidades(5)` efectivamente dejó el stock en 10 (coincidiendo con `assertEquals`), y que `venderUnidades(100)` efectivamente lanzó `StockInsuficienteException` (coincidiendo con `assertThrows`).
+- "BUILD SUCCESS" es el resultado de que la fase `test` (y todas las anteriores: `validate`, `compile`) terminaron sin errores.
+- Si `venderUnidades` tuviera un bug que dejara el stock en 11 en vez de 10, "Failures" sería `1`, y el mensaje mostraría EXACTAMENTE qué se esperaba vs. qué se obtuvo — sin que tengas que buscar el error manualmente con `System.out.println`.
+
+## Ejemplo aplicado al proyecto
+
+Con JUnit declarado como dependencia de `scope=test`, cada clase migrada a Maven puede tener sus propios tests automatizados que se ejecutan en cada `mvn test` — reemplazando gradualmente los demos con `main` y `System.out.println` (usados desde la Etapa 0) por verificaciones automáticas y repetibles, un adelanto de lo que la Etapa 17 (Testing) va a profundizar.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="mvn test falla con 'package org.junit.jupiter.api does not exist' al compilar ProductTest."
+  diagnostico="[ERROR] package org.junit.jupiter.api does not exist, apuntando a las líneas de import en ProductTest.java"
+  causa="La dependencia junit-jupiter no está declarada en pom.xml, o tiene un scope incorrecto (por ejemplo, un typo en groupId/artifactId que hace que Maven no la encuentre)."
+  solucion="Verificar que <dependency> esté correctamente declarada en pom.xml con groupId=org.junit.jupiter, artifactId=junit-jupiter, y una versión válida — y ejecutar de nuevo, Maven descarga la dependencia si no la tiene en caché local."
+  prevencion="Si un import de una librería externa falla al compilar, lo primero a revisar es si la dependencia está en pom.xml, y si el groupId/artifactId coinciden EXACTAMENTE con lo publicado en Maven Central (un typo ahí es indistinguible de 'la librería no existe')."
+>
+```xml
+<dependencies>
+    <!-- falta la dependencia de junit-jupiter -->
+</dependencies>
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que `mvn package` ejecuta los tests automáticamente ANTES de empaquetar:
+
+```bash
+./mvnw package
+# La salida muestra "Tests run: 2..." ANTES de "Building jar..."
+```
+
+## Ejercicio guiado
+
+Agregá un tercer test a `ProductTest` que confirme que `equals()` (Etapa 6 Lección 2) trata como iguales dos productos con el mismo nombre, precio y stock, aunque sean instancias distintas.
+
+<Reveal titulo="Pista 1">
+Usá `assertEquals(productoA, productoB)` (no `assertTrue(productoA == productoB)`) — `assertEquals` internamente usa `equals()`, exactamente el método que `Product` sobrescribió en la Etapa 6.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+@Test
+void dosProductosConLosMismosValoresSonIguales() {
+    Product productoA = new Product("Mouse inalambrico", 8000.0, 40);
+    Product productoB = new Product("Mouse inalambrico", 8000.0, 40);
+
+    assertEquals(productoA, productoB);
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, escribí `RepositorioEnMemoriaTest` (migrando la clase `RepositorioEnMemoria<T>` de la Etapa 4 a `com.curso.catalogo`), con un test que confirme que `buscar` devuelve un `Optional` vacío cuando el criterio no coincide con ningún elemento.
+
+## Transferencia
+
+Si agregaras una dependencia con `scope=compile` (el valor por defecto, sin especificar `scope`) en vez de `scope=test`, ¿en qué se diferenciaría el `.jar` final de tu aplicación? ¿Por qué sería un error usar `scope=compile` para JUnit específicamente?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué significa que una dependencia tenga scope=test en Maven?"
+  opciones={[
+    { texto: "Que la dependencia solo puede usarse dentro de métodos marcados con @Test", correcta: false, feedback: "El scope no restringe DÓNDE dentro del código se puede usar — restringe en qué FASE del build está disponible: compilación/ejecución de src/test/java, no en el .jar final de producción." },
+    { texto: "Que la dependencia está disponible para compilar y ejecutar src/test/java, pero NO se incluye en el artefacto final de producción (el .jar)", correcta: true, feedback: "Correcto: scope=test es exactamente para herramientas de testing como JUnit, que tu aplicación en producción nunca necesita — mantiene el .jar final más liviano y sin dependencias innecesarias." },
+    { texto: "Que Maven ejecuta esa dependencia automáticamente como un test", correcta: false, feedback: "El scope no ejecuta nada por sí solo — solo controla la DISPONIBILIDAD de la dependencia en distintas fases del build. Los tests reales los definís vos con @Test." },
+    { texto: "Que la dependencia se descarga pero nunca se usa realmente", correcta: false, feedback: "Todo lo contrario: junit-jupiter con scope=test SÍ se usa activamente para compilar y ejecutar ProductTest — el scope solo determina en qué contexto (test vs. producción) está disponible." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```bash
+$ ./mvnw package
+[INFO] Tests run: 2, Failures: 1, Errors: 0, Skipped: 0
+[INFO] BUILD FAILURE
+```
+
+¿Se generó el archivo `.jar` en `target/` después de este resultado?
+
+<Reveal titulo="Diagnóstico">
+No. Como el ciclo de vida de Maven ejecuta las fases EN ORDEN (`validate` → `compile` → `test` → `package`), y la fase `test` FALLÓ (1 failure), Maven se detiene ahí y NUNCA llega a ejecutar `package` — el `.jar` no se genera. Esto es exactamente el comportamiento deseado: nunca empaquetar código que no pasa sus propios tests.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué Maven descarga las dependencias de un REPOSITORIO CENTRAL (Maven Central) en vez de que cada desarrollador tenga que conseguir el `.jar` de JUnit manualmente y copiarlo al proyecto? ¿Qué problema de "funciona en mi máquina" resuelve esto cuando un equipo entero trabaja sobre el mismo `pom.xml`?
+
+<Comparativa
+  columnas={["Fase", "Qué hace", "Ejecuta automáticamente antes"]}
+  filas={[
+    ["validate", "Verifica que el proyecto esté bien formado", "(nada, es la primera)"]
+    ,["compile", "Compila src/main/java", "validate"]
+    ,["test", "Compila y ejecuta src/test/java", "validate, compile"]
+    ,["package", "Empaqueta todo en un .jar", "validate, compile, test"]
+  ]}
+/>
+
+## Resumen
+
+- Una dependencia se declara con `groupId`, `artifactId`, `version`, y un `scope` que controla en qué fase está disponible.
+- `scope=test` mantiene herramientas como JUnit fuera del artefacto final de producción.
+- El ciclo de vida de Maven es secuencial: cada fase ejecuta automáticamente todas las anteriores.
+- Un test que falla detiene el ciclo de vida — `package` nunca se ejecuta con tests rotos.
+
+## Modelo mental final
+
+Pensá en el ciclo de vida de Maven como una línea de ensamblaje: cada estación (`validate`, `compile`, `test`, `package`) revisa su parte antes de dejar pasar el producto a la siguiente — si algo falla en el control de calidad (`test`), el producto nunca llega a la estación de empaquetado.
+
+## Conexión
+
+Esta lección cierra la Etapa 9: la estructura estándar y `pom.xml` (Lección 1) sentaron la base; dependencias externas y el ciclo de vida (esta lección) son exactamente el mecanismo que Spring Boot (Etapa 10-11) va a usar para traer TODO el framework como una simple declaración en `pom.xml`.
+
+## Próximo paso
+
+Etapa 10: Spring Framework — Inversion of Control (IoC) y Dependency Injection automatizados por el framework, construyendo sobre DI manual (Etapa 8) y dependencias Maven (esta etapa).
+
+## Fuentes
+
+dev.java — dependencias y ciclo de vida en Maven. maven.apache.org — referencia oficial del ciclo de vida de build (Build Lifecycle Reference). junit.org — documentación de JUnit 5 (Jupiter).
+
+<SelfCheck
+  leccionId="etapa-09-maven/leccion-02-dependencias-y-ciclo-de-vida"
+  criterios={[
+    "Puedo declarar una dependencia externa en pom.xml con el scope correcto.",
+    "Puedo explicar las fases principales del ciclo de vida de Maven y su orden.",
+    "Puedo escribir un test básico con JUnit 5 (@Test, assertEquals, assertThrows) en src/test/java.",
+    "Puedo explicar por qué un test que falla impide que mvn package genere el artefacto final.",
+  ]}
+/>

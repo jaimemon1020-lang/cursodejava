@@ -1,0 +1,333 @@
+---
+etapa: 10
+etapaTitulo: "Spring Framework"
+leccion: 3
+title: "@Qualifier y @Primary: resolviendo múltiples implementaciones"
+objetivo: "Resolver la ambigüedad cuando existen varios beans del mismo tipo, usando @Primary para marcar el default y @Qualifier para pedir uno específico por nombre — Strategy (Etapa 8) ahora gestionado por Spring."
+prerrequisitos: ["etapa-10-spring-framework/leccion-02-bean-scopes-y-bean-methods"]
+version_proyecto: "v3 — Descuento/DescuentoFijo/DescuentoPorcentual como beans, ServicioDescuentos, QualifierDemo (cierra Etapa 10)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de resolver la ambigüedad que aparece cuando MÚLTIPLES clases implementan la misma interfaz y todas son beans de Spring — usando `@Primary` para marcar cuál usar por defecto, y `@Qualifier` para pedir explícitamente una implementación específica por nombre.
+
+## Por qué necesitas aprenderlo
+
+`Descuento` (Strategy, Etapa 2/7/8) tiene DOS implementaciones: `DescuentoFijo` y `DescuentoPorcentual`. Si ambas se convierten en beans de Spring (`@Component`), cualquier código que pida `@Autowired Descuento descuento` se enfrenta a una pregunta que Spring no puede responder solo: ¿CUÁL de las dos querés?
+
+## Qué debes saber antes
+
+Strategy (`Descuento`/`DescuentoFijo`/`DescuentoPorcentual`, Etapa 8 Lección 2), y `@Component`/`@Autowired` (Etapa 10 Lección 1).
+
+## Recupera lo aprendido
+
+¿Por qué el tipo de retorno de un método `@Bean` debería ser la interfaz (`ProcesadorPago`) y no la implementación concreta (`AdaptadorPagoExterno`)?
+
+<Reveal titulo="Respuesta">
+Porque Spring registra el bean bajo el tipo de retorno declarado — si es la interfaz, cualquier código que dependa de esa interfaz por @Autowired puede recibir el bean; si es la clase concreta, esa garantía se pierde.
+</Reveal>
+
+## Problema
+
+`DescuentoFijo` y `DescuentoPorcentual` implementan `Descuento`. Si ambas tienen `@Component`, y otra clase declara `@Autowired public ServicioDescuentos(Descuento descuento)`, Spring encuentra DOS beans candidatos del tipo `Descuento` — y sin más información, no tiene forma de saber cuál inyectar.
+
+## Modelo mental
+
+```
+Un solo bean del tipo:        Spring lo inyecta sin ambigüedad.
+
+Múltiples beans del mismo
+tipo, SIN @Primary/@Qualifier: NoUniqueBeanDefinitionException.
+
+@Primary en uno de ellos:      ese se usa cuando se pide el tipo
+                                SIN especificar cuál.
+
+@Qualifier("nombre") en el
+punto de inyección:            fuerza a Spring a usar ESE bean
+                                específico, ignorando @Primary.
+```
+
+## Explicación sencilla
+
+Cuando hay una sola implementación de una interfaz, Spring no tiene dudas. Cuando hay VARIAS (como con Strategy, donde eso es justamente el punto), necesitás decirle a Spring cuál preferís por defecto (`@Primary`) o cuál específicamente en un punto de inyección puntual (`@Qualifier`, usando el NOMBRE del bean).
+
+## Explicación técnica
+
+`@Component("nombreDelBean")` le da un nombre EXPLÍCITO al bean (sin el paréntesis, Spring usa el nombre de la clase con la primera letra en minúscula por defecto). `@Primary` sobre una de las implementaciones le dice a Spring: "si alguien pide `Descuento` SIN especificar más, dale esta". `@Qualifier("descuentoFijo")` en un PARÁMETRO de constructor le dice a Spring: "para ESTE parámetro específico, ignorá `@Primary` y usá el bean con ESE nombre exacto".
+
+Es importante notar que `@Primary` y `@Qualifier` resuelven el MISMO problema (ambigüedad) desde ángulos distintos: `@Primary` es una preferencia GLOBAL (afecta a cualquier inyección sin qualifier explícito); `@Qualifier` es una elección LOCAL, puntual, que siempre gana sobre `@Primary` cuando ambos están presentes en el mismo punto de inyección.
+
+`contexto.getBean(Descuento.class)` (sin especificar nombre) usa la MISMA lógica de resolución que una inyección `@Autowired` sin `@Qualifier`: si hay una única implementación, la devuelve; si hay varias y una es `@Primary`, devuelve esa; si hay varias y ninguna es `@Primary`, lanza `NoUniqueBeanDefinitionException`.
+
+## Cómo funciona
+
+1. `DescuentoFijo` es `@Component("descuentoFijo")`; `DescuentoPorcentual` es `@Primary @Component("descuentoPorcentual")`.
+2. `ServicioDescuentos` recibe DOS parámetros `Descuento` en su constructor: uno SIN `@Qualifier` (resuelto por `@Primary` → `DescuentoPorcentual`), y otro CON `@Qualifier("descuentoFijo")` (resuelto explícitamente → `DescuentoFijo`, ignorando cuál sea `@Primary`).
+3. `contexto.getBean(Descuento.class)` (sin nombre) resuelve al bean `@Primary` — el mismo comportamiento que una inyección sin `@Qualifier`.
+4. Si `DescuentoPorcentual` NO tuviera `@Primary`, el `@Autowired` sin `@Qualifier` de `ServicioDescuentos` fallaría con `NoUniqueBeanDefinitionException` al arrancar el contexto.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/DescuentoFijo.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.stereotype.Component;
+
+@Component("descuentoFijo")
+public class DescuentoFijo implements Descuento {
+
+    private static final double MONTO = 2000.0;
+
+    @Override
+    public double aplicar(double total) {
+        double resultado = total - MONTO;
+        return resultado < 0 ? 0 : resultado;
+    }
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/DescuentoPorcentual.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.context.annotation.Primary;
+import org.springframework.stereotype.Component;
+
+@Primary
+@Component("descuentoPorcentual")
+public class DescuentoPorcentual implements Descuento {
+
+    private static final double PORCENTAJE = 0.10;
+
+    @Override
+    public double aplicar(double total) {
+        return total - (total * PORCENTAJE);
+    }
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/ServicioDescuentos.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.stereotype.Service;
+
+@Service
+public class ServicioDescuentos {
+
+    private final Descuento descuentoPorDefecto;
+    private final Descuento descuentoFijo;
+
+    @Autowired
+    public ServicioDescuentos(Descuento descuentoPorDefecto,
+                               @Qualifier("descuentoFijo") Descuento descuentoFijo) {
+        this.descuentoPorDefecto = descuentoPorDefecto;
+        this.descuentoFijo = descuentoFijo;
+    }
+
+    public double aplicarPorDefecto(double total) {
+        return descuentoPorDefecto.aplicar(total);
+    }
+
+    public double aplicarFijo(double total) {
+        return descuentoFijo.aplicar(total);
+    }
+}
+```
+
+**Archivo:** `proyecto-maven/src/main/java/com/curso/catalogo/QualifierDemo.java`
+
+```java
+package com.curso.catalogo;
+
+import org.springframework.context.ApplicationContext;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+
+public class QualifierDemo {
+    public static void main(String[] args) {
+        ApplicationContext contexto = new AnnotationConfigApplicationContext(AppConfig.class);
+
+        ServicioDescuentos servicio = contexto.getBean(ServicioDescuentos.class);
+        System.out.println("Con descuento por defecto (Primary): " + servicio.aplicarPorDefecto(25000.0));
+        System.out.println("Con descuento fijo (Qualifier): " + servicio.aplicarFijo(25000.0));
+
+        Descuento resuelto = contexto.getBean(Descuento.class);
+        System.out.println("Bean resuelto sin qualifier es: " + resuelto.getClass().getSimpleName());
+    }
+}
+```
+
+## Predice
+
+`DescuentoPorcentual` (10%) es `@Primary`. `DescuentoFijo` (resta $2.000) se pide explícitamente con `@Qualifier`. Sobre $25.000, ¿qué total esperás de cada uno?
+
+<Reveal titulo="Resultado real (ejecutado con Maven)">
+```
+$ ./mvnw -q compile exec:java -Dexec.mainClass=com.curso.catalogo.QualifierDemo
+Con descuento por defecto (Primary): 22500.0
+Con descuento fijo (Qualifier): 23000.0
+Bean resuelto sin qualifier es: DescuentoPorcentual
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "Con descuento por defecto (Primary): 22500.0" = `25000 - (25000 * 0.10)` — `descuentoPorDefecto` se resolvió al bean `@Primary` (`DescuentoPorcentual`), SIN que `ServicioDescuentos` especificara ningún `@Qualifier` para ese parámetro.
+- "Con descuento fijo (Qualifier): 23000.0" = `25000 - 2000` — `descuentoFijo` se resolvió EXACTAMENTE al bean nombrado `"descuentoFijo"`, ignorando que `DescuentoPorcentual` sea `@Primary`.
+- "Bean resuelto sin qualifier es: DescuentoPorcentual" confirma que `contexto.getBean(Descuento.class)` (sin nombre) sigue la MISMA regla que una inyección sin `@Qualifier`: gana el `@Primary`.
+- Sin `@Primary` en ninguna de las dos implementaciones, tanto esta llamada como el parámetro sin `@Qualifier` de `ServicioDescuentos` habrían fallado al arrancar el contexto.
+
+## Ejemplo aplicado al proyecto
+
+`Descuento`/`DescuentoFijo`/`DescuentoPorcentual` (Strategy, Etapa 8) ahora son beans de Spring completamente gestionados — la ambigüedad que Strategy siempre tuvo POTENCIALMENTE (¿cuál implementación uso?) se resuelve con las mismas herramientas (`@Primary`/`@Qualifier`) que vas a usar constantemente cuando el proyecto tenga múltiples implementaciones de una misma interfaz de negocio.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El contexto de Spring falla al arrancar con NoUniqueBeanDefinitionException."
+  diagnostico="org.springframework.beans.factory.NoUniqueBeanDefinitionException: No qualifying bean of type 'com.curso.catalogo.Descuento' available: expected single matching bean but found 2: descuentoFijo,descuentoPorcentual"
+  causa="Existen múltiples beans del mismo tipo (Descuento), y ningún punto de inyección (constructor) indica CUÁL usar — ni con @Qualifier, ni hay un @Primary entre las implementaciones que desempate."
+  solucion="Marcar UNA de las implementaciones con @Primary (para que sea el default), o agregar @Qualifier('nombreDelBean') en cada punto de inyección que necesite una implementación específica."
+  prevencion="Apenas creás la SEGUNDA implementación de una interfaz que ya es @Component, pensá de inmediato si necesitás @Primary, @Qualifier en cada punto de uso, o ambos combinados como en ServicioDescuentos."
+>
+```java
+@Component
+public class DescuentoFijo implements Descuento { ... }
+
+@Component
+public class DescuentoPorcentual implements Descuento { ... }
+// Ninguna es @Primary, y ServicioDescuentos pide Descuento sin @Qualifier
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que `@Qualifier` funciona igual sobre un campo o método `@Autowired`, no solo en constructor (aunque constructor sigue siendo la práctica recomendada, Etapa 8 Lección 1):
+
+```java
+@Autowired
+@Qualifier("descuentoPorcentual")
+private Descuento descuentoParaPromociones;
+```
+
+## Ejercicio guiado
+
+Agregá una TERCERA implementación de `Descuento`, `DescuentoNulo` (que no descuenta nada, devuelve el `total` sin cambios), como `@Component("sinDescuento")`, y confirmá que `ServicioDescuentos` sigue funcionando sin modificarse (porque ninguno de sus `@Qualifier` apunta a `"sinDescuento"`).
+
+<Reveal titulo="Pista 1">
+Agregar una implementación NUEVA a una interfaz con Strategy nunca debería romper el código existente — es exactamente el Open/Closed Principle (Etapa 7) aplicado a beans de Spring.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+package com.curso.catalogo;
+
+import org.springframework.stereotype.Component;
+
+@Component("sinDescuento")
+public class DescuentoNulo implements Descuento {
+
+    @Override
+    public double aplicar(double total) {
+        return total;
+    }
+}
+```
+
+`ServicioDescuentos` no necesita ningún cambio: sus `@Qualifier` siguen apuntando a `"descuentoFijo"` y su parámetro sin qualifier sigue resolviendo al `@Primary` (`DescuentoPorcentual`) — la nueva implementación simplemente queda disponible para quien la pida explícitamente con `@Qualifier("sinDescuento")`.
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto-maven/`, escribí un método nuevo en `QualifierDemo` que obtenga `DescuentoNulo` (del ejercicio guiado) directamente con `contexto.getBean("sinDescuento", Descuento.class)`, confirmando que `aplicar(25000.0)` devuelve `25000.0` sin cambios.
+
+## Transferencia
+
+Si `MetodoEnvio` (la OTRA clase Strategy de la Etapa 2, con `EnvioEstandar`/`EnvioExpress`) se convirtiera también en beans de Spring, ¿cuál de las dos implementaciones marcarías `@Primary`, considerando que `EnvioEstandar` es gratis en compras grandes y `EnvioExpress` siempre cobra $3.500? ¿Qué criterio de negocio usarías para decidir el default?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="Si un bean tiene @Qualifier en el punto de inyección Y existe otro bean del mismo tipo marcado @Primary, ¿cuál gana?"
+  opciones={[
+    { texto: "Siempre gana @Primary, sin importar qué diga @Qualifier", correcta: false, feedback: "Es al revés: @Qualifier es una instrucción ESPECÍFICA y local para ese punto de inyección exacto, y siempre tiene prioridad sobre la preferencia GLOBAL que representa @Primary." },
+    { texto: "@Qualifier siempre gana en el punto de inyección donde está presente — @Primary solo aplica cuando NO hay @Qualifier explícito", correcta: true, feedback: "Correcto: en ServicioDescuentos, el parámetro con @Qualifier('descuentoFijo') recibió DescuentoFijo a pesar de que DescuentoPorcentual es @Primary — @Qualifier es más específico y gana." },
+    { texto: "Spring lanza una excepción porque ambas anotaciones entran en conflicto", correcta: false, feedback: "No hay conflicto — es exactamente el diseño esperado: @Primary da un default general, @Qualifier permite override puntual donde se necesite algo distinto del default." },
+    { texto: "Depende del orden alfabético de los nombres de los beans", correcta: false, feedback: "La resolución de Spring no tiene nada que ver con orden alfabético — sigue reglas explícitas: @Qualifier en el punto de inyección, después @Primary como fallback, y si ninguno resuelve la ambigüedad, excepción." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+@Component("descuentoFijo")
+public class DescuentoFijo implements Descuento { ... }
+
+@Autowired
+@Qualifier("DescuentoFijo")  // <- con mayúscula inicial
+public ServicioDescuentos(Descuento descuento) { ... }
+```
+
+¿Qué esperás que pase al arrancar el contexto?
+
+<Reveal titulo="Diagnóstico">
+Falla con `NoSuchBeanDefinitionException` (o una excepción equivalente de bean no encontrado). El nombre del bean es EXACTO y sensible a mayúsculas/minúsculas: `@Component("descuentoFijo")` registra el bean como `"descuentoFijo"` (minúscula inicial), y `@Qualifier("DescuentoFijo")` busca un nombre DISTINTO (con mayúscula) que no existe — un typo de capitalización es indistinguible, para Spring, de pedir un bean que nunca se registró.
+</Reveal>
+
+## Mini reto de diseño
+
+`ServicioDescuentos` recibe DOS `Descuento` distintos por constructor (uno `@Primary`, otro `@Qualifier`). ¿Es esto una violación de SRP (Single Responsibility, Etapa 7)? ¿En qué escenario de negocio tendría sentido que una clase necesite explícitamente DOS estrategias de descuento distintas al mismo tiempo, en vez de una sola resuelta dinámicamente?
+
+<Comparativa
+  columnas={["Mecanismo", "Alcance", "Cuándo se resuelve"]}
+  filas={[
+    ["@Primary", "Global — afecta cualquier inyección sin @Qualifier", "Al declarar la clase implementadora"],
+    ["@Qualifier con nombre", "Local — solo ese punto de inyección específico", "En cada constructor/campo que lo use"],
+  ]}
+/>
+
+## Resumen
+
+- Múltiples beans del mismo tipo, sin resolver la ambigüedad, lanzan `NoUniqueBeanDefinitionException` al arrancar el contexto.
+- `@Primary` marca una implementación como default para inyecciones sin especificar más.
+- `@Qualifier("nombre")` fuerza una implementación específica en un punto de inyección puntual, y siempre gana sobre `@Primary`.
+- Strategy (Etapa 8) y estas anotaciones resuelven el MISMO problema (múltiples implementaciones) en capas distintas: diseño de clases vs. resolución del contenedor.
+
+## Modelo mental final
+
+Pensá en `@Primary` como el mesero por defecto que te asignan al entrar a un restaurante, y en `@Qualifier` como pedir explícitamente a UN mesero específico por nombre — ambos te sirven, pero uno es la opción automática y el otro es tu elección puntual, y tu elección puntual siempre se respeta por sobre la asignación automática.
+
+## Conexión
+
+Esta lección cierra la Etapa 10: IoC y DI automatizados (Lección 1), `@Bean` para clases externas (Lección 2), y `@Qualifier`/`@Primary` para Strategy con Spring (esta lección) — el mismo `Descuento` de la Etapa 2 recorrió todo el curso hasta convertirse en un bean completamente gestionado por el framework.
+
+## Próximo paso
+
+Etapa 11: Spring Boot — construyendo sobre todo lo visto en Spring Framework, con auto-configuración y arranque simplificado de una aplicación real.
+
+## Fuentes
+
+dev.java — resolución de dependencias en Spring. spring.io — documentación oficial de Spring Framework, secciones de `@Primary` y `@Qualifier` en Fine-tuning Annotation-based Autowiring.
+
+<SelfCheck
+  leccionId="etapa-10-spring-framework/leccion-03-qualifier-y-primary"
+  criterios={[
+    "Puedo explicar por qué múltiples beans del mismo tipo causan NoUniqueBeanDefinitionException.",
+    "Puedo usar @Primary para marcar una implementación como default.",
+    "Puedo usar @Qualifier para pedir una implementación específica en un punto de inyección.",
+    "Puedo explicar por qué @Qualifier tiene prioridad sobre @Primary cuando ambos aplican.",
+  ]}
+/>

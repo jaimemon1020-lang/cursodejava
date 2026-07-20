@@ -1,0 +1,260 @@
+---
+etapa: 1
+etapaTitulo: "Java Básico"
+leccion: 6
+title: "Arrays: creación, acceso, iteración y multidimensionales"
+objetivo: "Crear arrays de tamaño fijo, acceder y modificar sus elementos por índice, recorrerlos, y usar arrays multidimensionales cuando el dato lo requiere."
+prerrequisitos: ["etapa-01-java-basico/leccion-05-metodos"]
+version_proyecto: "v1 — Arrays"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de crear un array, acceder y modificar sus elementos por índice, recorrerlo con los bucles que ya conocés, y usar un array de dos dimensiones cuando el dato lo pida.
+
+## Por qué necesitas aprenderlo
+
+Ya usaste un array de pasada en la lección de bucles. Ahora formalizás: cómo se crea, qué pasa si accedés fuera de rango, y por qué su tamaño es fijo — algo que te va a importar cuando en la Etapa 4 lo compares con `List` (tamaño dinámico).
+
+## Qué debes saber antes
+
+Bucles `for`/`for-each` (lección anterior de esta etapa) y métodos.
+
+## Recupera lo aprendido
+
+¿Qué diferencia hay entre `for` clásico y `for-each`?
+
+<Reveal titulo="Respuesta">
+`for` clásico controla explícitamente un índice/contador. `for-each` recorre cada elemento de una colección o array directamente, sin manejar el índice vos mismo.
+</Reveal>
+
+## Problema
+
+Necesitás guardar el stock de varios productos: no uno, sino varios valores relacionados del mismo tipo. Declarar `int stock1, stock2, stock3...` no escala ni te deja recorrerlos con un bucle.
+
+## Modelo mental
+
+```
+int[] stock = {15, 40, 8};
+
+índice:    0    1    2
+valor:    15   40    8
+```
+
+## Explicación sencilla
+
+Un array es una fila de casillas del mismo tipo, numeradas desde 0. Accedés a cada casilla por su número de posición (índice).
+
+## Explicación técnica
+
+Un array en Java tiene **tamaño fijo**: una vez creado con `new String[3]` (o con un literal `{...}`), no podés agregar ni quitar posiciones — solo modificar el contenido de las que ya existen. El primer índice es `0`, el último es `longitud - 1` (accesible como `array.length`, sin paréntesis: es un campo, no un método).
+
+Acceder a un índice fuera de rango (negativo, o mayor/igual a `length`) no es un error de compilación — es una excepción en **tiempo de ejecución**: `ArrayIndexOutOfBoundsException`.
+
+Un array multidimensional (`double[][]`) es, conceptualmente, un array de arrays: cada posición del array externo contiene, a su vez, otro array.
+
+## Cómo funciona
+
+1. `new String[3]` reserva 3 casillas vacías (`null`), que después se llenan una por una.
+2. `int[] stockPorProducto = {15, 40, 8};` crea y llena el array en una sola línea (array literal).
+3. `matrizPreciosPorMes[0][0]` accede a la fila 0, columna 0 del array bidimensional.
+4. El `for-each` sobre `stockPorProducto` suma cada valor sin manejar índices.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-01/ArraysDemo.java`
+
+```java
+public class ArraysDemo {
+    public static void main(String[] args) {
+        String[] nombresProductos = new String[3];
+        nombresProductos[0] = "Teclado";
+        nombresProductos[1] = "Mouse";
+        nombresProductos[2] = "Monitor";
+
+        int[] stockPorProducto = {15, 40, 8};
+
+        for (int i = 0; i < nombresProductos.length; i++) {
+            System.out.println(nombresProductos[i] + ": " + stockPorProducto[i] + " unidades");
+        }
+
+        double[][] matrizPreciosPorMes = {
+            {1200.0, 1250.0, 1300.0},
+            {450.0, 470.0, 460.0},
+        };
+
+        System.out.println("Precio teclado mes 1: " + matrizPreciosPorMes[0][0]);
+        System.out.println("Precio mouse mes 3: " + matrizPreciosPorMes[1][2]);
+
+        double totalStock = 0;
+        for (int cantidad : stockPorProducto) {
+            totalStock += cantidad;
+        }
+        System.out.println("Stock total: " + totalStock);
+    }
+}
+```
+
+Nota: la clase se llama `ArraysDemo`, no `Arrays` — `java.util.Arrays` ya existe en la biblioteca estándar, y usar ese mismo nombre para tu propia clase generaría confusión (aunque técnicamente compila si no lo importás).
+
+## Predice
+
+¿Qué imprime `matrizPreciosPorMes[1][2]` — la fila 1 (mouse), columna 2 (tercer mes)?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Teclado: 15 unidades
+Mouse: 40 unidades
+Monitor: 8 unidades
+Precio teclado mes 1: 1200.0
+Precio mouse mes 3: 460.0
+Stock total: 63.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `nombresProductos[i]` y `stockPorProducto[i]` comparten el mismo índice `i` en el `for`, porque están relacionados posición a posición (aunque son dos arrays separados).
+- `matrizPreciosPorMes[1][2]` — primer índice elige la fila (producto), segundo índice elige la columna (mes): fila 1 es "Mouse", columna 2 es el tercer mes → `460.0`.
+- El `for-each` final suma sin necesitar `stockPorProducto[i]` — directamente el valor de cada vuelta.
+
+## Ejemplo aplicado al proyecto
+
+Guardar `nombresProductos` y `stockPorProducto` como dos arrays paralelos (relacionados solo por índice) es exactamente el problema que la Etapa 2 (Programación Orientada a Objetos) va a resolver: en vez de dos arrays sueltos, vas a tener un array de objetos `Product`, cada uno con su propio nombre y stock juntos.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El programa compila bien pero se cae en tiempo de ejecución."
+  diagnostico="El stack trace muestra: Exception in thread 'main' java.lang.ArrayIndexOutOfBoundsException: Index 3 out of bounds for length 3"
+  causa="Se intentó acceder a stockPorProducto[3], pero un array de longitud 3 solo tiene índices válidos 0, 1 y 2."
+  solucion="Revisar que el índice usado sea siempre menor que array.length, y nunca negativo."
+  prevencion="Al recorrer con for clásico, la condición siempre debe comparar el índice estrictamente menor que array.length (nunca menor o igual), o mejor: usar for-each cuando no necesitás el índice."
+>
+```java
+int[] stockPorProducto = {15, 40, 8};
+System.out.println(stockPorProducto[3]); // longitud 3: índices válidos 0,1,2
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Encontrar el producto con menor stock:
+
+```java
+int indiceMenorStock = 0;
+for (int i = 1; i < stockPorProducto.length; i++) {
+    if (stockPorProducto[i] < stockPorProducto[indiceMenorStock]) {
+        indiceMenorStock = i;
+    }
+}
+System.out.println("Menor stock: " + nombresProductos[indiceMenorStock]);
+```
+
+## Ejercicio guiado
+
+Calculá el precio promedio del primer producto (Teclado) a lo largo de los tres meses, usando `matrizPreciosPorMes[0]`.
+
+<Reveal titulo="Pista 1">
+`matrizPreciosPorMes[0]` por sí solo ya es un array (`double[]`) de un solo producto — podés recorrerlo con for-each.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+Sumá los tres valores y dividí por `matrizPreciosPorMes[0].length`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+double suma = 0;
+for (double precio : matrizPreciosPorMes[0]) {
+    suma += precio;
+}
+double promedio = suma / matrizPreciosPorMes[0].length;
+System.out.println("Promedio teclado: " + promedio);
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-01/`, escribí `BusquedaArray.java`: dado un array de nombres de productos y un nombre a buscar, recorrelo e imprimí si el producto existe (usando `.equals()`, no `==`, para comparar `String`) y en qué índice.
+
+## Transferencia
+
+Si necesitaras agregar un cuarto producto a `nombresProductos` en tiempo de ejecución (no sabés de antemano cuántos van a ser), ¿el array de tamaño fijo te alcanza? ¿Qué necesitarías en su lugar? (La respuesta formal llega en la Etapa 4, con `List`.)
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="Un array de longitud 5 (int[] datos = new int[5]). ¿Cuál es el índice del último elemento válido?"
+  opciones={[
+    { texto: "5", correcta: false, feedback: "El índice 5 está fuera de rango para un array de longitud 5 — provocaría ArrayIndexOutOfBoundsException." },
+    { texto: "4", correcta: true, feedback: "Correcto: los índices van de 0 a length-1, así que para longitud 5 el último válido es 4." },
+    { texto: "datos.length()", correcta: false, feedback: "length es un CAMPO en arrays (sin paréntesis), no un método. Además, ese valor (5) tampoco sería un índice válido." },
+    { texto: "1", correcta: false, feedback: "1 es el índice del SEGUNDO elemento, no del último — los índices empiezan en 0." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+int[] numeros = new int[3];
+System.out.println(numeros[0]);
+```
+
+¿Qué imprime, si nunca asignaste ningún valor?
+
+<Reveal titulo="Diagnóstico">
+Imprime `0`. Java inicializa automáticamente los arrays de tipos primitivos numéricos en `0` (y `false` para boolean, `null` para referencias) — no quedan con "basura" como en otros lenguajes de bajo nivel.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que Java eligió que los arrays tengan tamaño fijo en vez de poder crecer libremente como una lista? ¿Qué ganás (o perdés) con esa decisión de diseño?
+
+<Comparativa
+  columnas={["Concepto", "Tamaño", "Acceso", "Cuándo usarlo"]}
+  filas={[
+    ["Array (int[])", "Fijo desde la creación", "Por índice, O(1)", "Cantidad de elementos conocida y estable"],
+    ["Array multidimensional (double[][])", "Fijo en cada dimensión", "Por múltiples índices", "Datos con estructura de tabla/matriz"],
+  ]}
+/>
+
+## Resumen
+
+- Un array tiene tamaño fijo; los índices van de 0 a `length - 1`.
+- `length` es un campo, no un método — sin paréntesis.
+- Acceder fuera de rango lanza `ArrayIndexOutOfBoundsException` en tiempo de ejecución, no un error de compilación.
+- Un array multidimensional es, conceptualmente, un array de arrays.
+- Arrays de primitivos numéricos se inicializan en `0` automáticamente.
+
+## Modelo mental final
+
+Cuando pienses en un array, imaginá un estante con casilleros numerados de una vez y para siempre: podés cambiar qué hay en cada casillero, pero no agregar un casillero nuevo al estante.
+
+## Conexión
+
+Usaste `for`/`for-each` de la lección de bucles para recorrer estos arrays, y esos mismos arrays van a convertirse en objetos reales en la Etapa 2.
+
+## Próximo paso
+
+Con esto cerrás los fundamentos de Java Básico. Etapa 2: Programación Orientada a Objetos — clases, objetos, constructores y encapsulamiento.
+
+## Fuentes
+
+dev.java — sección de arrays. openjdk.org — especificación del lenguaje Java (JLS), tipos array.
+
+<SelfCheck
+  leccionId="etapa-01-java-basico/leccion-06-arrays"
+  criterios={[
+    "Puedo crear un array y acceder/modificar sus elementos por índice.",
+    "Sé que el tamaño de un array es fijo y que length es un campo, no un método.",
+    "Puedo explicar qué pasa (y cuándo) al acceder fuera de rango.",
+    "Puedo usar un array de dos dimensiones para datos tipo tabla.",
+  ]}
+/>

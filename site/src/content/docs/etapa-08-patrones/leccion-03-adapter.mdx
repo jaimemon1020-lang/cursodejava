@@ -1,0 +1,298 @@
+---
+etapa: 8
+etapaTitulo: "Patrones de diseño necesarios"
+leccion: 3
+title: "Adapter: conectar una interfaz incompatible con la que tu código espera"
+objetivo: "Usar el patrón Adapter para que una clase con una API incompatible (por ejemplo, de una librería externa) pueda usarse a través de la interfaz que tu código ya espera, sin modificar ninguna de las dos partes."
+prerrequisitos: ["etapa-08-patrones/leccion-02-factory-strategy"]
+version_proyecto: "v3 — ProcesadorPago, ProveedorPagoExterno, AdaptadorPagoExterno (cierra Etapa 8)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de usar el patrón Adapter para conectar una clase con una API incompatible (por ejemplo, un método que recibe `String` en vez de `double`) con la interfaz que tu código ya espera, sin modificar NI la clase incompatible NI el código que la necesita usar.
+
+## Por qué necesitas aprenderlo
+
+Cuando integres librerías de terceros (más adelante, clientes HTTP, drivers de bases de datos, SDKs de pago), casi nunca su API va a coincidir EXACTAMENTE con la interfaz que tu código de negocio espera. Reescribir la librería externa no es una opción; reescribir tu código de negocio para acomodarse a cada librería tampoco escala. Adapter resuelve exactamente esa fricción.
+
+## Qué debes saber antes
+
+`Descuento`/`Strategy` (Etapa 8 Lección 2) — Adapter también usa una interfaz común, pero con un propósito distinto: no elegir entre estrategias, sino ENVOLVER algo incompatible.
+
+## Recupera lo aprendido
+
+¿Por qué `DescuentoFactory.crearParaMontoTotal` debe devolver `Descuento` (la interfaz) y no `DescuentoPorcentual` (la implementación concreta)?
+
+<Reveal titulo="Respuesta">
+Porque si devolviera el tipo concreto, cualquier código que llame a la Factory quedaría atado a esa implementación específica — rompiendo el propósito del patrón, que es que el código cliente programe contra la abstracción, no contra un tipo concreto.
+</Reveal>
+
+## Problema
+
+Tu sistema espera trabajar con una interfaz `ProcesadorPago` con un método `procesar(double monto) -> boolean`. Pero el proveedor de pagos EXTERNO (que no podés modificar, porque es una librería de terceros) tiene un método completamente distinto: `cobrar(String montoEnTexto) -> String`, que recibe el monto como texto y devuelve `"OK"` o `"ERROR"` como texto. ¿Cómo hacés que tu sistema use ese proveedor externo SIN reescribir tu interfaz ni la librería externa?
+
+## Modelo mental
+
+```
+Tu sistema espera:     ProcesadorPago.procesar(double) -> boolean
+
+Lo que tenés:          ProveedorPagoExterno.cobrar(String) -> String
+                        (incompatible, no lo podés modificar)
+
+Adapter:                una clase que IMPLEMENTA lo que tu sistema
+                         espera, y por DENTRO traduce hacia/desde
+                         lo que la clase externa realmente ofrece.
+```
+
+## Explicación sencilla
+
+Un Adapter es un "traductor": implementa la interfaz que tu código espera, pero por dentro delega el trabajo real a una clase incompatible, convirtiendo los tipos de entrada y salida en el camino. Ni la interfaz que esperás ni la clase externa se modifican — el Adapter es una pieza NUEVA que se pone en el medio.
+
+## Explicación técnica
+
+`AdaptadorPagoExterno implements ProcesadorPago` — cumple el CONTRATO que tu sistema espera (`procesar(double) -> boolean`). Por dentro, recibe (por Dependency Injection, Etapa 8 Lección 1) una instancia de `ProveedorPagoExterno`, y en su implementación de `procesar` hace la TRADUCCIÓN: convierte el `double` recibido a `String` (`String.valueOf(monto)`), llama al método real de la librería externa (`cobrar`), y convierte el `String` de respuesta ("OK"/"ERROR") de vuelta a `boolean`.
+
+Esto es distinto de Strategy: Strategy elige ENTRE VARIAS implementaciones que YA cumplen la misma interfaz desde el diseño. Adapter existe porque hay UNA implementación que NO cumple la interfaz que necesitás, y la envolvés para que sí la cumpla — sin tocar ni la interfaz ni la implementación original.
+
+## Cómo funciona
+
+1. `ProcesadorPago` es la interfaz que tu código de negocio espera — nunca sabe que existe `ProveedorPagoExterno`.
+2. `ProveedorPagoExterno` simula una librería externa con una API incompatible (`String` en vez de `double`, `String` en vez de `boolean`) — no se puede modificar (imaginá que viene de un `.jar` de terceros).
+3. `AdaptadorPagoExterno` implementa `ProcesadorPago`, recibe un `ProveedorPagoExterno` por constructor (DI), y en `procesar` hace la conversión de tipos en ambas direcciones.
+4. El código cliente (`AdapterDemo`) solo interactúa con `ProcesadorPago` — nunca menciona `ProveedorPagoExterno` ni sus tipos incompatibles directamente.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-08/ProcesadorPago.java` (lo que tu sistema espera)
+
+```java
+public interface ProcesadorPago {
+    boolean procesar(double monto);
+}
+```
+
+**Archivo:** `proyecto/etapa-08/ProveedorPagoExterno.java` (simula una librería externa incompatible)
+
+```java
+public class ProveedorPagoExterno {
+
+    public String cobrar(String montoEnTexto) {
+        double monto = Double.parseDouble(montoEnTexto);
+        return monto > 0 ? "OK" : "ERROR";
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-08/AdaptadorPagoExterno.java` (el traductor)
+
+```java
+public class AdaptadorPagoExterno implements ProcesadorPago {
+
+    private final ProveedorPagoExterno proveedor;
+
+    public AdaptadorPagoExterno(ProveedorPagoExterno proveedor) {
+        this.proveedor = proveedor;
+    }
+
+    @Override
+    public boolean procesar(double monto) {
+        String resultado = proveedor.cobrar(String.valueOf(monto));
+        return "OK".equals(resultado);
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-08/AdapterDemo.java`
+
+```java
+public class AdapterDemo {
+    public static void main(String[] args) {
+        ProcesadorPago procesador = new AdaptadorPagoExterno(new ProveedorPagoExterno());
+
+        System.out.println("Pago de 25000.0: " + procesador.procesar(25000.0));
+        System.out.println("Pago de -100.0: " + procesador.procesar(-100.0));
+    }
+}
+```
+
+## Predice
+
+`ProveedorPagoExterno.cobrar` devuelve `"OK"` si el monto (como número, después de convertir el texto) es mayor a 0, `"ERROR"` en caso contrario. ¿Qué `boolean` esperás de `procesar(25000.0)` y de `procesar(-100.0)`?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Pago de 25000.0: true
+Pago de -100.0: false
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `procesar(25000.0)` convierte `25000.0` a `"25000.0"`, se lo pasa a `cobrar`, que lo vuelve a convertir a `double` (25000.0), confirma que es mayor a 0, y devuelve `"OK"` — el Adapter traduce eso de vuelta a `true`.
+- `procesar(-100.0)` sigue el mismo camino, pero `cobrar` devuelve `"ERROR"` porque -100.0 no es mayor a 0 — el Adapter traduce eso a `false`.
+- El código de `AdapterDemo` NUNCA vio un `String` de ida o vuelta — solo trabajó con `double` y `boolean`, exactamente el contrato de `ProcesadorPago`. Toda la conversión de tipos quedó encapsulada dentro del Adapter.
+
+## Ejemplo aplicado al proyecto
+
+Este es el patrón que vas a usar constantemente al integrar librerías reales: un cliente HTTP de terceros, un SDK de pago, un driver de base de datos — casi ninguno va a coincidir exactamente con la interfaz que tu dominio de negocio necesita, y Adapter es la forma estándar de conectarlos sin ensuciar tu código de negocio con los detalles de la librería externa.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El código de negocio (ServicioVentas, por ejemplo) empieza a mencionar ProveedorPagoExterno y sus tipos String directamente, sin pasar por el Adapter."
+  diagnostico="No hay excepción — el problema es de diseño: el código de negocio ahora depende directamente de los detalles de la librería externa."
+  causa="Se usó ProveedorPagoExterno directamente en el código de negocio 'para ahorrar una clase', en vez de pasar siempre a través de ProcesadorPago (la interfaz) y AdaptadorPagoExterno."
+  solucion="El código de negocio SIEMPRE debería depender de la interfaz (ProcesadorPago), nunca de la clase externa directamente — si mañana cambiás de proveedor de pagos, solo necesitás un Adapter nuevo, sin tocar el código de negocio."
+  prevencion="Si ves un tipo o método de una librería externa apareciendo directamente en tu código de dominio (fuera del Adapter), es una señal de que el Adapter se está evitando en vez de usarse — la abstracción se está filtrando."
+>
+```java
+public class ServicioVentas {
+    private ProveedorPagoExterno proveedor;
+
+    public void cobrar(double monto) {
+        String resultado = proveedor.cobrar(String.valueOf(monto));
+        if (resultado.equals("OK")) {
+            System.out.println("Pago exitoso");
+        }
+    }
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Confirmar que `ServicioVentas` (Etapa 8 Lección 1) podría recibir un `ProcesadorPago` por constructor sin conocer NUNCA que por dentro hay un `ProveedorPagoExterno`:
+
+```java
+ProcesadorPago procesador = new AdaptadorPagoExterno(new ProveedorPagoExterno());
+if (procesador.procesar(25000.0)) {
+    System.out.println("Pago confirmado, se puede completar la venta");
+}
+```
+
+## Ejercicio guiado
+
+Escribí un SEGUNDO proveedor externo simulado, `ProveedorPagoLegado`, con un método `ejecutarCobro(int montoEnCentavos) -> int` (devuelve `1` para éxito, `0` para fallo, y recibe el monto en centavos como `int`), y su Adapter correspondiente que implemente `ProcesadorPago`.
+
+<Reveal titulo="Pista 1">
+El monto en `double` necesita convertirse a centavos (`(int)(monto * 100)`) antes de llamar a `ejecutarCobro`, y el resultado `int` (1 o 0) necesita convertirse a `boolean`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+public class ProveedorPagoLegado {
+    public int ejecutarCobro(int montoEnCentavos) {
+        return montoEnCentavos > 0 ? 1 : 0;
+    }
+}
+
+public class AdaptadorPagoLegado implements ProcesadorPago {
+    private final ProveedorPagoLegado proveedor;
+
+    public AdaptadorPagoLegado(ProveedorPagoLegado proveedor) {
+        this.proveedor = proveedor;
+    }
+
+    @Override
+    public boolean procesar(double monto) {
+        int centavos = (int) (monto * 100);
+        return proveedor.ejecutarCobro(centavos) == 1;
+    }
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-08/`, escribí un método que reciba una `List<ProcesadorPago>` (mezclando `AdaptadorPagoExterno` y `AdaptadorPagoLegado` del ejercicio guiado) y pruebe un mismo monto contra TODOS, confirmando que el código que los prueba nunca necesita saber cuál Adapter envuelve cuál proveedor.
+
+## Transferencia
+
+Si mañana tu empresa cambia de proveedor de pagos a uno TOTALMENTE distinto (con su propia API incompatible), ¿qué archivos necesitarías tocar? ¿Por qué la respuesta es "un Adapter nuevo, y nada más" — ni `ProcesadorPago`, ni `ServicioVentas`, ni ningún otro código de negocio existente?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál es la diferencia principal entre Adapter y Strategy?"
+  opciones={[
+    { texto: "Adapter siempre usa Dependency Injection y Strategy nunca la usa", correcta: false, feedback: "Ambos patrones pueden usar DI (de hecho, AdaptadorPagoExterno la usa) — esa no es la diferencia estructural entre ellos." },
+    { texto: "Strategy elige ENTRE implementaciones que ya cumplen la misma interfaz por diseño; Adapter ENVUELVE una implementación que NO cumple la interfaz esperada, traduciendo entre ambas", correcta: true, feedback: "Correcto: DescuentoFijo y DescuentoPorcentual fueron diseñados desde el principio para implementar Descuento (Strategy); ProveedorPagoExterno NO fue diseñado para implementar ProcesadorPago, y el Adapter lo hace posible traduciendo tipos." },
+    { texto: "Adapter solo funciona con clases, Strategy solo funciona con interfaces", correcta: false, feedback: "Ambos patrones pueden trabajar con interfaces o clases abstractas — MetodoEnvio (Strategy) es una clase abstracta, y ProcesadorPago (usado por Adapter) es una interfaz, mostrando que no hay esa restricción." },
+    { texto: "No hay diferencia real, son el mismo patrón con nombre distinto", correcta: false, feedback: "Son patrones distintos con propósitos distintos: Strategy es sobre ELEGIR entre opciones ya compatibles; Adapter es sobre HACER COMPATIBLE algo que no lo era desde el diseño." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+public class AdaptadorPagoExterno implements ProcesadorPago {
+    private ProveedorPagoExterno proveedor = new ProveedorPagoExterno();
+
+    @Override
+    public boolean procesar(double monto) {
+        return proveedor.cobrar(String.valueOf(monto)).equals("OK");
+    }
+}
+
+AdaptadorPagoExterno adaptador1 = new AdaptadorPagoExterno();
+AdaptadorPagoExterno adaptador2 = new AdaptadorPagoExterno();
+```
+
+¿Qué principio (visto en Etapa 8 Lección 1) está siendo violado acá, y por qué sería un problema si quisieras testear `AdaptadorPagoExterno` con un `ProveedorPagoExterno` de prueba?
+
+<Reveal titulo="Diagnóstico">
+Viola Dependency Injection: `ProveedorPagoExterno` se crea INTERNAMENTE con `new` en vez de recibirse por constructor. Esto significa que NUNCA vas a poder testear `AdaptadorPagoExterno` con un proveedor de prueba/simulado — siempre va a usar la instancia real creada internamente, exactamente el mismo problema que la Etapa 8 Lección 1 explicó con `ServicioVentas`.
+</Reveal>
+
+## Mini reto de diseño
+
+`AdaptadorPagoExterno` traduce en UNA sola dirección visible (`double` → `String` de ida, `String` → `boolean` de vuelta). ¿Qué pasaría si `ProveedorPagoExterno` necesitara información adicional que `ProcesadorPago.procesar(double)` no puede proveer (por ejemplo, un número de tarjeta)? ¿Cómo cambiaría el diseño de `ProcesadorPago` para acomodar eso, sin que el Adapter deje de tener sentido?
+
+<Comparativa
+  columnas={["Sin Adapter", "Con Adapter"]}
+  filas={[
+    ["El código de negocio conoce ProveedorPagoExterno y sus tipos String", "El código de negocio solo conoce ProcesadorPago (double/boolean)"],
+    ["Cambiar de proveedor de pagos obliga a reescribir el código de negocio", "Cambiar de proveedor solo requiere un Adapter nuevo"],
+    ["Testear con datos de prueba requiere simular la API externa completa", "Testear es tan simple como inyectar un ProcesadorPago de prueba"],
+  ]}
+/>
+
+## Resumen
+
+- Adapter conecta una interfaz incompatible con la que tu código espera, sin modificar ninguna de las dos.
+- El Adapter implementa la interfaz esperada, y por dentro traduce tipos y llamadas hacia la clase incompatible.
+- A diferencia de Strategy (elegir entre opciones ya compatibles), Adapter hace compatible algo que no lo era por diseño.
+- El código de negocio nunca debería depender directamente de la clase externa — siempre a través del Adapter.
+
+## Modelo mental final
+
+Pensá en un Adapter como un enchufe universal de viaje: tu dispositivo (el código de negocio) espera un tipo de enchufe específico, el tomacorriente del país (la librería externa) es distinto, y el adaptador físico traduce entre ambos sin que vos tengas que modificar ni tu dispositivo ni la instalación eléctrica del hotel.
+
+## Conexión
+
+Esta lección cierra la Etapa 8: DI y Repository (Lección 1) dieron la base de "recibir dependencias, no crearlas"; Factory y Strategy (Lección 2) dieron "elegir entre implementaciones compatibles"; Adapter (esta lección) completa el cuadro con "hacer compatible algo que no lo era". Los tres patrones combinados son la base conceptual de cómo Spring va a conectar tus clases automáticamente a partir de la Etapa 10.
+
+## Próximo paso
+
+Etapa 9: Maven — reemplazando la compilación manual multi-carpeta usada desde la Etapa 3 por un sistema de build y gestión de dependencias real.
+
+## Fuentes
+
+dev.java — patrones de diseño estructurales en Java. Refactoring.Guru — catálogo de patrones de diseño, sección de Adapter.
+
+<SelfCheck
+  leccionId="etapa-08-patrones/leccion-03-adapter"
+  criterios={[
+    "Puedo escribir un Adapter que implemente la interfaz esperada, envolviendo una clase con una API incompatible.",
+    "Puedo explicar la diferencia de propósito entre Adapter y Strategy.",
+    "Puedo explicar por qué el código de negocio debería depender de la interfaz, nunca de la clase externa directamente.",
+    "Puedo aplicar Dependency Injection dentro de un Adapter para mantenerlo testeable.",
+  ]}
+/>

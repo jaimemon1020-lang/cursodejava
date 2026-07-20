@@ -1,0 +1,307 @@
+---
+etapa: 3
+etapaTitulo: "Modelado Orientado a Objetos"
+leccion: 1
+title: "Del problema del negocio a las clases: entidades y responsabilidades"
+objetivo: "Analizar un problema del negocio para decidir qué objetos existen, qué dato y comportamiento pertenece a cada uno, y corregir un diseño (Order con un solo producto) que ya no alcanza."
+prerrequisitos: ["etapa-02-poo/leccion-04-polimorfismo-abstraccion"]
+version_proyecto: "v3 — OrderItem y Order con múltiples productos"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de analizar un enunciado del negocio ("un pedido tiene varios productos") y decidir qué clases hacen falta, qué dato y qué comportamiento pertenece a cada una — y vas a corregir el `Order` de la Etapa 2, que hasta ahora solo podía tener un producto.
+
+## Por qué necesitas aprenderlo
+
+Escribir clases sintácticamente correctas (lo que ya sabés hacer) no es lo mismo que modelarlas bien. Un pedido real de e-commerce siempre tiene varios productos — el `Order` que construiste hasta ahora tiene un defecto de diseño real, y esta lección te da las preguntas para encontrarlo y corregirlo vos mismo.
+
+## Qué debes saber antes
+
+Clases, objetos, encapsulamiento, herencia, composición, interfaces y clases abstractas (Etapa 2 completa).
+
+## Recupera lo aprendido
+
+¿Qué diferencia hay entre `interface` y clase abstracta respecto a si pueden tener atributos?
+
+<Reveal titulo="Respuesta">
+Una interface no tiene estado (atributos de instancia). Una clase abstracta sí puede tener atributos, constructor y métodos ya implementados.
+</Reveal>
+
+## Problema
+
+"Un pedido pertenece a un cliente y contiene productos." Tu `Order` de la Etapa 2 tiene un `Cliente` y **un solo** `Product` con una cantidad. Pero ningún pedido real de un sistema de e-commerce tiene un solo producto — un cliente agrega varios artículos al carrito antes de confirmar. El diseño actual no representa el problema real.
+
+## Modelo mental
+
+```
+Antes (Etapa 2):
+Order ── tiene un ──> Cliente
+      └─ tiene un ──> Product  +  cantidad
+
+Ahora (correcto):
+Order ── tiene un ──────> Cliente
+      └─ tiene VARIOS ──> OrderItem
+                              │
+                              ├─ tiene un ──> Product
+                              └─ tiene una ──> cantidad
+```
+
+## Explicación sencilla
+
+Cuando modelás, preguntate primero: "¿qué información pertenece a cada objeto, y qué comportamiento pertenece a cada uno?" No todo tiene que vivir en la misma clase — a veces hace falta un objeto intermedio (`OrderItem`) que agrupe "este producto, en esta cantidad, dentro de este pedido".
+
+## Explicación técnica
+
+Modelar bien implica responder, para cada dato del problema:
+
+1. **¿Qué es una entidad?** Algo con identidad propia y ciclo de vida — un `Cliente`, un `Order`, un `Product`. Dos entidades distintas pueden tener los mismos datos y seguir siendo cosas diferentes (dos pedidos distintos, aunque casualmente tengan el mismo total).
+2. **¿Qué información pertenece a cada objeto?** Un producto sabe su precio; un pedido no debería "adivinar" el precio de sus productos, sino preguntárselo a cada uno.
+3. **¿Qué comportamiento pertenece a cada objeto?** ¿Quién calcula el subtotal de una línea de pedido? El `OrderItem` mismo, porque es el único que tiene el producto Y la cantidad juntos.
+4. **¿Qué reglas deberían protegerse?** Una cantidad de cero o negativa en un `OrderItem` no tiene sentido — se valida en su propio constructor, igual que ya hiciste con el precio de `Product`.
+
+Un **Value Object** (mención conceptual, se formaliza más adelante con `record`) es un objeto definido por su VALOR, no por una identidad — dos objetos "$100" son intercambiables entre sí, a diferencia de dos `Cliente` distintos que jamás son intercambiables aunque tengan el mismo nombre.
+
+## Cómo funciona
+
+1. `OrderItem` agrupa `Product` + `cantidad`, y es el responsable de `calcularSubtotal()` — no `Order`.
+2. `Order` ahora tiene un array de `OrderItem[]` en vez de un solo `Product`.
+3. `Order.calcularTotal()` recorre sus items y SUMA los subtotales — delega el cálculo individual a cada `OrderItem`, no lo hace todo él mismo.
+4. La validación de cantidad positiva vive en `OrderItem`, protegiendo la regla en el único lugar donde se crea un ítem de pedido.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-03/OrderItem.java`
+
+```java
+public class OrderItem {
+
+    private Product producto;
+    private int cantidad;
+
+    OrderItem(Product producto, int cantidad) {
+        if (cantidad <= 0) {
+            throw new IllegalArgumentException("La cantidad debe ser mayor a cero");
+        }
+        this.producto = producto;
+        this.cantidad = cantidad;
+    }
+
+    public double calcularSubtotal() {
+        return this.producto.getPrecio() * this.cantidad;
+    }
+
+    public String getNombreProducto() {
+        return this.producto.getNombre();
+    }
+
+    public int getCantidad() {
+        return this.cantidad;
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-03/Order.java` (reemplaza el `Order` de la Etapa 2)
+
+```java
+public class Order {
+
+    private Cliente cliente;
+    private OrderItem[] items;
+
+    Order(Cliente cliente, OrderItem[] items) {
+        this.cliente = cliente;
+        this.items = items;
+    }
+
+    public double calcularTotal() {
+        double total = 0;
+        for (OrderItem item : items) {
+            total += item.calcularSubtotal();
+        }
+        return total;
+    }
+
+    public void describir() {
+        System.out.println("Pedido de: " + this.cliente.getNombre());
+        for (OrderItem item : items) {
+            System.out.println("  - " + item.getNombreProducto() + " x" + item.getCantidad()
+                + " = " + item.calcularSubtotal());
+        }
+        System.out.println("Total: " + this.calcularTotal());
+    }
+}
+```
+
+Nota de compilación: `OrderItem` y `Order` (en `proyecto/etapa-03/`) usan `Product` y `Cliente`, que viven en `proyecto/etapa-02/`. Cuando tus clases se reparten en más de una carpeta, tenés que pasarle a `javac` TODOS los archivos fuente que hacen falta, sin importar dónde estén:
+
+```bash
+javac -d etapa-03/.build etapa-02/Persona.java etapa-02/Cliente.java etapa-02/Product.java etapa-03/OrderItem.java etapa-03/Order.java etapa-03/ModeladoDemo.java
+java -cp etapa-03/.build ModeladoDemo
+```
+
+Esto empieza a ser tedioso a mano — es exactamente el problema que un gestor de dependencias como Maven (Etapa 9) resuelve automáticamente.
+
+## Predice
+
+`Order.calcularTotal()` sumaría los subtotales de un pedido con Teclado (x1) y Mouse (x2), a $25000 y $8000 respectivamente. ¿Cuánto debería dar el total?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Pedido de: Juan Perez
+  - Teclado mecanico x1 = 25000.0
+  - Mouse inalambrico x2 = 16000.0
+Total: 41000.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- Cada `OrderItem` calcula SU PROPIO subtotal: `25000.0 * 1 = 25000.0` y `8000.0 * 2 = 16000.0`.
+- `Order.calcularTotal()` no conoce precios ni cantidades directamente — solo suma lo que cada `OrderItem` ya sabe calcular sobre sí mismo.
+- Esto es delegar responsabilidad: cada objeto sabe hacer SU parte, y `Order` simplemente coordina.
+
+## Ejemplo aplicado al proyecto
+
+Esta es la corrección real del diseño de `Order` que arrastrabas desde la Etapa 2 — ahora sí representa fielmente "un pedido tiene varios productos", y el proyecto queda listo para crecer hacia Collections (Etapa 4), donde `OrderItem[]` se va a convertir en un `List<OrderItem>` de tamaño dinámico.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="Al calcular el total del pedido, el resultado es 0 en vez de la suma esperada."
+  diagnostico="Revisando Order.calcularTotal(), el bucle recorre items, pero total nunca se reasigna dentro del for."
+  causa="Se escribió total + item.calcularSubtotal(); (una expresión que no hace nada) en vez de total += item.calcularSubtotal();"
+  solucion="Usar el operador de asignación compuesta total += item.calcularSubtotal();, o explícitamente total = total + item.calcularSubtotal();"
+  prevencion="Al acumular un valor en un bucle, verificá que estés REASIGNANDO la variable acumuladora, no solo calculando una expresión que se descarta."
+>
+```java
+public double calcularTotal() {
+    double total = 0;
+    for (OrderItem item : items) {
+        total + item.calcularSubtotal(); // no reasigna nada
+    }
+    return total;
+}
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar un método a `Order` que cuente cuántos ítems distintos tiene el pedido (no unidades, ítems):
+
+```java
+public int contarItems() {
+    return this.items.length;
+}
+```
+
+## Ejercicio guiado
+
+Agregá un método a `Order` que devuelva el nombre del producto más caro del pedido (comparando subtotales).
+
+<Reveal titulo="Pista 1">
+Necesitás recorrer `items` guardando el de mayor `calcularSubtotal()` visto hasta el momento — el mismo patrón que "encontrar el menor stock" de la Etapa 1.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+Arrancá asumiendo que el primer ítem es el más caro, y andá comparando el resto contra ese.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+public String obtenerProductoMasCaro() {
+    OrderItem masCaro = this.items[0];
+    for (OrderItem item : this.items) {
+        if (item.calcularSubtotal() > masCaro.calcularSubtotal()) {
+            masCaro = item;
+        }
+    }
+    return masCaro.getNombreProducto();
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-03/`, agregá un tercer `OrderItem` (un tercer producto) al pedido de `ModeladoDemo` y confirmá que `calcularTotal()` y `describir()` siguen funcionando sin que hayas tocado ni una línea de `Order` u `OrderItem`.
+
+## Transferencia
+
+Si tu sistema necesitara además registrar quién descontó el stock de cada producto vendido (para auditoría), ¿esa responsabilidad pertenece a `OrderItem`, a `Product`, o necesitarías una entidad nueva? Pensalo con las mismas cuatro preguntas de esta lección.
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué OrderItem, y no Order directamente, calcula el subtotal de una línea de pedido?"
+  opciones={[
+    { texto: "Porque Order no puede tener métodos que hagan cálculos", correcta: false, feedback: "Order sí puede calcular cosas — de hecho calcularTotal() es un método de Order. La razón es otra." },
+    { texto: "Porque OrderItem es el único objeto que tiene el producto Y la cantidad juntos", correcta: true, feedback: "Correcto: el subtotal depende de precio (del producto) y cantidad — ambos datos viven juntos únicamente en OrderItem, así que ahí pertenece esa responsabilidad." },
+    { texto: "Porque Java exige que cada clase tenga al menos un método de cálculo", correcta: false, feedback: "Java no exige nada parecido — esta es una decisión de diseño nuestra, no una regla del lenguaje." },
+    { texto: "Porque Product no puede tener el precio como atributo", correcta: false, feedback: "Product sí tiene precio como atributo (desde la Etapa 2) — el problema no es dónde vive el precio, sino quién combina precio y cantidad." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+OrderItem item = new OrderItem(teclado, -2);
+```
+
+¿Qué pasa al ejecutar esta línea?
+
+<Reveal titulo="Diagnóstico">
+Lanza `IllegalArgumentException: La cantidad debe ser mayor a cero` — el constructor de `OrderItem` valida la cantidad ANTES de aceptarla, protegiendo la regla de negocio "no existen pedidos de -2 unidades".
+</Reveal>
+
+## Mini reto de diseño
+
+El `Cliente` de `Order` tiene una `direccionEnvio` fija, asignada al crearlo. ¿Esa dirección debería vivir en `Cliente`, o pertenece más bien al `Order` en sí (porque un mismo cliente podría querer enviar pedidos distintos a direcciones distintas)? Justificá con las mismas preguntas de esta lección.
+
+<Comparativa
+  columnas={["Pregunta de modelado", "Respuesta en este ejemplo"]}
+  filas={[
+    ["¿Qué es una entidad?", "Cliente, Order, Product, OrderItem — cada uno con identidad propia"],
+    ["¿Qué información pertenece a cada objeto?", "Product sabe su precio; OrderItem sabe su cantidad"],
+    ["¿Qué comportamiento pertenece a cada objeto?", "OrderItem calcula su propio subtotal; Order suma los subtotales"],
+    ["¿Qué reglas deberían protegerse?", "Cantidad positiva, validada en el constructor de OrderItem"],
+  ]}
+/>
+
+## Resumen
+
+- Modelar bien es preguntarse qué dato y qué comportamiento pertenece a cada objeto — no solo escribir sintaxis correcta.
+- Un objeto intermedio (`OrderItem`) puede ser necesario para agrupar datos que "van juntos" pero no pertenecen a ninguna otra clase existente.
+- Cada objeto debería calcular lo que puede calcular con SUS propios datos, y delegar el resto.
+- Un Value Object se define por su valor, no por una identidad — se formaliza más adelante con `record`.
+
+## Modelo mental final
+
+Cuando modeles un problema nuevo, hacete las cuatro preguntas en orden: ¿qué es una entidad? ¿qué dato le pertenece? ¿qué comportamiento le pertenece? ¿qué regla hay que proteger? En ese orden, casi siempre el diseño correcto aparece solo.
+
+## Conexión
+
+Corregiste el `Order` que construiste en la Etapa 2, reutilizando `Cliente` y `Product` sin tocarlos — el encapsulamiento de esas clases hizo posible este cambio sin romper nada.
+
+## Próximo paso
+
+Etapa 4: Collections — reemplazar `OrderItem[]` (tamaño fijo) por una `List<OrderItem>` que puede crecer.
+
+## Fuentes
+
+Eric Evans — Domain-Driven Design (conceptos de entidad y value object, referencia complementaria, no fuente primaria de Java). dev.java — sección de diseño orientado a objetos.
+
+<SelfCheck
+  leccionId="etapa-03-modelado-oo/leccion-01-del-negocio-a-las-clases"
+  criterios={[
+    "Puedo analizar un enunciado del negocio y decidir qué clases hacen falta.",
+    "Puedo decidir a qué objeto pertenece un dato y a cuál pertenece un comportamiento.",
+    "Puedo identificar cuándo un diseño existente ya no representa bien el problema real.",
+    "Puedo explicar conceptualmente qué es un Value Object, sin haberlo implementado todavía con record.",
+  ]}
+/>

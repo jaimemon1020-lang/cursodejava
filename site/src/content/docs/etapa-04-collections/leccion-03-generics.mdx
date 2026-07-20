@@ -1,0 +1,282 @@
+---
+etapa: 4
+etapaTitulo: "Collections, Generics, Enums, Records y Exceptions"
+leccion: 3
+title: "Generics: tus propias clases y métodos genéricos"
+objetivo: "Escribir una clase genérica reutilizable para distintos tipos de datos, y un método genérico que funcione sin importar el tipo de la lista que recibe."
+prerrequisitos: ["etapa-04-collections/leccion-02-set-y-map"]
+version_proyecto: "v4 — RepositorioEnMemoria<T>"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de escribir tu propia clase genérica (como `List<T>`, pero hecha por vos) que funcione igual de bien para `Product`, `Cliente`, o cualquier otro tipo, sin duplicar código.
+
+## Por qué necesitas aprenderlo
+
+Ya usaste `List<OrderItem>` y `Map<String, Product>` — Generics ajenos, escritos por el JDK. Ahora necesitás guardar productos Y clientes en memoria, con exactamente la misma lógica de "agregar, contar, listar". Escribir `RepositorioDeProductos` y `RepositorioDeClientes` por separado sería duplicar código idéntico.
+
+## Qué debes saber antes
+
+`List`, `Set` y `Map` con su sintaxis `<Tipo>` (lecciones anteriores de esta etapa).
+
+## Recupera lo aprendido
+
+¿Qué devuelve `Map.get(clave)` cuando la clave no existe?
+
+<Reveal titulo="Respuesta">
+`null` — no lanza ninguna excepción, así que hay que verificar antes de usar el resultado.
+</Reveal>
+
+## Problema
+
+Necesitás una estructura que guarde elementos, los cuente y los liste — para `Product` HOY, pero quizás para `Cliente` mañana, y para `Order` después. Escribir una clase por cada tipo duplicaría exactamente la misma lógica interna.
+
+## Modelo mental
+
+```
+class RepositorioEnMemoria<T> {
+    List<T> elementos;
+    ...
+}
+
+RepositorioEnMemoria<Product>   ← T se convierte en Product
+RepositorioEnMemoria<Cliente>   ← T se convierte en Cliente
+
+(el mismo código, especializado en tiempo de compilación)
+```
+
+## Explicación sencilla
+
+`<T>` es un parámetro de tipo: un "hueco" que se completa recién cuando alguien usa la clase. `RepositorioEnMemoria<Product>` es literalmente el mismo código que `RepositorioEnMemoria<Cliente>`, con `T` reemplazado por el tipo concreto que elegiste al usarla.
+
+## Explicación técnica
+
+Una clase genérica declara su parámetro de tipo entre `<>` justo después del nombre de la clase: `class RepositorioEnMemoria<T>`. Por convención, se usa una letra mayúscula sola (`T` de "Type", `E` de "Element", `K`/`V` de "Key"/"Value" — ya los viste en `Map<K, V>`).
+
+Un método genérico declara su propio parámetro de tipo ANTES del tipo de retorno: `static <T> T primerElemento(List<T> lista)`. Ese `<T>` es independiente de cualquier clase — el método funciona para cualquier tipo de lista que le pases, y el compilador infiere `T` automáticamente según el argumento.
+
+El compilador verifica todo esto en tiempo de compilación (no en runtime) — por eso nunca hace falta castear manualmente al leer un elemento de una colección genérica, a diferencia de estructuras sin tipar.
+
+## Cómo funciona
+
+1. `RepositorioEnMemoria<T>` guarda internamente una `List<T>` — no sabe (ni le importa) si `T` va a ser `Product` o `Cliente`.
+2. `new RepositorioEnMemoria<Product>()` fija `T = Product` para esa instancia específica.
+3. `new RepositorioEnMemoria<Cliente>()` es una instancia completamente distinta, con `T = Cliente` — mismo código de clase, dos especializaciones.
+4. `primerElemento(lista)` (método genérico) infiere `T` mirando el tipo de la lista que recibe en cada llamada.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-04/RepositorioEnMemoria.java`
+
+```java
+import java.util.ArrayList;
+import java.util.List;
+
+public class RepositorioEnMemoria<T> {
+
+    private List<T> elementos = new ArrayList<>();
+
+    public void agregar(T elemento) {
+        this.elementos.add(elemento);
+    }
+
+    public List<T> listarTodos() {
+        return this.elementos;
+    }
+
+    public int contarElementos() {
+        return this.elementos.size();
+    }
+}
+```
+
+**Archivo:** `proyecto/etapa-04/GenericsDemo.java`
+
+```java
+import java.util.List;
+
+public class GenericsDemo {
+
+    static <T> T primerElemento(List<T> lista) {
+        return lista.get(0);
+    }
+
+    public static void main(String[] args) {
+        RepositorioEnMemoria<Product> repositorioProductos = new RepositorioEnMemoria<>();
+        repositorioProductos.agregar(new Product("Teclado mecanico", 25000.0, 15));
+        repositorioProductos.agregar(new Product("Mouse inalambrico", 8000.0, 40));
+
+        System.out.println("Productos guardados: " + repositorioProductos.contarElementos());
+
+        RepositorioEnMemoria<Cliente> repositorioClientes = new RepositorioEnMemoria<>();
+        repositorioClientes.agregar(new Cliente("Juan Perez", "juan@ejemplo.com", "Av. Siempre Viva 123"));
+
+        System.out.println("Clientes guardados: " + repositorioClientes.contarElementos());
+
+        Product primerProducto = primerElemento(repositorioProductos.listarTodos());
+        System.out.println("Primer producto: " + primerProducto.getNombre());
+
+        Cliente primerCliente = primerElemento(repositorioClientes.listarTodos());
+        System.out.println("Primer cliente: " + primerCliente.getNombre());
+    }
+}
+```
+
+## Predice
+
+`primerElemento(...)` se llama una vez con productos y otra con clientes, sin ningún cast explícito. ¿Cómo sabe el compilador que el resultado de la primera llamada es `Product` y el de la segunda es `Cliente`?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Productos guardados: 2
+Clientes guardados: 1
+Primer producto: Teclado mecanico
+Primer cliente: Juan Perez
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `repositorioProductos` es un `RepositorioEnMemoria<Product>` — su `T` quedó fijado en `Product` desde que se creó.
+- `primerElemento(repositorioProductos.listarTodos())` recibe un `List<Product>`, así que el compilador infiere `T = Product` para ESA llamada específica, y el resultado ya es un `Product` sin necesitar cast.
+- La misma llamada con `repositorioClientes.listarTodos()` infiere `T = Cliente` de forma completamente independiente.
+- Ni `RepositorioEnMemoria` ni `primerElemento` tienen ningún `if` preguntando de qué tipo son sus datos.
+
+## Ejemplo aplicado al proyecto
+
+`RepositorioEnMemoria<T>` es, conceptualmente, el antepasado directo de lo que más adelante va a ser un `ProductRepository` real respaldado por una base de datos (JPA/Spring Data) — hoy es solo una lista en memoria, pero la forma ("agregar, buscar, listar todo, sin importar el tipo concreto") es exactamente la misma.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El compilador rechaza el código con un error de tipos incompatibles."
+  diagnostico="javac reporta algo como: incompatible types: Cliente cannot be converted to Product"
+  causa="Se intentó agregar un Cliente a un RepositorioEnMemoria<Product> — el parámetro de tipo ya quedó fijado en Product para esa instancia, y Generics lo protege en tiempo de compilación."
+  solucion="Usar el repositorio correcto para cada tipo, o crear una instancia separada con el tipo adecuado."
+  prevencion="Generics existe exactamente para detectar este tipo de error ANTES de ejecutar el programa, en vez de descubrirlo con un ClassCastException en runtime."
+>
+```java
+RepositorioEnMemoria<Product> repositorioProductos = new RepositorioEnMemoria<>();
+repositorioProductos.agregar(new Cliente("Ana", "ana@ejemplo.com", "Calle Falsa 456"));
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agregar un método que busque si un repositorio contiene un elemento específico (delegando en la lista interna):
+
+```java
+public boolean contiene(T elemento) {
+    return this.elementos.contains(elemento);
+}
+```
+
+## Ejercicio guiado
+
+Escribí un método genérico `ultimoElemento(List<T> lista)` que devuelva el último elemento de cualquier lista.
+
+<Reveal titulo="Pista 1">
+El índice del último elemento de una lista es `lista.size() - 1` (el mismo patrón que ya viste con arrays: `length - 1`).
+</Reveal>
+
+<Reveal titulo="Pista 2">
+La firma es igual a `primerElemento`, solo cambia qué índice pedís con `.get(...)`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+static <T> T ultimoElemento(List<T> lista) {
+    return lista.get(lista.size() - 1);
+}
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-04/`, creá un tercer `RepositorioEnMemoria<Order>` (usando el `Order` de la Etapa 4), agregá dos pedidos, y confirmá con `contarElementos()` que cada repositorio (productos, clientes, pedidos) mantiene su propio conteo independiente.
+
+## Transferencia
+
+Si necesitaras que `RepositorioEnMemoria<T>` solo aceptara tipos que sepan compararse entre sí (para poder ordenarlos), ¿cómo restringirías `T` para que no acepte cualquier tipo? (Pista: se llama "bounded type", con `<T extends Comparable<T>>` — lo vas a ver formalmente cuando trabajes con `Comparable` en la Etapa 6.)
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuándo se decide el tipo concreto que reemplaza a T en RepositorioEnMemoria<T>?"
+  opciones={[
+    { texto: "En tiempo de ejecución, la primera vez que se llama agregar()", correcta: false, feedback: "El tipo se fija ANTES, no en la primera llamada a agregar() — se decide en el momento de declarar/crear la instancia." },
+    { texto: "En tiempo de compilación, cuando se declara o crea la instancia (ej. RepositorioEnMemoria<Product>)", correcta: true, feedback: "Correcto: Generics se resuelve en tiempo de compilación — el compilador ya sabe desde ese punto que ese repositorio es, y será siempre, de Product." },
+    { texto: "Nunca se decide — T puede cambiar de tipo libremente durante la ejecución", correcta: false, feedback: "Una vez fijado (RepositorioEnMemoria<Product>), ese T no cambia — es tipado estático, no dinámico." },
+    { texto: "Se decide leyendo el primer elemento agregado", correcta: false, feedback: "El tipo NO se infiere de los datos en runtime — se declara explícitamente (o se infiere del contexto) en tiempo de compilación, antes de agregar nada." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+public class RepositorioEnMemoria<T> {
+    private List<T> elementos = new ArrayList<>();
+
+    public T buscarPorIndice(int indice) {
+        return elementos.get(indice);
+    }
+}
+```
+
+Este código compila perfecto. ¿Qué pasa si lo llamás con un índice fuera de rango, y por qué Generics no te protege de eso?
+
+<Reveal titulo="Diagnóstico">
+Lanza `IndexOutOfBoundsException`, igual que con cualquier `List`. Generics protege los TIPOS (que sea el tipo correcto), no los VALORES ni los rangos — sigue siendo tu responsabilidad validar que el índice sea válido, como ya hiciste con arrays y Listas en lecciones anteriores.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que `RepositorioEnMemoria<T>` no necesita saber nada sobre `Product` ni `Cliente` para funcionar con ambos? ¿Qué tendrías que cambiar en su código si mañana necesitaras una operación específica de `Product` (como filtrar por precio) dentro de esa clase genérica?
+
+<Comparativa
+  columnas={["Concepto", "Dónde se declara", "Se resuelve en"]}
+  filas={[
+    ["Clase genérica", "class Nombre<T> { ... }", "Compilación (al crear la instancia)"],
+    ["Método genérico", "static <T> Tipo metodo(...)", "Compilación (al llamarlo, infiriendo T)"],
+  ]}
+/>
+
+## Resumen
+
+- Una clase genérica declara `<T>` junto a su nombre; el tipo real se fija al crear cada instancia.
+- Un método genérico declara su propio `<T>` antes del tipo de retorno, independiente de cualquier clase.
+- Generics detecta errores de tipo en tiempo de COMPILACIÓN, evitando `ClassCastException` en tiempo de ejecución.
+- Generics protege el tipo, pero no valida valores ni rangos — esa sigue siendo tu responsabilidad.
+
+## Modelo mental final
+
+Cuando pienses en Generics, imaginá un molde de gelatina universal: el molde (`RepositorioEnMemoria<T>`) es siempre el mismo, pero el sabor (`T = Product`, `T = Cliente`) lo elegís vos cada vez que lo usás.
+
+## Conexión
+
+Reutilizaste `Product` y `Cliente` de etapas anteriores sin modificarlos — la clase genérica los trata a ambos con exactamente el mismo código.
+
+## Próximo paso
+
+Etapa 4 / Lección 4: Enums — modelar un conjunto fijo de valores posibles, como el estado de un pedido.
+
+## Fuentes
+
+dev.java — sección de Generics. openjdk.org — especificación del lenguaje Java (JLS), tipos genéricos.
+
+<SelfCheck
+  leccionId="etapa-04-collections/leccion-03-generics"
+  criterios={[
+    "Puedo escribir mi propia clase genérica reutilizable para distintos tipos.",
+    "Puedo escribir un método genérico independiente de cualquier clase.",
+    "Sé que Generics se resuelve en compilación, no en tiempo de ejecución.",
+    "Entiendo que Generics protege tipos, no valores ni rangos.",
+  ]}
+/>

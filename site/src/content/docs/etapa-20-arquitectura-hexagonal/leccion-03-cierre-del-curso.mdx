@@ -1,0 +1,150 @@
+---
+etapa: 20
+etapaTitulo: "Arquitectura Hexagonal"
+leccion: 3
+title: "Cierre del curso: lo que construiste y el camino que sigue"
+objetivo: "Hacer un recorrido completo por TODO lo que aprendiste y construiste en estas 20 etapas: desde tu primer 'Hola Mundo' en Java hasta una API REST con Spring Boot, seguridad JWT y arquitectura hexagonal."
+prerrequisitos: ["etapa-20-arquitectura-hexagonal/leccion-02-refactoring-hexagonal-diff"]
+version_proyecto: "v20 — curso completo"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué construiste
+
+En 20 etapas y 62 lecciones, pasaste de escribir `System.out.println("Hola Mundo")` a construir una aplicación Spring Boot completa con API REST, persistencia, migraciones, tests, seguridad JWT, y arquitectura hexagonal. Recorriste el camino COMPLETO que un desarrollador Java profesional transita en el mundo real.
+
+## El stack completo
+
+| Etapa | Tema | Lo que construiste |
+|-------|------|-------------------|
+| 0 | Fundamentos | Entendiste JVM, bytecode, compilación |
+| 1 | Java Básico | Variables, operadores, flujo, bucles, métodos, arrays |
+| 2 | POO | Clases, objetos, encapsulamiento, herencia, polimorfismo, interfaces |
+| 3 | Modelado OO | Del problema del negocio a las clases |
+| 4 | Collections | List, Set, Map, Generics, Enums, Records, Optional, DateTime, Exceptions |
+| 5 | Funcional | Lambdas, Streams, filter/map/reduce, Collectors |
+| 6 | Avanzado | JVM/memoria, equals/hashCode, Comparable, Annotations, NIO, Concurrencia |
+| 7 | Clean Code | Nombres, funciones pequeñas, SOLID |
+| 8 | Patrones | Dependency Injection, Repository, Factory, Strategy, Adapter |
+| 9 | Maven | pom.xml, estructura estándar, ciclo de vida, dependencias |
+| 10 | Spring Framework | IoC Container, @Bean, scopes, @Qualifier, @Primary |
+| 11 | Spring Boot | @SpringBootApplication, auto-configuración, properties |
+| 12 | HTTP REST | @RestController, @GetMapping, @PostMapping, @RequestBody |
+| 13 | DTOs | Separar dominio de la red, Mapper dedicado |
+| 14 | Validación | Bean Validation, @ExceptionHandler, @ControllerAdvice |
+| 15 | Bases de datos | JdbcTemplate, @Entity, JpaRepository, consultas derivadas, @Query |
+| 16 | Migraciones | Flyway, migraciones SQL versionadas, ddl-auto=validate |
+| 17 | Testing | JUnit parametrizado, Mockito, Testcontainers |
+| 18 | Seguridad | Spring Security, HTTP Basic, JWT, filtros de autenticación |
+| 19 | Arquitectura | Clean Architecture, regla de dependencia, capas |
+| 20 | Hexagonal | Puertos y Adaptadores, refactoring de interfaz, cierre |
+
+## El código que queda
+
+Tu proyecto `proyecto-maven/` contiene:
+
+```
+com.curso.catalogo/
+├── Product.java                          ← dominio (POJO puro)
+├── RepositorioProductos.java             ← puerto de salida (interfaz)
+├── ServicioVentas.java                   ← caso de uso
+├── ProductoMapper.java                   ← mapeo dominio ↔ DTO
+├── ProductoResponse.java                 ← DTO de salida
+├── NuevoProductoRequest.java             ← DTO de entrada
+├── SolicitudDeVenta.java                 ← DTO de comando
+├── ProductoNoEncontradoException.java    ← excepción de dominio
+├── StockInsuficienteException.java       ← excepción de dominio
+├── Application.java                      ← entry point Spring Boot
+├── AppConfig.java                        ← configuración de demos
+├── Cliente.java                          ← entidad JPA
+├── ClienteRepository.java                ← repositorio Spring Data
+├── CatalogoProperties.java               ← @ConfigurationProperties
+├── (demos de Spring, descuentos, pagos)  ← legacy de etapas anteriores
+│
+└── infraestructura/
+    ├── persistencia/
+    │   └── RepositorioProductosEnMemoria.java  ← adaptador de salida
+    ├── web/
+    │   ├── ProductoController.java       ← adaptador de entrada (REST)
+    │   ├── AuthController.java           ← login JWT
+    │   ├── ManejadorDeErrores.java       ← @ControllerAdvice
+    │   └── LoginRequest.java             ← DTO de login
+    └── seguridad/
+        ├── SecurityConfig.java           ← SecurityFilterChain
+        ├── JwtAuthenticationFilter.java  ← filtro JWT
+        ├── JwtUtil.java                  ← generación/validación de tokens
+        └── UserDetailsConfig.java        ← usuarios en memoria
+```
+
+Tests (`src/test/`):
+```
+com.curso.catalogo/
+├── ProductTest.java              ← JUnit parametrizado (@BeforeEach, @CsvSource)
+└── ServicioVentasTest.java       ← Mockito (@Mock, @InjectMocks, verify)
+```
+
+## Las habilidades que ganaste
+
+1. **Java fundamental**: variables, tipos, control de flujo, POO, genéricos, colecciones, streams, lambdas, excepciones, concurrencia, NIO.
+2. **Herramientas reales**: Maven (pom.xml, wrapper, ciclo de vida), Git (commits convencionales).
+3. **Spring Framework**: IoC, DI, beans, scopes, @Qualifier, @Primary, ApplicationContext.
+4. **Spring Boot**: auto-configuración, properties, starters, @SpringBootApplication.
+5. **APIs REST**: @RestController, métodos HTTP, DTOs, validación con Bean Validation, manejo de errores HTTP.
+6. **Persistencia**: JDBC/JdbcTemplate, JPA/Hibernate, Spring Data JPA, consultas derivadas, @Query JPQL, Flyway.
+7. **Testing**: JUnit 5 (@BeforeEach, @ParameterizedTest, @DisplayName), Mockito (@Mock, @InjectMocks, verify, when/thenReturn), Testcontainers (conceptual, requiere Docker).
+8. **Seguridad**: Spring Security, HTTP Basic, JWT (jjwt), filtros de autenticación, SecurityFilterChain, PasswordEncoder.
+9. **Arquitectura**: Clean Architecture, regla de dependencia, Arquitectura Hexagonal, Puertos y Adaptadores, Dependency Injection como habilitador.
+
+## El camino que sigue
+
+Este curso te dio las bases. Lo que sigue es PROFUNDIZAR:
+
+1. **Spring Boot avanzado**: Actuator (health checks, métricas), Spring Cloud (microservicios), Spring Batch (procesamiento por lotes), Spring Modulith (monolitos modulares).
+2. **Bases de datos**: PostgreSQL real con Testcontainers, índices y query performance, transacciones (@Transactional, isolation levels).
+3. **Testing avanzado**: integration tests con @SpringBootTest, contract testing (Pact), property-based testing.
+4. **Mensajería**: RabbitMQ, Kafka, eventos de dominio, CQRS, event sourcing.
+5. **Observabilidad**: logs estructurados, métricas (Micrometer + Prometheus), tracing distribuido (OpenTelemetry).
+6. **DevOps**: Docker multi-stage builds, docker-compose para desarrollo local, CI/CD con GitHub Actions, Kubernetes básico.
+7. **DDD (Domain-Driven Design)**: agregados, value objects, domain events, bounded contexts.
+8. **Cloud**: AWS (ECS, RDS, SQS), Azure, GCP, o el proveedor que uses.
+9. **Frontend**: React, Vue, o Angular para construir el frontend que consuma tu API REST + JWT.
+10. **Kotlin**: el lenguaje que corre sobre la JVM y es cada vez más usado en proyectos Spring Boot.
+
+## El mensaje final
+
+Arrancaste con `System.out.println("Hola Mundo")`. Terminaste con una API REST autenticada con JWT, persistencia con migraciones versionadas, tests unitarios con Mockito, y arquitectura hexagonal — el stack que usan empresas reales en producción.
+
+No aprendiste "Spring Boot". Aprendiste a CONSTRUIR software con fundamentos sólidos. Spring Boot fue la herramienta, no el fin. Los principios que internalizaste (Dependency Injection, separación de responsabilidades, la regla de dependencia) se aplican a CUALQUIER lenguaje y framework.
+
+El resto del camino es PROFUNDIZAR en lo que ya sabés, no aprender algo completamente nuevo. Ya tenés el mapa.
+
+**Felicitaciones. Construiste algo real.**
+
+<Comparativa
+  columnas={["Día 1", "Día final (hoy)"]}
+  filas={[
+    ["Código", "System.out.println(\"Hola Mundo\")", "API REST con JWT, JPA, Flyway, tests, hexagonal"],
+    ["Herramientas", "javac + java a mano", "Maven wrapper, Spring Boot, Git"],
+    ["Tests", "Ninguno", "11 tests (JUnit parametrizado + Mockito)"],
+    ["Seguridad", "No aplica", "JWT, SecurityFilterChain, BCrypt"],
+    ["Arquitectura", "Un solo archivo .java", "Dominio, aplicación, infraestructura — puertos y adaptadores"],
+  ]}
+/>
+
+## Fuentes
+
+spring.io — documentación oficial de Spring Boot, Spring Security, Spring Data. baeldung.com — tutoriales profundos de Java y Spring. dev.java — recursos oficiales de Oracle para desarrolladores Java.
+
+<SelfCheck
+  leccionId="etapa-20-arquitectura-hexagonal/leccion-03-cierre-del-curso"
+  criterios={[
+    "Entiendo el stack completo: Java → Spring Boot → REST → JPA → Flyway → Tests → Security → Hexagonal.",
+    "Puedo listar las 20 etapas y explicar qué construí en cada una.",
+    "Sé qué tecnologías y conceptos profundizar después del curso.",
+    "Entiendo que los principios (DI, SOLID, Clean Architecture) son transferibles a cualquier lenguaje.",
+  ]}
+/>

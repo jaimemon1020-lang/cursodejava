@@ -1,0 +1,260 @@
+---
+etapa: 5
+etapaTitulo: "Java funcional: lambdas, interfaces funcionales y Streams"
+leccion: 4
+title: "Collectors.groupingBy y partitioningBy: agrupar y particionar colecciones"
+objetivo: "Agrupar los elementos de un Stream en un Map según una clave con groupingBy, y dividirlos en dos grupos según una condición booleana con partitioningBy."
+prerrequisitos: ["etapa-05-funcional/leccion-03-reduce-sorted-comparator"]
+version_proyecto: "v4 — CollectorsAvanzadoDemo (cierra Etapa 5)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de agrupar los elementos de una colección en un `Map` según cualquier criterio con `Collectors.groupingBy`, dividirlos en exactamente dos grupos según una condición booleana con `Collectors.partitioningBy`, y combinar cualquiera de los dos con un collector adicional (`counting`, `summingDouble`) para obtener estadísticas por grupo.
+
+## Por qué necesitas aprenderlo
+
+Hasta ahora, `filter` te daba UN solo grupo a la vez (los que cumplen la condición). Un reporte real necesita MÚLTIPLES grupos simultáneos — por ejemplo, "productos con stock" y "productos sin stock" al mismo tiempo, o "cuántos productos hay por categoría de precio" — sin llamar a `filter` una vez por cada grupo posible.
+
+## Qué debes saber antes
+
+`reduce`, `sorted`, `Comparator` (Etapa 5 Lección 3), y `Function<T, R>` (Etapa 5 Lección 1) — `groupingBy` recibe una `Function` como criterio de agrupación.
+
+## Recupera lo aprendido
+
+¿Qué hace `Comparator.comparingInt(Product::getStock).thenComparing(Product::getNombre)`?
+
+<Reveal titulo="Respuesta">
+Ordena productos por stock de menor a mayor, y si dos productos tienen el mismo stock, los desempata ordenando alfabéticamente por nombre.
+</Reveal>
+
+## Problema
+
+Necesitás dos reportes: (1) cuántos productos tienen stock disponible versus cuántos no, EN UNA sola pasada, y (2) cuántos productos hay en cada categoría de precio ("Premium" vs "Estándar"), también en una sola pasada. Hacer esto con `filter` requeriría llamar al Stream una vez por cada grupo que quisieras contar — `groupingBy` y `partitioningBy` lo resuelven en un solo recorrido.
+
+## Modelo mental
+
+```
+partitioningBy(condicion): divide en EXACTAMENTE 2 grupos -> Map<Boolean, List<T>>
+groupingBy(funcionDeClave): divide en TANTOS grupos como valores distintos
+                             devuelva la función -> Map<K, List<T>>
+```
+
+## Explicación sencilla
+
+`partitioningBy` es como separar cartas en dos pilas: "cumple la condición" y "no la cumple" — siempre son exactamente dos pilas, aunque una quede vacía. `groupingBy` es como separar cartas por palo: tantas pilas como valores distintos aparezcan, sin que vos sepas de antemano cuántas van a ser.
+
+## Explicación técnica
+
+`Collectors.partitioningBy(Predicate<T>)` devuelve un `Map<Boolean, List<T>>` con EXACTAMENTE dos claves: `true` y `false` — siempre las dos, aunque uno de los grupos esté vacío. Es la elección correcta cuando el criterio es binario (sí/no, cumple/no cumple).
+
+`Collectors.groupingBy(Function<T, K>)` devuelve un `Map<K, List<T>>`, con una clave por cada valor DISTINTO que la función devuelva sobre los elementos del Stream — puede ser 2 grupos, 5, o tantos como valores distintos existan.
+
+Ambos aceptan un **segundo collector opcional** que cambia qué se guarda por grupo, en vez de la lista completa: `Collectors.counting()` guarda cuántos elementos hay en cada grupo (`Long`), `Collectors.summingDouble(Function<T, Double>)` guarda la suma de un campo numérico por grupo. Esto evita tener que volver a iterar cada lista de grupo para calcular un total.
+
+## Cómo funciona
+
+1. `.collect(Collectors.partitioningBy(p -> p.getStock() > 0))` recorre el Stream una sola vez y arma el `Map<Boolean, List<Product>>` con las dos claves ya garantizadas.
+2. `porDisponibilidad.get(true)` es la lista de productos CON stock; `.get(false)`, la lista SIN stock.
+3. `Function<Product, String> categoria = p -> p.getPrecio() > 50000.0 ? "Premium" : "Estandar"` define el criterio de agrupación como una lambda reutilizable.
+4. `.collect(Collectors.groupingBy(categoria))` produce un `Map<String, List<Product>>` con una entrada por cada valor que `categoria` devuelva.
+5. `.collect(Collectors.groupingBy(categoria, Collectors.counting()))` produce directamente un `Map<String, Long>` — el conteo por grupo, sin necesitar `.get(clave).size()` después.
+6. `.collect(Collectors.partitioningBy(condicion, Collectors.summingDouble(Product::getPrecio)))` combina ambos: parte en dos grupos, y de cada grupo guarda la SUMA de precios en vez de la lista completa.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-05/CollectorsAvanzadoDemo.java`
+
+```java
+import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
+public class CollectorsAvanzadoDemo {
+    public static void main(String[] args) {
+        RepositorioEnMemoria<Product> repositorio = new RepositorioEnMemoria<>();
+        repositorio.agregar(new Product("Teclado mecanico", 25000.0, 15));
+        repositorio.agregar(new Product("Mouse inalambrico", 8000.0, 40));
+        repositorio.agregar(new Product("Monitor 27 pulgadas", 180000.0, 3));
+        repositorio.agregar(new Product("Auriculares", 15000.0, 0));
+
+        Map<Boolean, List<Product>> porDisponibilidad = repositorio.listarTodos().stream()
+                .collect(Collectors.partitioningBy(p -> p.getStock() > 0));
+        System.out.println("Con stock: " + porDisponibilidad.get(true).size());
+        System.out.println("Sin stock: " + porDisponibilidad.get(false).size());
+
+        Function<Product, String> categoria = p -> p.getPrecio() > 50000.0 ? "Premium" : "Estandar";
+
+        Map<String, List<Product>> porCategoria = repositorio.listarTodos().stream()
+                .collect(Collectors.groupingBy(categoria));
+        System.out.println("Premium: " + porCategoria.get("Premium").size());
+        System.out.println("Estandar: " + porCategoria.get("Estandar").size());
+
+        Map<String, Long> conteoPorCategoria = repositorio.listarTodos().stream()
+                .collect(Collectors.groupingBy(categoria, Collectors.counting()));
+        System.out.println("Conteo por categoria: " + conteoPorCategoria);
+
+        Map<Boolean, Double> valorPorDisponibilidad = repositorio.listarTodos().stream()
+                .collect(Collectors.partitioningBy(p -> p.getStock() > 0,
+                        Collectors.summingDouble(Product::getPrecio)));
+        System.out.println("Valor con stock: " + valorPorDisponibilidad.get(true));
+        System.out.println("Valor sin stock: " + valorPorDisponibilidad.get(false));
+    }
+}
+```
+
+## Predice
+
+Hay 4 productos; solo Auriculares tiene stock 0. Solo Monitor (180000) supera los 50000 de la categoría "Premium". ¿Cuántos productos da "Con stock" y cuántos da "Premium"?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Con stock: 3
+Sin stock: 1
+Premium: 1
+Estandar: 3
+Conteo por categoria: {Estandar=3, Premium=1}
+Valor con stock: 213000.0
+Valor sin stock: 15000.0
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- "Con stock: 3" y "Sin stock: 1" suman exactamente 4 — `partitioningBy` SIEMPRE reparte el total completo entre las dos claves `true`/`false`, sin perder elementos.
+- "Premium: 1" es solo Monitor (180000 > 50000); los otros tres van a "Estandar".
+- `conteoPorCategoria` imprime el `Map<String, Long>` directamente con `toString()` — nota que las claves aparecen en el orden interno del `Map` (`HashMap` no garantiza orden de inserción), no necesariamente en el orden en que agregaste los productos.
+- "Valor con stock: 213000.0" es la suma de precios de Teclado (25000) + Mouse (8000) + Monitor (180000) = 213000; Auriculares (15000, sin stock) queda en el otro grupo.
+
+## Ejemplo aplicado al proyecto
+
+Con `groupingBy` y `partitioningBy`, un reporte de inventario ("cuántos productos por categoría", "valor total disponible vs. agotado") se resuelve en una sola línea de Stream, en vez de escribir un bucle con múltiples `Map` acumuladores manejados a mano.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El programa lanza NullPointerException al llamar a .size() sobre el resultado de porCategoria.get(clave)."
+  diagnostico="java.lang.NullPointerException al invocar un método sobre el resultado de get() en un Map devuelto por groupingBy"
+  causa="Se pidió una clave que groupingBy nunca generó porque ningún elemento del Stream produjo ese valor exacto en la función de agrupación — a diferencia de partitioningBy, groupingBy NO garantiza que todas las claves 'posibles' existan en el resultado."
+  solucion="Antes de usar get(clave), verificar con containsKey(clave), o usar getOrDefault(clave, valorPorDefecto) para manejar el caso en que ese grupo no tenga ningún elemento."
+  prevencion="Recordá la diferencia clave: partitioningBy SIEMPRE tiene las dos claves true/false (aunque una lista esté vacía); groupingBy solo incluye las claves que REALMENTE aparecieron en los datos."
+>
+```java
+Map<String, List<Product>> porCategoria = repositorio.listarTodos().stream()
+        .collect(Collectors.groupingBy(categoria));
+System.out.println(porCategoria.get("Lujo").size());
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Agrupar productos por si su nombre empieza con vocal o no, usando `partitioningBy`:
+
+```java
+Map<Boolean, List<Product>> porInicial = repositorio.listarTodos().stream()
+        .collect(Collectors.partitioningBy(p -> "AEIOU".indexOf(Character.toUpperCase(p.getNombre().charAt(0))) >= 0));
+System.out.println("Empiezan con vocal: " + porInicial.get(true).size());
+```
+
+## Ejercicio guiado
+
+Escribí un `groupingBy` que agrupe productos por la PRIMERA LETRA de su nombre (usando `Function<Product, Character>` o `String`), y contá cuántos hay por letra con `Collectors.counting()`.
+
+<Reveal titulo="Pista 1">
+La función de agrupación es `p -> p.getNombre().charAt(0)` — eso da un `Character`, que se convierte automáticamente en la clave del `Map`.
+</Reveal>
+
+<Reveal titulo="Solución">
+```java
+Map<Character, Long> porLetraInicial = repositorio.listarTodos().stream()
+        .collect(Collectors.groupingBy(p -> p.getNombre().charAt(0), Collectors.counting()));
+System.out.println(porLetraInicial);
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-05/`, escribí una consulta que combine `groupingBy` por categoría de precio (Premium/Estandar) con `Collectors.averagingDouble(Product::getStock)` como segundo collector, para obtener el stock PROMEDIO por categoría.
+
+## Transferencia
+
+Si tuvieras una `List<Cliente>` y quisieras agrupar clientes por ciudad, ¿usarías `groupingBy` o `partitioningBy`? ¿Por qué el número de ciudades posibles (no necesariamente 2) determina cuál de los dos collectors es el correcto?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Cuál es la diferencia clave entre partitioningBy y groupingBy?"
+  opciones={[
+    { texto: "partitioningBy es más rápido porque usa menos memoria", correcta: false, feedback: "La diferencia no es de performance — es de forma del resultado: partitioningBy siempre produce exactamente 2 grupos (true/false); groupingBy produce tantos grupos como valores distintos haya." },
+    { texto: "groupingBy solo funciona con Strings como clave", correcta: false, feedback: "groupingBy funciona con cualquier tipo como clave del Map resultante — en el ejercicio guiado se usó Character, y también podría ser Integer, un enum, o cualquier tipo que la función de agrupación devuelva." },
+    { texto: "partitioningBy siempre devuelve un Map con exactamente las claves true y false; groupingBy devuelve una clave por cada valor distinto que produzca la función", correcta: true, feedback: "Correcto: partitioningBy es un caso especializado para condiciones booleanas, con las dos claves siempre garantizadas; groupingBy es general y su cantidad de claves depende de los datos." },
+    { texto: "Solo groupingBy admite un segundo collector como counting() o summingDouble()", correcta: false, feedback: "Ambos aceptan un segundo collector opcional — el ejemplo usó Collectors.summingDouble tanto con partitioningBy como con groupingBy." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+Map<String, List<Product>> porCategoria = repositorio.listarTodos().stream()
+        .collect(Collectors.groupingBy(categoria));
+int totalPremium = porCategoria.get("Premium").size();
+int totalGeneral = porCategoria.get("Estandar").size() + totalPremium;
+```
+
+Si TODOS los productos fueran "Estandar" (ninguno "Premium"), ¿qué pasa al ejecutar esta última línea?
+
+<Reveal titulo="Diagnóstico">
+`porCategoria.get("Premium")` devuelve `null` (esa clave nunca se generó, porque groupingBy solo crea claves que REALMENTE aparecen en los datos) — y `.size()` sobre `null` lanza `NullPointerException`. Con partitioningBy esto no pasaría, porque ambas claves (true/false) siempre existen, aunque una lista esté vacía.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué `partitioningBy` existe como un collector SEPARADO, en vez de que `groupingBy` con un `Predicate` simplemente se comportara igual (garantizando las dos claves)? ¿Qué gana el código que usa `partitioningBy` explícitamente, en términos de lo que el compilador y el lector pueden asumir sobre el resultado?
+
+<Comparativa
+  columnas={["Collector", "Tipo de clave", "Claves garantizadas", "Cuándo usarlo"]}
+  filas={[
+    ["partitioningBy(Predicate<T>)", "Boolean", "Siempre true y false, aunque una lista esté vacía", "Criterio binario: sí/no, cumple/no cumple"],
+    ["groupingBy(Function<T, K>)", "Cualquier K", "Solo las que aparecen en los datos", "Múltiples categorías posibles, desconocidas de antemano"],
+  ]}
+/>
+
+## Resumen
+
+- `Collectors.partitioningBy(Predicate<T>)` divide en exactamente dos grupos (`true`/`false`), siempre presentes.
+- `Collectors.groupingBy(Function<T, K>)` agrupa por cualquier clave, con tantos grupos como valores distintos existan en los datos.
+- Ambos aceptan un segundo collector (`counting()`, `summingDouble()`) para calcular una estadística por grupo, en vez de la lista completa.
+- `groupingBy` NO garantiza todas las claves posibles — solo las que realmente aparecieron; hay que chequear antes de usar `get()`.
+
+## Modelo mental final
+
+Pensá en `partitioningBy` como una moneda: siempre hay cara y ceca, aunque una nunca haya salido en tus tiradas. `groupingBy` es como un mazo de cartas por palo: solo aparecen los palos que realmente tenés en la mano.
+
+## Conexión
+
+Esta lección cierra la Etapa 5: `Predicate`/`Function`/`Consumer`/`Supplier` (Lección 1) son las piezas; `filter`/`map`/`collect` (Lección 2) y `reduce`/`sorted` (Lección 3) las combinan sobre un Stream; `groupingBy`/`partitioningBy` las llevan al nivel de reportes agregados sobre el catálogo completo.
+
+## Próximo paso
+
+Etapa 6: Java moderno/avanzado — JVM y memoria (Stack/Heap/GC), equals/hashCode/toString, Comparable, y una introducción a concurrencia básica.
+
+## Fuentes
+
+dev.java — Collectors avanzados en Streams. openjdk.org — clase `java.util.stream.Collectors` en la documentación oficial de la API de Java SE.
+
+<SelfCheck
+  leccionId="etapa-05-funcional/leccion-04-collectors-groupingby-partitioningby"
+  criterios={[
+    "Puedo explicar la diferencia entre partitioningBy y groupingBy, y cuándo usar cada uno.",
+    "Puedo combinar groupingBy o partitioningBy con un segundo collector como counting() o summingDouble().",
+    "Puedo explicar por qué groupingBy no garantiza que todas las claves 'posibles' existan en el resultado.",
+    "Puedo escribir una función de agrupación (Function<T, K>) para clasificar elementos según un criterio de negocio.",
+  ]}
+/>

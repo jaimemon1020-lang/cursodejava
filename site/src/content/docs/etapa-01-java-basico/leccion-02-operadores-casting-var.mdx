@@ -1,0 +1,263 @@
+---
+etapa: 1
+etapaTitulo: "Java Básico"
+leccion: 2
+title: "Operadores, conversión de tipos (casting) y var"
+objetivo: "Usar operadores aritméticos, relacionales y lógicos, convertir entre tipos primitivos de forma segura, y usar `var` sin perder de vista el tipo real de una variable."
+prerrequisitos: ["etapa-01-java-basico/leccion-01-variables-tipos-primitivos"]
+version_proyecto: "v1 — Operadores y casting"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import ErrorChallenge from '../../../components/ErrorChallenge.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección serás capaz de operar sobre variables (sumar, comparar, combinar condiciones), convertir un valor de un tipo primitivo a otro de forma consciente, y usar `var` sabiendo exactamente qué tipo infiere el compilador.
+
+## Por qué necesitas aprenderlo
+
+Calcular un total de pedido, decidir si hay stock suficiente, o normalizar un precio — todo eso son operadores. Y cuando mezclás `int` con `double` en una cuenta, necesitás entender cómo Java convierte los tipos, o vas a tener bugs silenciosos.
+
+## Qué debes saber antes
+
+Tipos primitivos, referencias y constantes con `final` (Lección 1 de esta etapa).
+
+## Recupera lo aprendido
+
+¿Cuál es la diferencia entre un tipo primitivo y una referencia como `String`?
+
+<Reveal titulo="Respuesta">
+El primitivo guarda el valor directamente en la variable. La referencia guarda una dirección que apunta al objeto real, que vive en otro lugar de la memoria.
+</Reveal>
+
+## Problema
+
+Tenés `stock` como `int` y `precio` como `double`. Necesitás calcular el total de una venta (`precio * cantidad`) y decidir si queda poco stock. ¿Cómo combinás tipos distintos en una misma operación sin que el resultado te sorprenda?
+
+## Modelo mental
+
+```
+int  +  double
+  │        │
+  └───┬────┘
+      ▼
+  Java "promueve" el int a double
+  antes de operar → resultado: double
+```
+
+## Explicación sencilla
+
+Cuando mezclás un entero y un decimal en una cuenta, Java convierte automáticamente el entero a decimal antes de operar — nunca al revés, porque eso perdería información.
+
+## Explicación técnica
+
+**Casting implícito (widening):** Java convierte automáticamente un tipo "más chico" a uno "más grande" cuando no hay pérdida de datos posible: `int → long → float → double`. No hace falta escribir nada.
+
+**Casting explícito (narrowing):** convertir de un tipo "más grande" a uno "más chico" (`double → int`) puede perder información, así que Java te obliga a pedirlo explícitamente con `(tipo)`. Al hacerlo sobre un decimal, **trunca** (corta la parte decimal), no redondea.
+
+**`var`:** le pide al compilador que infiera el tipo a partir del valor asignado. `var descripcion = "texto";` es exactamente un `String` — el tipo se decide en tiempo de compilación, no es tipado dinámico. No podés usar `var` sin inicializar la variable en la misma línea.
+
+## Cómo funciona
+
+1. `int restante = stock - vendidos;` — resta entre enteros, resultado entero.
+2. `double total = precio * cantidad;` — `cantidad` (int) se promueve a `double` antes de multiplicar.
+3. `int promedioTruncado = (int) promedio;` — casting explícito, se corta la parte decimal (7.9 → 7, no 8).
+4. `var descripcion = "..."` — el compilador fija el tipo como `String` en ese mismo punto.
+
+## Ejemplo mínimo
+
+**Archivo:** `proyecto/etapa-01/Operadores.java`
+
+```java
+public class Operadores {
+    public static void main(String[] args) {
+        int stock = 15;
+        int vendidos = 4;
+        int restante = stock - vendidos;
+
+        double precio = 25000.0;
+        int cantidad = 3;
+        double total = precio * cantidad;
+
+        boolean stockBajo = restante < 5;
+        boolean hayStock = restante != 0;
+
+        // Casting implicito: int -> double, sin perdida de datos
+        double stockComoDecimal = restante;
+
+        // Casting explicito: double -> int, se trunca (no redondea)
+        double promedio = 7.9;
+        int promedioTruncado = (int) promedio;
+
+        var descripcion = "Stock restante: " + restante;
+
+        System.out.println("Restante: " + restante);
+        System.out.println("Total venta: " + total);
+        System.out.println("Stock bajo: " + stockBajo);
+        System.out.println("Hay stock: " + hayStock);
+        System.out.println("Stock como decimal: " + stockComoDecimal);
+        System.out.println("Promedio truncado: " + promedioTruncado);
+        System.out.println(descripcion);
+    }
+}
+```
+
+## Predice
+
+`promedio` vale `7.9`. ¿Qué imprime `(int) promedio`: `7`, `8`, o un error de compilación?
+
+<Reveal titulo="Resultado real (compilado y ejecutado)">
+```
+Restante: 11
+Total venta: 75000.0
+Stock bajo: false
+Hay stock: true
+Stock como decimal: 11.0
+Promedio truncado: 7
+Stock restante: 11
+```
+</Reveal>
+
+## Explicación paso a paso
+
+- `restante < 5` y `restante != 0` son operadores **relacionales**, devuelven `boolean`.
+- `double stockComoDecimal = restante;` no necesita `(double)` porque es widening — Java lo hace solo.
+- `(int) promedio` sí necesita el cast explícito porque es narrowing — y trunca: `7.9` se convierte en `7`, no se redondea a `8`.
+- `var descripcion` — mirá el tipo real con el que se infiere: `String`, porque el valor a la derecha es un `String`.
+
+## Ejemplo aplicado al proyecto
+
+Este mismo patrón —combinar `int` (cantidades) con `double` (precios) para calcular un total— es exactamente lo que va a hacer el cálculo de total de un pedido más adelante en el curso, cuando `OrderItem` multiplique cantidad por precio unitario.
+
+## Error común
+
+<ErrorChallenge
+  sintoma="El compilador rechaza la asignación con un error de tipos incompatibles."
+  diagnostico="`javac` reporta: incompatible types: possible lossy conversion from double to int"
+  causa="Se intentó asignar un double a una variable int sin casting explícito — Java no permite un narrowing implícito porque podría perder datos."
+  solucion="Agregar el cast explícito: `int promedioTruncado = (int) promedio;`"
+  prevencion="Cuando vayas de un tipo 'más grande' a uno 'más chico', siempre vas a necesitar `(tipo)` explícito — es la señal del compilador de 'estás decidiendo perder precisión, a propósito'."
+>
+```java
+double promedio = 7.9;
+int promedioTruncado = promedio; // no compila
+```
+</ErrorChallenge>
+
+## Ejercicio trabajado
+
+Calcular el descuento total en una compra de varias unidades:
+
+```java
+int cantidad = 5;
+double precioUnitario = 1200.0;
+double totalSinDescuento = cantidad * precioUnitario;
+double descuento = totalSinDescuento * 0.15;
+double totalFinal = totalSinDescuento - descuento;
+System.out.println("Total final: " + totalFinal);
+```
+
+## Ejercicio guiado
+
+Convertí un precio en dólares (`double`) a un precio en pesos redondeado a entero, usando una constante de cotización.
+
+<Reveal titulo="Pista 1">
+Multiplicá el precio en dólares por la cotización — el resultado es `double`.
+</Reveal>
+
+<Reveal titulo="Pista 2">
+Para redondear en vez de truncar, sumá `0.5` antes de castear a `int` (truco clásico), o investigá `Math.round()` — lo vas a ver formalmente en Java funcional/avanzado.
+</Reveal>
+
+<Reveal titulo="Solución (con casting simple, trunca)">
+```java
+final double COTIZACION = 1050.0;
+double precioDolares = 49.99;
+double precioPesos = precioDolares * COTIZACION;
+int precioPesosEntero = (int) precioPesos;
+System.out.println("Precio en pesos: " + precioPesosEntero);
+```
+</Reveal>
+
+## Ejercicio independiente
+
+En `proyecto/etapa-01/`, escribí `CalculoDescuento.java`: declará `precio` (double) y `porcentajeDescuento` (double), calculá el precio final, y mostrá tanto el valor exacto como su versión truncada a entero.
+
+## Transferencia
+
+Si en vez de precios estuvieras calculando la edad de un cliente a partir de dos `int` (año actual menos año de nacimiento), ¿necesitás casting? ¿Por qué sí o por qué no?
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Qué imprime este fragmento? double x = 9.7; int y = (int) x; System.out.println(y);"
+  opciones={[
+    { texto: "10", correcta: false, feedback: "Casting de double a int trunca, no redondea — 9.7 no se convierte en 10." },
+    { texto: "9", correcta: true, feedback: "Correcto: el casting explícito de double a int descarta la parte decimal sin redondear." },
+    { texto: "9.7", correcta: false, feedback: "y es de tipo int, no puede contener decimales — el valor 9.7 no sobrevive al casting." },
+    { texto: "Error de compilación", correcta: false, feedback: "Compila perfectamente: el cast explícito (int) es exactamente lo que Java pide para este narrowing." },
+  ]}
+/>
+
+## Mini reto de debugging
+
+```java
+var contador;
+contador = 0;
+```
+
+¿Por qué no compila?
+
+<Reveal titulo="Diagnóstico">
+`var` necesita inferir el tipo a partir de un valor en la MISMA línea de declaración. Declarar `var contador;` sin inicializar no le da al compilador nada de donde inferir el tipo.
+</Reveal>
+
+## Mini reto de diseño
+
+¿Por qué creés que Java, a pesar de tener `var`, sigue exigiendo que el tipo quede fijo en tiempo de compilación (en vez de poder cambiar de `int` a `String` más adelante en el mismo programa)? ¿Qué error evita esto en un sistema financiero?
+
+<Comparativa
+  columnas={["Concepto", "Qué hace", "Cuándo se usa"]}
+  filas={[
+    ["Casting implícito (widening)", "Java lo hace solo, sin sintaxis especial", "int → double, siempre seguro"],
+    ["Casting explícito (narrowing)", "Requiere `(tipo)`, puede perder datos", "double → int, truncando"],
+    ["var", "El compilador infiere el tipo en la declaración", "Cuando el tipo ya es obvio por el valor asignado"],
+  ]}
+/>
+
+## Resumen
+
+- Los operadores relacionales (`<`, `>`, `!=`, `==`) devuelven `boolean`.
+- Widening (int→double) es automático; narrowing (double→int) exige `(tipo)` explícito.
+- El casting explícito sobre decimales trunca, no redondea.
+- `var` infiere el tipo en tiempo de compilación — no es tipado dinámico, y exige inicialización en la misma línea.
+
+## Modelo mental final
+
+Cuando pienses en casting, imaginá una escalera: subir (widening) es gratis y automático; bajar (narrowing) requiere que vos mismo pongas el pie con cuidado — el `(tipo)` explícito.
+
+## Conexión
+
+Usaste los mismos tipos primitivos y la misma estructura de programa de la Lección 1 — ahora sabés operar sobre ellos y convertirlos con seguridad.
+
+## Próximo paso
+
+Etapa 1 / Lección 3: control de flujo — `if`, `else`, `switch`.
+
+## Fuentes
+
+dev.java — sección de operadores y conversión de tipos. openjdk.org — especificación del lenguaje Java (JLS), conversiones de tipo primitivo.
+
+<SelfCheck
+  leccionId="etapa-01-java-basico/leccion-02-operadores-casting-var"
+  criterios={[
+    "Puedo predecir el tipo resultante de una operación que mezcla int y double.",
+    "Puedo explicar la diferencia entre casting implícito y explícito.",
+    "Sé que el casting explícito de decimal a entero trunca, no redondea.",
+    "Puedo usar var sabiendo exactamente qué tipo infiere el compilador.",
+  ]}
+/>
