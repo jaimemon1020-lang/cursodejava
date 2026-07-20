@@ -370,6 +370,55 @@
       "leccion": 2,
       "titulo": "Mockito: @Mock, @InjectMocks y verify",
       "estado": "publicada"
+    },
+    {
+      "id": "etapa-17-testing/leccion-03-testcontainers-integracion",
+      "etapa": 17,
+      "leccion": 3,
+      "titulo": "Testcontainers: integración real con base de datos efímera",
+      "estado": "publicada"
+    },
+    {
+      "id": "etapa-18-seguridad/leccion-01-spring-security-basic-auth",
+      "etapa": 18,
+      "leccion": 1,
+      "titulo": "Spring Security: proteger tus endpoints con autenticación básica",
+      "estado": "publicada"
+    },
+    {
+      "id": "etapa-18-seguridad/leccion-02-jwt-auth",
+      "etapa": 18,
+      "leccion": 2,
+      "titulo": "JWT: autenticación con tokens en vez de HTTP Basic",
+      "estado": "publicada"
+    },
+    {
+      "id": "etapa-19-fundamentos-arquitectura/leccion-01-clean-architecture-dependencia",
+      "etapa": 19,
+      "leccion": 1,
+      "titulo": "Clean Architecture: por qué la estructura de paquetes importa",
+      "estado": "publicada"
+    },
+    {
+      "id": "etapa-20-arquitectura-hexagonal/leccion-01-puertos-y-adaptadores",
+      "etapa": 20,
+      "leccion": 1,
+      "titulo": "Puertos y Adaptadores: el patrón que estabas usando sin saberlo",
+      "estado": "publicada"
+    },
+    {
+      "id": "etapa-20-arquitectura-hexagonal/leccion-02-refactoring-hexagonal-diff",
+      "etapa": 20,
+      "leccion": 2,
+      "titulo": "El refactoring hexagonal en acción: diff antes/después",
+      "estado": "publicada"
+    },
+    {
+      "id": "etapa-20-arquitectura-hexagonal/leccion-03-cierre-del-curso",
+      "etapa": 20,
+      "leccion": 3,
+      "titulo": "Cierre del curso: lo que construiste y el camino que sigue",
+      "estado": "publicada"
     }
   ]
 }

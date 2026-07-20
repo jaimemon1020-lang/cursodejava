@@ -1,0 +1,245 @@
+---
+etapa: 19
+etapaTitulo: "Fundamentos de arquitectura"
+leccion: 1
+titulo: "Clean Architecture: por qué la estructura de paquetes importa"
+objetivo: "Entender la regla de dependencia de Clean Architecture, por qué poner todo en un solo paquete no escala, y cómo separar dominio, aplicación e infraestructura."
+prerrequisitos: ["etapa-18-seguridad/leccion-02-jwt-auth"]
+version_proyecto: "v19 — conceptual (sin cambios de código)"
+---
+
+import Reveal from '../../../components/Reveal.astro';
+import Quiz from '../../../components/Quiz.astro';
+import SelfCheck from '../../../components/SelfCheck.astro';
+import Comparativa from '../../../components/Comparativa.astro';
+
+## Qué vas a aprender
+
+Después de esta lección entenderás la REGLA DE DEPENDENCIA de Clean Architecture: el dominio (tus entidades y reglas de negocio) no debe depender de NADA externo — ni de Spring, ni de JPA, ni de HTTP. Las dependencias apuntan SIEMPRE hacia adentro, hacia el dominio.
+
+## Por qué necesitas aprenderlo
+
+Mirá tu proyecto actual (`proyecto-maven/src/main/java/com/curso/catalogo/`): 27 archivos Java, todo en UN SOLO paquete. `Product` (dominio puro) está AL LADO de `ProductoController` (HTTP), `ClienteRepository` (JPA), `SecurityConfig` (Spring Security), y `Application` (punto de entrada de Boot). En un proyecto de 27 archivos esto funciona. En uno de 2700, en un equipo de 20 personas, es un caos: no sabés qué toca qué, un cambio en seguridad rompe el dominio, y migrar de Spring Boot a otra tecnología es una reescritura completa.
+
+## Qué debes saber antes
+
+`Product`, `RepositorioProductos`, `ServicioVentas`, `ProductoController` — todas las clases que ya escribiste en etapas anteriores. Esta lección no agrega código nuevo, te da el VOCABULARIO para la refactorización de la Etapa 20.
+
+## Recupera lo aprendido
+
+¿Por qué `ServicioVentas` no crea su propio `RepositorioProductos` con `new`, sino que lo recibe por constructor?
+
+<Reveal titulo="Respuesta">
+Por Dependency Injection (Etapa 8 L1): `ServicioVentas` no sabe NI LE IMPORTA cómo se implementa `RepositorioProductos` — solo sabe que necesita algo que cumpla el contrato de la interfaz. Esto es exactamente la regla de dependencia de Clean Architecture aplicada a nivel de clase: `ServicioVentas` (dominio) no depende de la implementación concreta del repositorio (infraestructura).
+</Reveal>
+
+## Problema
+
+Tu proyecto actual funciona, pero tiene un problema estructural invisible: `Product` (dominio) y `ProductoController` (HTTP) viven en el mismo paquete, sin barreras. Si mañana querés:
+- Cambiar Spring MVC por otro framework HTTP
+- Migrar de JPA a JDBC puro o a MongoDB
+- Reutilizar la lógica de negocio en una app de consola o en un job programado
+
+...no podés. La lógica de negocio está ENTRELAZADA con los detalles de infraestructura (HTTP, base de datos, seguridad). Extraer una parte sin la otra es casi imposible.
+
+## Modelo mental
+
+```
+ESTRUCTURA ACTUAL (un solo paquete):
+com.curso.catalogo/
+  Product.java            ← dominio
+  ServicioVentas.java     ← lógica de negocio
+  ProductoController.java ← HTTP
+  ClienteRepository.java  ← JPA
+  SecurityConfig.java     ← seguridad
+  Application.java        ← Spring Boot
+
+→ Todo mezclado. Cualquier clase puede importar cualquier otra.
+
+ESTRUCTURA DESEADA (Clean Architecture):
+dominio/         ← NO depende de nada externo
+  Product.java
+  RepositorioProductos.java (interfaz)
+aplicacion/      ← depende SOLO de dominio
+  ServicioVentas.java
+infraestructura/ ← depende de dominio Y frameworks
+  ProductoController.java  (HTTP)
+  ClienteRepository.java   (JPA)
+  SecurityConfig.java      (seguridad)
+```
+
+## Explicación sencilla
+
+Clean Architecture dice: poné tu DOMINIO en el centro — las reglas de negocio, las entidades, las interfaces (no las implementaciones). Todo lo demás (HTTP, base de datos, frameworks) es INFRAESTRUCTURA que RODEA al dominio, pero el dominio NUNCA depende de la infraestructura. Es como una cebolla: las capas externas conocen a las internas, pero las internas NO SABEN que existen las externas.
+
+## Explicación técnica
+
+La REGLA DE DEPENDENCIA establece: el código fuente solo puede apuntar HACIA ADENTRO. Nada en una capa interna puede conocer algo declarado en una capa externa. Concretamente:
+- `Product` (entidad de dominio) no puede tener `import jakarta.persistence.*` — eso lo ata a JPA para siempre.
+- `ServicioVentas` (caso de uso) no puede tener `import org.springframework.*` — eso lo ata a Spring.
+- `RepositorioProductos` es una INTERFAZ en el dominio que define QUÉ operaciones existen — la IMPLEMENTACIÓN concreta (JPA, en memoria, archivo) vive en infraestructura.
+
+Esto se logra con Inversión de Dependencias (la D de SOLID): el dominio define la interfaz (`RepositorioProductos`), y la infraestructura la IMPLEMENTA. El dominio no sabe NI LE IMPORTA quién la implementa — Spring, JPA, un mock de test, o un archivo CSV.
+
+## Cómo funciona
+
+1. **Dominio** (`com.curso.catalogo.dominio`): contiene `Product` (POJO puro, sin anotaciones de framework), interfaces de repositorio (`RepositorioProductos`), y excepciones de dominio (`ProductoNoEncontradoException`, `StockInsuficienteException`).
+2. **Aplicación** (`com.curso.catalogo.aplicacion`): contiene `ServicioVentas` (casos de uso), `ProductoMapper` (mapeo entre capas), DTOs de entrada/salida. Depende SOLO de dominio.
+3. **Infraestructura** (`com.curso.catalogo.infraestructura`): contiene `ProductoController` (HTTP), implementaciones de repositorios (`RepositorioProductosEnMemoria`, `ClienteRepository` JPA), `SecurityConfig`, `JwtUtil`, `ManejadorDeErrores`. Depende de dominio, aplicación, y Spring.
+4. **Configuración** (raíz): `Application.java` (entry point de Spring Boot) cablea todo junto — DI inyecta las implementaciones de infraestructura donde las interfaces del dominio lo requieren.
+
+El resultado: podés cambiar la base de datos de JPA a MongoDB tocando SOLO infraestructura — el dominio ni se entera. Podés reemplazar Spring MVC por otro framework HTTP — el dominio sigue igual.
+
+## Ejemplo mínimo
+
+**Dominio** (sin dependencias externas):
+```java
+package com.curso.catalogo.dominio;
+
+public class Product {
+    private String nombre;
+    private double precio;
+    private int stock;
+
+    public Product(String nombre, double precio, int stock) { ... }
+
+    public void venderUnidades(int cantidad) {
+        if (cantidad > this.stock)
+            throw new StockInsuficienteException(nombre, stock, cantidad);
+        this.stock -= cantidad;
+    }
+
+    // getters...
+}
+```
+
+```java
+package com.curso.catalogo.dominio;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Predicate;
+
+public interface RepositorioProductos {
+    void agregar(Product producto);
+    Optional<Product> buscar(Predicate<Product> criterio);
+    List<Product> listarTodos();
+}
+```
+
+**Aplicación** (depende solo de dominio):
+```java
+package com.curso.catalogo.aplicacion;
+
+import com.curso.catalogo.dominio.*;
+
+public class ServicioVentas {
+    private final RepositorioProductos repositorio;
+
+    public ServicioVentas(RepositorioProductos repositorio) {
+        this.repositorio = repositorio;
+    }
+
+    public void venderProducto(String nombre, int cantidad) {
+        Product p = repositorio.buscar(prod -> prod.getNombre().equals(nombre))
+                .orElseThrow(() -> new ProductoNoEncontradoException(nombre));
+        p.venderUnidades(cantidad);
+    }
+}
+```
+
+**Infraestructura** (depende de dominio Y de Spring):
+```java
+package com.curso.catalogo.infraestructura;
+
+import com.curso.catalogo.dominio.*;
+import org.springframework.stereotype.Repository;
+import java.util.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+@Repository
+public class RepositorioProductosEnMemoria implements RepositorioProductos {
+    private final List<Product> productos = new CopyOnWriteArrayList<>();
+
+    @Override
+    public void agregar(Product producto) { productos.add(producto); }
+
+    @Override
+    public Optional<Product> buscar(Predicate<Product> criterio) {
+        return productos.stream().filter(criterio).findFirst();
+    }
+
+    @Override
+    public List<Product> listarTodos() { return List.copyOf(productos); }
+}
+```
+
+## Ejemplo aplicado al proyecto
+
+En la estructura actual, `Product` NO tiene anotaciones JPA (por decisión de diseño en Etapa 15 — se mantuvo en memoria para no romper los demos de Etapa 10). Esto YA ES un paso hacia Clean Architecture, aunque involuntario: `Product` es un POJO puro que no sabe nada de bases de datos. La Etapa 20 va a formalizar esto moviendo cada clase a su capa correspondiente.
+
+## Comprueba que entendiste
+
+<Quiz
+  pregunta="¿Por qué la interfaz RepositorioProductos debe vivir en el paquete de DOMINIO, no en el de infraestructura?"
+  opciones={[
+    { texto: "Porque las interfaces en Java solo pueden declararse en el paquete raíz", correcta: false, feedback: "Las interfaces pueden declararse en cualquier paquete — la ubicación es una decisión de DISEÑO, no una restricción del lenguaje." },
+    { texto: "Porque el dominio define QUÉ operaciones existen (el contrato), y la infraestructura solo las IMPLEMENTA — si la interfaz estuviera en infraestructura, el dominio tendría que importar infraestructura, violando la regla de dependencia", correcta: true, feedback: "Correcto: la interfaz define el contrato DESDE la perspectiva del dominio. La infraestructura implementa ese contrato. Esto mantiene al domino libre de dependencias externas." },
+    { texto: "Porque Spring solo puede inyectar interfaces que estén en el mismo paquete que la implementación", correcta: false, feedback: "Spring puede inyectar beans de cualquier paquete, sin importar dónde esté la interfaz — @ComponentScan busca en todos los paquetes." },
+    { texto: "Porque JpaRepository requiere que las interfaces estén en el paquete dominio", correcta: false, feedback: "JpaRepository no impone ninguna restricción de paquete — de hecho, ClienteRepository vive en el paquete raíz actual, no en uno llamado dominio." },
+  ]}
+/>
+
+## Mini reto de diseño
+
+En la estructura actual, `ProductoNoEncontradoException` extiende `RuntimeException`. `ManejadorDeErrores` (Etapa 14 L2) captura esa excepción y devuelve 404. ¿En qué capa debería vivir `ProductoNoEncontradoException`? ¿Y `ManejadorDeErrores`?
+
+<Reveal titulo="Respuesta">
+`ProductoNoEncontradoException` → DOMINIO. Es una regla de negocio ("si el producto no existe, hay un error") y la lanzan tanto `ServicioVentas` (aplicación) como `buscarOFallar` (que estaría en aplicación). `ManejadorDeErrores` → INFRAESTRUCTURA. Usa `@RestControllerAdvice`, que es un concepto de Spring MVC/HTTP, y su trabajo es TRADUCIR excepciones de dominio a códigos HTTP — una preocupación puramente de infraestructura.
+</Reveal>
+
+## Transferencia
+
+Clean Architecture no es exclusiva de Java o Spring — se aplica a CUALQUIER lenguaje y framework. En un proyecto Node.js, el dominio serían funciones puras sin `import express`, en Python sin `import flask`, en Go sin `import net/http` en los paquetes de dominio. ¿Cómo aplica esto a un frontend React?
+
+<Comparativa
+  columnas={["Capa", "Responsabilidad", "Depende de", "Ejemplo actual"]}
+  filas={[
+    ["Dominio", "Entidades, reglas de negocio, interfaces de repositorio", "NADA externo (ni Spring, ni JPA, ni HTTP)", "Product, RepositorioProductos (interfaz), StockInsuficienteException"],
+    ["Aplicación", "Casos de uso, DTOs, mappers", "Solo dominio", "ServicioVentas, ProductoMapper, NuevoProductoRequest"],
+    ["Infraestructura", "HTTP, base de datos, seguridad, frameworks", "Dominio + aplicación + Spring/JPA/Security", "ProductoController, RepositorioProductosEnMemoria, SecurityConfig"],
+  ]}
+/>
+
+## Resumen
+
+- La regla de dependencia dice: el código fuente solo apunta HACIA ADENTRO — el domino no conoce nada externo.
+- Las interfaces de repositorio viven en el DOMINIO; las implementaciones concretas viven en INFRAESTRUCTURA.
+- Separar en capas permite cambiar la base de datos, el framework HTTP, o la seguridad sin tocar la lógica de negocio.
+- Tu proyecto YA aplica parcialmente esto (Product es un POJO sin JPA, RepositorioProductos es una interfaz) — la Etapa 20 lo formaliza.
+
+## Modelo mental final
+
+Pensá en tu dominio como el motor de un auto. La infraestructura es la carrocería, el volante, los pedales. Podés cambiar la carrocería (HTTP por gRPC), el tablero (Spring MVC por otro framework), o el sistema de escape (JPA por JDBC) — el motor (dominio) sigue siendo el mismo y funciona igual.
+
+## Conexión
+
+Dependency Injection (Etapa 8 L1) es el MECANISMO que hace posible Clean Architecture en Spring: la infraestructura implementa interfaces del dominio, y Spring inyecta esas implementaciones donde el dominio las necesita — sin que el dominio sepa que Spring existe.
+
+## Próximo paso
+
+Etapa 20: Arquitectura Hexagonal — refactorizar `proyecto-maven/` aplicando Clean Architecture con puertos (interfaces en el dominio) y adaptadores (implementaciones en infraestructura), cerrando el curso.
+
+## Fuentes
+
+blog.cleancoder.com — "The Clean Architecture" por Robert C. Martin. alistair.cockburn.us — "Hexagonal Architecture" (patrón original de Puertos y Adaptadores).
+
+<SelfCheck
+  leccionId="etapa-19-fundamentos-arquitectura/leccion-01-clean-architecture-dependencia"
+  criterios={[
+    "Entiendo la regla de dependencia: el código fuente solo apunta hacia adentro.",
+    "Puedo explicar por qué las interfaces de repositorio viven en el dominio, no en infraestructura.",
+    "Entiendo las tres capas: dominio, aplicación, infraestructura — y qué va en cada una.",
+    "Puedo explicar por qué Product no debería tener @Entity en el paquete dominio.",
+  ]}
+/>

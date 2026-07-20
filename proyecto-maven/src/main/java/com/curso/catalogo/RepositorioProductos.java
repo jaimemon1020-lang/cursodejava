@@ -1,26 +1,14 @@
 package com.curso.catalogo;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Predicate;
 
-import org.springframework.stereotype.Repository;
+public interface RepositorioProductos {
 
-@Repository
-public class RepositorioProductos {
+    void agregar(Product producto);
 
-    private final List<Product> productos = new ArrayList<>();
+    List<Product> listarTodos();
 
-    public void agregar(Product producto) {
-        this.productos.add(producto);
-    }
-
-    public List<Product> listarTodos() {
-        return this.productos;
-    }
-
-    public Optional<Product> buscar(Predicate<Product> criterio) {
-        return this.productos.stream().filter(criterio).findFirst();
-    }
+    Optional<Product> buscar(Predicate<Product> criterio);
 }
