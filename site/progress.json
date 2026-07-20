@@ -4,7 +4,14 @@
       "id": "etapa-00-como-funciona-java/leccion-01-que-ocurre-cuando-ejecutas-java",
       "etapa": 0,
       "leccion": 1,
-      "titulo": "Qué ocurre cuando ejecutas un programa Java",
+      "title": "Qué ocurre cuando ejecutas un programa Java",
+      "estado": "publicada"
+    },
+    {
+      "id": "etapa-00-como-funciona-java/leccion-02-intellij-idea-setup",
+      "etapa": 0,
+      "leccion": 2,
+      "title": "IntelliJ IDEA: tu fábrica de código",
       "estado": "publicada"
     },
     {
