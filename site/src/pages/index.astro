@@ -1,0 +1,400 @@
+---
+import { getCollection } from 'astro:content';
+import '../styles/global.css';
+
+const docs = await getCollection('docs');
+const lecciones = docs.filter(d => d.data.etapa != null);
+const totalEtapas = new Set(lecciones.map(l => l.data.etapa)).size;
+const totalLecciones = lecciones.length;
+---
+
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+  <meta charset="utf-8" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Curso de Java — De cero a Spring Boot + Arquitectura Hexagonal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg-deep: #05060a;
+      --bg-base: #0a0c14;
+      --bg-elevated: #111422;
+      --surface: rgba(255 255 255 / 0.04);
+      --surface-hover: rgba(255 255 255 / 0.07);
+      --foreground: #e8eaf0;
+      --foreground-muted: #888c9a;
+      --accent: #6366f1;
+      --accent-glow: rgba(99 102 241 / 0.25);
+      --accent-secondary: #818cf8;
+      --green: #22c55e;
+      --green-glow: rgba(34 197 94 / 0.2);
+      --amber: #f59e0b;
+      --amber-glow: rgba(245 158 11 / 0.2);
+      --border: rgba(255 255 255 / 0.06);
+      --border-glow: rgba(99 102 241 / 0.15);
+      --radius: 16px;
+      --radius-sm: 10px;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--foreground);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+    /* Ambient glow blobs */
+    .ambient-blob {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      opacity: 0.12;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .blob-1 { width: 600px; height: 600px; background: var(--accent); top: -200px; left: -200px; animation: float1 20s ease-in-out infinite; }
+    .blob-2 { width: 500px; height: 500px; background: #7c3aed; bottom: -200px; right: -150px; animation: float2 25s ease-in-out infinite; }
+    .blob-3 { width: 400px; height: 400px; background: var(--green); top: 50%; left: 50%; animation: float3 18s ease-in-out infinite; }
+
+    @keyframes float1 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(80px,-60px) scale(1.1); } 66% { transform: translate(-40px,40px) scale(0.9); } }
+    @keyframes float2 { 0%,100% { transform: translate(0,0) scale(1); } 33% { transform: translate(-60px,40px) scale(1.15); } 66% { transform: translate(50px,-30px) scale(0.85); } }
+    @keyframes float3 { 0%,100% { transform: translate(-50%,-50%) scale(1); } 50% { transform: translate(-50%,-50%) scale(1.3); } }
+
+    /* Glass card */
+    .glass {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+    .glass-hover:hover {
+      background: var(--surface-hover);
+      border-color: var(--border-glow);
+      box-shadow: 0 0 30px var(--accent-glow);
+    }
+
+    /* Hero */
+    .hero-gradient {
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(99,102,241,0.15) 0%, transparent 70%),
+                  radial-gradient(ellipse 60% 50% at 80% 100%, rgba(124,58,237,0.1) 0%, transparent 60%);
+    }
+
+    .hero-title {
+      font-size: clamp(2.5rem, 6vw, 5rem);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      line-height: 1.05;
+      background: linear-gradient(135deg, #e8eaf0 0%, #a5b4fc 50%, #818cf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .btn-primary {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px;
+      background: linear-gradient(135deg, var(--accent), #7c3aed);
+      color: white; font-weight: 600; font-size: 1rem;
+      border-radius: 12px; border: none; cursor: pointer;
+      text-decoration: none;
+      transition: all 0.3s cubic-bezier(0.16,1,0.3,1);
+      box-shadow: 0 0 40px var(--accent-glow);
+      position: relative; z-index: 1;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 50px rgba(99,102,241,0.4);
+    }
+
+    .btn-ghost {
+      display: inline-flex; align-items: center; gap: 8px;
+      padding: 14px 32px;
+      background: transparent; color: var(--foreground-muted);
+      font-weight: 500; font-size: 1rem;
+      border-radius: 12px; border: 1px solid var(--border);
+      cursor: pointer; text-decoration: none;
+      transition: all 0.3s ease;
+    }
+    .btn-ghost:hover { border-color: var(--accent-secondary); color: var(--foreground); background: var(--surface); }
+
+    /* Stat counter */
+    .stat-number {
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--accent-secondary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    /* Bento grid */
+    .bento {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    @media (max-width: 900px) { .bento { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .bento { grid-template-columns: 1fr; } }
+
+    .bento-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px;
+      transition: all 0.3s ease;
+      position: relative; overflow: hidden;
+    }
+    .bento-card:hover {
+      border-color: var(--border-glow);
+      background: var(--surface-hover);
+      transform: translateY(-2px);
+    }
+    .bento-card::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(400px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), var(--accent-glow), transparent);
+      opacity: 0; transition: opacity 0.3s;
+    }
+    .bento-card:hover::before { opacity: 1; }
+
+    .bento-card.span-2 { grid-column: span 2; }
+    @media (max-width: 900px) { .bento-card.span-2 { grid-column: span 2; } }
+    @media (max-width: 560px) { .bento-card.span-2 { grid-column: span 1; } }
+
+    /* Code block */
+    .code-block {
+      background: rgba(0,0,0,0.4);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 13px;
+      line-height: 1.7;
+      overflow-x: auto;
+      color: #e2e8f0;
+    }
+    .code-keyword { color: #c084fc; }
+    .code-string { color: #86efac; }
+    .code-comment { color: #64748b; }
+    .code-annotation { color: #fbbf24; }
+    .code-type { color: #67e8f9; }
+    .code-method { color: #f9a8d4; }
+
+    /* Timeline */
+    .timeline-step {
+      display: flex; gap: 16px; padding: 12px 0;
+      border-left: 2px solid var(--border);
+      padding-left: 24px; position: relative;
+    }
+    .timeline-step::before {
+      content: ''; position: absolute;
+      left: -6px; top: 18px;
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--accent);
+      box-shadow: 0 0 12px var(--accent-glow);
+    }
+
+    /* Section */
+    .section { position: relative; z-index: 1; max-width: 1200px; margin: 0 auto; padding: 80px 24px; }
+
+    @media (prefers-reduced-motion) {
+      .ambient-blob { display: none; }
+      * { transition: none !important; animation: none !important; }
+    }
+
+    .fade-in { opacity: 0; transform: translateY(30px); transition: all 0.7s cubic-bezier(0.16,1,0.3,1); }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+  </style>
+</head>
+<body>
+
+  <div class="ambient-blob blob-1"></div>
+  <div class="ambient-blob blob-2"></div>
+  <div class="ambient-blob blob-3"></div>
+
+  <!-- Hero -->
+  <section class="hero-gradient" style="position:relative;z-index:1;padding:100px 24px 80px;text-align:center;">
+    <div style="max-width:800px;margin:0 auto;">
+      <div style="display:inline-flex;align-items:center;gap:8px;padding:6px 16px;border-radius:999px;background:var(--surface);border:1px solid var(--border);margin-bottom:24px;font-size:14px;color:var(--foreground-muted);">
+        <span style="width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green-glow);"></span>
+        62 lecciones &middot; 20 etapas &middot; Proyecto real
+      </div>
+
+      <h1 class="hero-title" style="margin-bottom:24px;">
+        Dominá Java<br/>de verdad
+      </h1>
+
+      <p style="font-size:1.15rem;color:var(--foreground-muted);max-width:600px;margin:0 auto 40px;line-height:1.7;">
+        De <code style="background:var(--surface);padding:2px 8px;border-radius:4px;font-size:0.9em;">System.out.println("Hola Mundo")</code> a una API REST con Spring Boot, seguridad JWT, y arquitectura hexagonal. Sin atajos, sin magia.
+      </p>
+
+      <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+        <a href="/etapa-00-como-funciona-java/leccion-01-que-ocurre-cuando-ejecutas-java" class="btn-primary">
+          Empezar gratis →
+        </a>
+        <a href="#temario" class="btn-ghost">
+          Ver temario completo
+        </a>
+      </div>
+
+      <div style="display:flex;gap:48px;justify-content:center;margin-top:60px;flex-wrap:wrap;">
+        <div style="text-align:center;">
+          <div class="stat-number">{totalEtapas}</div>
+          <div style="color:var(--foreground-muted);font-size:14px;margin-top:4px;">Etapas</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="stat-number">{totalLecciones}</div>
+          <div style="color:var(--foreground-muted);font-size:14px;margin-top:4px;">Lecciones</div>
+        </div>
+        <div style="text-align:center;">
+          <div class="stat-number">11</div>
+          <div style="color:var(--foreground-muted);font-size:14px;margin-top:4px;">Tests</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Code preview -->
+  <section class="section" style="padding-top:0;padding-bottom:40px;">
+    <div style="max-width:700px;margin:0 auto;">
+      <div class="code-block">
+        <span class="code-annotation">@RestController</span><br/>
+        <span class="code-annotation">@RequestMapping</span>(<span class="code-string">"/api/productos"</span>)<br/>
+        <span class="code-keyword">public class</span> <span class="code-type">ProductoController</span> {'{'}<br/>
+        <br/>
+        &nbsp;&nbsp;<span class="code-annotation">@PostMapping</span>(<span class="code-string">"/{'{'}nombre{'}'}/vender"</span>)<br/>
+        &nbsp;&nbsp;<span class="code-keyword">public</span> <span class="code-type">ProductoResponse</span> <span class="code-method">vender</span>(<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-annotation">@PathVariable</span> <span class="code-type">String</span> nombre,<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-annotation">@RequestParam</span> <span class="code-type">int</span> cantidad) {'{'}<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-comment">// Autenticado con JWT, validado con Bean Validation</span><br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;servicioVentas.<span class="code-method">venderProducto</span>(nombre, cantidad);<br/>
+        &nbsp;&nbsp;&nbsp;&nbsp;<span class="code-keyword">return</span> mapper.<span class="code-method">toResponse</span>(producto);<br/>
+        &nbsp;&nbsp;{'}'}<br/>
+        {'}'}<br/>
+      </div>
+    </div>
+  </section>
+
+  <!-- Bento Grid -->
+  <section class="section" id="temario" style="padding-top:40px;">
+    <div style="text-align:center;margin-bottom:48px;">
+      <h2 style="font-size:2rem;font-weight:700;margin-bottom:12px;">Todo lo que vas a construir</h2>
+      <p style="color:var(--foreground-muted);max-width:500px;margin:0 auto;">Cada etapa suma una pieza real al proyecto. Nada de tutoriales aislados.</p>
+    </div>
+
+    <div class="bento">
+      <div class="bento-card span-2">
+        <div style="font-size:28px;margin-bottom:12px;">01–06</div>
+        <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">Java Core</h3>
+        <p style="color:var(--foreground-muted);font-size:14px;">Variables, POO, genéricos, streams, lambdas, JVM, concurrencia. Las bases sólidas que ningún framework te va a dar.</p>
+      </div>
+      <div class="bento-card">
+        <div style="font-size:28px;margin-bottom:12px;">07–08</div>
+        <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">SOLID + Patrones</h3>
+        <p style="color:var(--foreground-muted);font-size:14px;">Clean Code, Dependency Injection, Repository, Factory, Strategy, Adapter.</p>
+      </div>
+      <div class="bento-card">
+        <div style="font-size:28px;margin-bottom:12px;">09–11</div>
+        <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">Maven + Spring</h3>
+        <p style="color:var(--foreground-muted);font-size:14px;">pom.xml, IoC, Beans, auto-configuración, properties.</p>
+      </div>
+      <div class="bento-card span-2">
+        <div style="font-size:28px;margin-bottom:12px;">12–15</div>
+        <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">REST API + Persistencia</h3>
+        <p style="color:var(--foreground-muted);font-size:14px;">@RestController, DTOs, validación, JPA, JdbcTemplate, consultas derivadas, @Query JPQL.</p>
+      </div>
+      <div class="bento-card">
+        <div style="font-size:28px;margin-bottom:12px;">16–17</div>
+        <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">Migraciones + Testing</h3>
+        <p style="color:var(--foreground-muted);font-size:14px;">Flyway, JUnit parametrizado, Mockito, Testcontainers.</p>
+      </div>
+      <div class="bento-card">
+        <div style="font-size:28px;margin-bottom:12px;">18</div>
+        <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">Seguridad JWT</h3>
+        <p style="color:var(--foreground-muted);font-size:14px;">Spring Security, HTTP Basic, JWT con jjwt, filtros de autenticación.</p>
+      </div>
+      <div class="bento-card span-2">
+        <div style="font-size:28px;margin-bottom:12px;">19–20</div>
+        <h3 style="font-weight:700;font-size:1.1rem;margin-bottom:8px;">Clean + Hexagonal</h3>
+        <p style="color:var(--foreground-muted);font-size:14px;">Clean Architecture, puertos y adaptadores. Lo que separa un dev junior de uno senior.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Timeline -->
+  <section class="section">
+    <div style="text-align:center;margin-bottom:48px;">
+      <h2 style="font-size:2rem;font-weight:700;margin-bottom:12px;">El camino</h2>
+      <p style="color:var(--foreground-muted);">20 etapas, de principiante a arquitectura hexagonal.</p>
+    </div>
+
+    <div style="max-width:500px;margin:0 auto;">
+      <div class="timeline-step"><strong style="color:var(--accent-secondary);min-width:30px;">00</strong><span>JVM, bytecode, compilación</span></div>
+      <div class="timeline-step"><strong style="color:var(--accent-secondary);min-width:30px;">01</strong><span>Variables, control de flujo, arrays</span></div>
+      <div class="timeline-step"><strong style="color:var(--accent-secondary);min-width:30px;">04</strong><span>Collections, Generics, Streams</span></div>
+      <div class="timeline-step"><strong style="color:var(--accent-secondary);min-width:30px;">07</strong><span>Clean Code + SOLID</span></div>
+      <div class="timeline-step"><strong style="color:var(--accent-secondary);min-width:30px;">10</strong><span>Spring IoC + Dependency Injection</span></div>
+      <div class="timeline-step"><strong style="color:var(--accent-secondary);min-width:30px;">12</strong><span>Primera API REST con @RestController</span></div>
+      <div class="timeline-step"><strong style="color:var(--accent-secondary);min-width:30px;">15</strong><span>JPA + H2 + consultas JPQL</span></div>
+      <div class="timeline-step"><strong style="color:var(--accent-secondary);min-width:30px;">18</strong><span>Seguridad JWT con jjwt</span></div>
+      <div class="timeline-step"><strong style="color:var(--accent-secondary);min-width:30px;">20</strong><span>Arquitectura Hexagonal</span></div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="section" style="text-align:center;padding-bottom:100px;">
+    <div class="glass" style="max-width:600px;margin:0 auto;padding:48px;border-radius:var(--radius);">
+      <h2 style="font-size:1.8rem;font-weight:700;margin-bottom:12px;">Empezá hoy</h2>
+      <p style="color:var(--foreground-muted);margin-bottom:28px;">
+        62 lecciones. Proyecto real. Cero magia.
+      </p>
+      <a href="/etapa-00-como-funciona-java/leccion-01-que-ocurre-cuando-ejecutas-java" class="btn-primary" style="font-size:1.1rem;padding:16px 40px;">
+        Ir a la primera lección →
+      </a>
+    </div>
+  </section>
+
+  <script>
+    // Fade-in on scroll
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('visible'); });
+    }, { threshold: 0.15 });
+
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+    document.querySelectorAll('.bento-card, .timeline-step').forEach(el => {
+      el.classList.add('fade-in');
+      observer.observe(el);
+    });
+
+    // Mouse tracking for bento cards
+    document.querySelectorAll('.bento-card').forEach(card => {
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty('--mouse-x', ((e.clientX - rect.left) / rect.width * 100) + '%');
+        card.style.setProperty('--mouse-y', ((e.clientY - rect.top) / rect.height * 100) + '%');
+      });
+    });
+
+    // Trigger initial visibility for above-the-fold elements
+    setTimeout(() => {
+      document.querySelectorAll('.fade-in').forEach(el => {
+        const rect = el.getBoundingClientRect();
+        if (rect.top < window.innerHeight) el.classList.add('visible');
+      });
+    }, 100);
+  </script>
+
+</body>
+</html>
